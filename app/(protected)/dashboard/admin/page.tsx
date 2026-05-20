@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { getAllUsers, getAllClaims } from '@/lib/actions'
 import { requireRole } from '@/lib/auth'
 import { Shield, Users, BookOpen } from 'lucide-react'

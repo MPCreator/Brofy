@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { getNearbyEstablishments } from '@/lib/actions'
 import { getGoogleMapsDirectionsUrl } from '@/lib/utils'

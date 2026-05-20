@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { requireRole } from '@/lib/auth'
 import { getVetAppointments, getVetStats } from '@/lib/actions'
 import Link from 'next/link'

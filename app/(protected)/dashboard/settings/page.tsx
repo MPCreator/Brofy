@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { getProfile, updateProfile } from '@/lib/actions'
 import { User, Mail, Phone, FileText, Save, Loader2 } from 'lucide-react'
