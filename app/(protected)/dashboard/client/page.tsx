@@ -67,7 +67,7 @@ export default async function ClientDashboard() {
                         </Link>
                     </div>
                     <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-                        {pets.slice(0, 4).map(pet => (
+                        {pets.slice(0, 4).map((pet:any) => (
                             <Link
                                 key={pet.id}
                                 href={`/dashboard/client/carnet/${pet.id}`}
@@ -110,7 +110,7 @@ export default async function ClientDashboard() {
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {recentAppointments.map(apt => {
+                        {recentAppointments.map((apt:any) => {
                             const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]
                             const isPaid = apt.status === 'paid'
                             return (
