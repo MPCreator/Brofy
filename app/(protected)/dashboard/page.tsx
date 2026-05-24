@@ -8,7 +8,7 @@ export default async function DashboardPage() {
     const session = await getSession()
 
     if (!session) {
-        redirect('/login')
+        redirect('/login?clear=true')
     }
 
     if (session.role === 'client') {

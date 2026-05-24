@@ -1,26 +1,59 @@
 'use client'
-export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from 'react'
 import { getProfile, updateProfile } from '@/lib/actions'
-import { User, Mail, Phone, FileText, Save, Loader2 } from 'lucide-react'
+import { User, Mail, Phone, FileText, Save, Loader2, Camera } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function SettingsPage() {
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+    const [avatarBase64, setAvatarBase64] = useState<string | null>(null)
 
     useEffect(() => {
-        getProfile().then(p => { setProfile(p); setLoading(false) })
+        getProfile().then(p => { 
+            setProfile(p)
+            if (p?.avatarUrl) {
+                setAvatarPreview(p.avatarUrl)
+            }
+            setLoading(false) 
+        })
     }, [])
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (file.size > 4 * 1024 * 1024) {
+            toast.error('La imagen no debe superar los 4MB')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            const base64String = reader.result as string
+            setAvatarPreview(base64String)
+            setAvatarBase64(base64String)
+        }
+        reader.readAsDataURL(file)
+    }
 
     async function handleSubmit(formData: FormData) {
         setSaving(true)
         try {
+            if (avatarBase64) {
+                formData.set('avatarBase64', avatarBase64)
+            }
             await updateProfile(formData)
             toast.success('Perfil actualizado correctamente')
             const updated = await getProfile()
             setProfile(updated)
+            if (updated?.avatarUrl) {
+                setAvatarPreview(updated.avatarUrl)
+            }
+            setAvatarBase64(null)
         } catch {
             toast.error('Error al actualizar el perfil')
         } finally {
@@ -38,18 +71,32 @@ export default function SettingsPage() {
                 <p className="text-sm text-slate-500 mt-1">Edita tu información personal</p>
             </div>
 
-            {/* Avatar */}
-            <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
-                    <User className="w-8 h-8 text-primary-600" />
+            {/* Interactive Avatar */}
+            <div className="flex items-center gap-6 bg-white border border-slate-100 rounded-3xl p-5 shadow-sm">
+                <div className="relative group">
+                    <div className="w-20 h-20 rounded-full bg-primary-50 border-2 border-primary-100 flex items-center justify-center overflow-hidden transition-all group-hover:opacity-90">
+                        {avatarPreview ? (
+                            <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                            <User className="w-10 h-10 text-primary-600" />
+                        )}
+                    </div>
+                    <label className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center cursor-pointer shadow-md transition-all">
+                        <Camera className="w-4 h-4" />
+                        <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    </label>
                 </div>
                 <div>
-                    <p className="font-semibold text-slate-900">{profile.fullName}</p>
-                    <p className="text-xs text-slate-500">{profile.role === 'vet' ? '🩺 Veterinario' : profile.role === 'provider' ? '🏪 Proveedor' : '🐾 Cliente'}</p>
+                    <p className="font-bold text-slate-900 text-lg">{profile.fullName}</p>
+                    <p className="text-sm text-slate-500 font-medium">
+                        {profile.role === 'vet' ? '🩺 Veterinario' : profile.role === 'provider' ? '🏪 Proveedor' : '🐾 Cliente'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">Haz clic en la cámara para subir tu foto de perfil</p>
                 </div>
             </div>
 
             <form action={handleSubmit} className="space-y-4">
+                <input type="hidden" name="avatarBase64" value={avatarBase64 || ''} />
                 <div>
                     <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
                         <User className="w-4 h-4" /> Nombre completo
@@ -81,8 +128,6 @@ export default function SettingsPage() {
                         <p className="text-xs text-slate-400 mt-1">El CMVP requiere validación para ser modificado. Contacte a soporte.</p>
                     </div>
                 )}
-
-
 
                 <button type="submit" disabled={saving} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-md">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

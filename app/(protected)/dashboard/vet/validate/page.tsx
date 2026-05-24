@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { validateOtp, getPendingAppointments } from '@/lib/actions'
-import { Zap, ShieldCheck, AlertTriangle, Loader2, Clock, CalendarClock, User } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, Loader2, CalendarClock, User, Clock, KeyRound } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { formatDateTime } from '@/lib/utils'
 
-export default function ValidateOtpPage() {
+export default function ValidarCodigoPage() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const prefilledAppointmentId = searchParams.get('appointmentId') || ''
@@ -14,20 +14,19 @@ export default function ValidateOtpPage() {
     const [appointments, setAppointments] = useState<any[]>([])
     const [loadingAppointments, setLoadingAppointments] = useState(true)
     const [appointmentId, setAppointmentId] = useState(prefilledAppointmentId)
-    const [otp, setOtp] = useState('')
+    const [codigo, setCodigo] = useState('')
     const [loading, setLoading] = useState(false)
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
 
     useEffect(() => {
-        loadAppointments()
+        cargarCitas()
     }, [])
 
-    async function loadAppointments() {
+    async function cargarCitas() {
         setLoadingAppointments(true)
         try {
             const data = await getPendingAppointments()
             setAppointments(data)
-            // If there's only one pending and we don't have one selected, auto-select it
             if (data.length === 1 && !appointmentId) {
                 setAppointmentId(data[0].id)
             }
@@ -38,23 +37,23 @@ export default function ValidateOtpPage() {
         }
     }
 
-    async function handleValidate(e: React.FormEvent) {
+    async function handleValidar(e: React.FormEvent) {
         e.preventDefault()
-        if (!appointmentId || !otp || otp.length !== 6) return
+        if (!appointmentId || !codigo || codigo.length !== 6) return
 
         setLoading(true)
         setResult(null)
 
         try {
-            const res = await validateOtp(appointmentId, otp)
+            const res = await validateOtp(appointmentId, codigo)
             setResult(res)
             if (res.success) {
                 setTimeout(() => {
                     router.push(`/dashboard/vet/fast-entry?appointmentId=${appointmentId}`)
-                }, 2000)
+                }, 1500)
             }
         } catch {
-            setResult({ success: false, message: 'Error de conexión' })
+            setResult({ success: false, message: 'Error de conexión. Intenta de nuevo.' })
         } finally {
             setLoading(false)
         }
@@ -64,29 +63,29 @@ export default function ValidateOtpPage() {
         <div className="space-y-6 pb-20 lg:pb-0 max-w-2xl mx-auto">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                    <Zap className="w-6 h-6 text-primary-600" />
-                    Validar Pacientes
+                    <KeyRound className="w-6 h-6 text-primary-600" />
+                    Iniciar Atención
                 </h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Ingresa el código OTP (6 dígitos) que el cliente tiene en su pantalla para iniciar la atención.
+                    Pide al cliente su código de atención (6 dígitos) e ingrésalo aquí para abrir la ficha.
                 </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-                {/* Pending Appointments List */}
+                {/* Lista de clientes esperando */}
                 <div className="space-y-3">
                     <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                         <CalendarClock className="w-4 h-4" />
-                        Citas en espera ({appointments.length})
+                        Clientes en espera ({appointments.length})
                     </h2>
-                    
+
                     {loadingAppointments ? (
                         <div className="flex justify-center p-8 bg-white rounded-2xl border border-slate-100">
                             <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
                         </div>
                     ) : appointments.length === 0 ? (
                         <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center text-slate-500 text-sm">
-                            No hay clientes esperando validación actualmente.
+                            No hay clientes esperando atención en este momento.
                         </div>
                     ) : (
                         <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
@@ -96,7 +95,7 @@ export default function ValidateOtpPage() {
                                     onClick={() => {
                                         setAppointmentId(apt.id)
                                         setResult(null)
-                                        setOtp('')
+                                        setCodigo('')
                                     }}
                                     className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                                         appointmentId === apt.id
@@ -126,37 +125,40 @@ export default function ValidateOtpPage() {
                     )}
                 </div>
 
-                {/* Validation Form */}
+                {/* Formulario de código */}
                 <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm h-fit sticky top-6">
                     <h2 className="text-sm font-semibold text-slate-700 mb-4">
-                        Validar Código OTP
+                        Ingresar Código de Atención
                     </h2>
-                    
+
                     {!appointmentId ? (
                         <div className="text-center py-8 text-sm text-slate-400 border-2 border-dashed border-slate-100 rounded-xl">
-                            Selecciona una cita de la lista <br/>para validar su código
+                            Selecciona un cliente de la lista<br />para ingresar su código
                         </div>
                     ) : (
-                        <form onSubmit={handleValidate} className="space-y-4 animate-in fade-in">
+                        <form onSubmit={handleValidar} className="space-y-4 animate-in fade-in">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    Código OTP del Cliente
+                                    Código de atención del cliente
                                 </label>
                                 <input
                                     type="text"
                                     inputMode="numeric"
                                     maxLength={6}
-                                    value={otp}
-                                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    value={codigo}
+                                    onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                     placeholder="• • • • • •"
                                     className="w-full px-4 py-5 bg-white border-2 border-slate-200 rounded-2xl text-center text-3xl font-mono font-bold tracking-[0.5em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
                                     required
                                 />
+                                <p className="text-xs text-slate-400 text-center mt-1.5">
+                                    El cliente lo ve en su pantalla al iniciar sesión
+                                </p>
                             </div>
 
                             <button
                                 type="submit"
-                                disabled={loading || otp.length !== 6}
+                                disabled={loading || codigo.length !== 6}
                                 className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary-600 text-white rounded-2xl font-semibold text-lg hover:bg-primary-700 disabled:opacity-50 transition-all shadow-lg hover:shadow-xl"
                             >
                                 {loading ? (
@@ -164,7 +166,7 @@ export default function ValidateOtpPage() {
                                 ) : (
                                     <ShieldCheck className="w-5 h-5" />
                                 )}
-                                {loading ? 'Validando...' : 'Desbloquear Ficha'}
+                                {loading ? 'Verificando...' : 'Abrir Ficha del Paciente'}
                             </button>
 
                             {result && (
@@ -182,7 +184,7 @@ export default function ValidateOtpPage() {
                                     )}
                                     <div>
                                         <p className={`font-semibold text-sm ${result.success ? 'text-emerald-800' : 'text-red-800'}`}>
-                                            {result.success ? '¡OTP Validado!' : 'Error de Validación'}
+                                            {result.success ? '¡Código correcto! Abriendo ficha...' : 'Código incorrecto'}
                                         </p>
                                         <p className={`text-xs mt-0.5 ${result.success ? 'text-emerald-600' : 'text-red-600'}`}>
                                             {result.message}

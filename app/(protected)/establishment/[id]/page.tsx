@@ -1,4 +1,3 @@
-export const dynamic = 'force-dynamic'
 import { getEstablishmentPublic, getEstablishmentReviews } from '@/lib/actions'
 import { notFound } from 'next/navigation'
 import EstablishmentClient from './EstablishmentClient'

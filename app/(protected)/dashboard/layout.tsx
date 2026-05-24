@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     children: React.ReactNode
 }) {
     const session = await getSession()
-    if (!session) redirect('/login')
+    if (!session) redirect('/login?clear=true')
 
     const isVet = session.role === 'vet' || session.role === 'provider'
     const isAdmin = session.role === 'admin'
@@ -31,14 +31,14 @@ export default async function DashboardLayout({
     // Full sidebar navigation (desktop)
     const sidebarItems = isAdmin 
         ? [
-            { href: '/dashboard/admin', icon: ShieldCheck, label: 'Admin Panel' },
+            { href: '/dashboard/admin', icon: ShieldCheck, label: 'Panel Admin' },
             { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
         ]
         : isVet
             ? [
                 { href: '/dashboard/vet', icon: Home, label: 'Inicio' },
-                { href: '/dashboard/vet/validate', icon: Zap, label: 'Validar OTP' },
-                { href: '/dashboard/vet/fast-entry', icon: ClipboardList, label: 'Fast Entry' },
+                { href: '/dashboard/vet/validate', icon: Zap, label: 'Iniciar Atención' },
+                { href: '/dashboard/vet/fast-entry', icon: ClipboardList, label: 'Ficha Rápida' },
                 { href: '/dashboard/vet/establishment', icon: Building2, label: 'Mi Local' },
                 { href: '/dashboard/vet/services', icon: Tag, label: 'Servicios' },
                 { href: '/dashboard/vet/finances', icon: DollarSign, label: 'Finanzas' },
@@ -61,7 +61,7 @@ export default async function DashboardLayout({
         : isVet
             ? [
                 { href: '/dashboard/vet', icon: Home, label: 'Inicio' },
-                { href: '/dashboard/vet/validate', icon: Zap, label: 'OTP' },
+                { href: '/dashboard/vet/validate', icon: Zap, label: 'Atención' },
                 { href: '/dashboard/vet/services', icon: Tag, label: 'Servicios' },
                 { href: '/dashboard/vet/finances', icon: DollarSign, label: 'Finanzas' },
                 { href: '/dashboard/settings', icon: User, label: 'Perfil' },

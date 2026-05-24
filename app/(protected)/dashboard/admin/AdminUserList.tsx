@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 export function AdminUserList({ users }: { users: any[] }) {
     const [promptingRev, setPromptingRev] = useState<string | null>(null)
     const [revMsg, setRevMsg] = useState('')
+    const [schedulingAudit, setSchedulingAudit] = useState<string | null>(null)
+    const [auditDate, setAuditDate] = useState('')
 
     async function handleToggleStatus(userId: string, currentStatus: boolean) {
         await toggleAccountStatus(userId, !currentStatus)
@@ -30,6 +32,20 @@ export function AdminUserList({ users }: { users: any[] }) {
     async function handleValidateCmvp(userId: string, currentValid: boolean) {
         await validateVetCmvp(userId, !currentValid)
         toast.success(currentValid ? 'CMVP revocado' : 'CMVP aprobado')
+    }
+
+    async function handleScheduleAudit(vetId: string, vetName: string) {
+        if (!auditDate) {
+            toast.error('Selecciona una fecha para la revisión.')
+            return
+        }
+        const { createAdminAuditReminder } = await import('@/lib/actions')
+        const res = await createAdminAuditReminder({ vetId, vetName, dueDate: auditDate })
+        if (res.success) {
+            toast.success(`Recordatorio programado para el ${new Date(auditDate).toLocaleDateString('es-PE')}`)
+            setSchedulingAudit(null)
+            setAuditDate('')
+        }
     }
 
     return (
@@ -58,17 +74,45 @@ export function AdminUserList({ users }: { users: any[] }) {
                             <td className="px-6 py-4">
                                 <span className="capitalize font-medium text-slate-700">{u.role}</span>
                                 {u.role === 'vet' && (
-                                    <div className="text-xs mt-1">
-                                        CMVP: {u.cmvpId || 'No provisto'}
+                                    <div className="text-xs mt-1 space-y-1">
+                                        <div>
+                                            CMVP: <span className="font-mono font-bold text-slate-850">{u.cmvpId || 'No provisto'}</span>
+                                        </div>
                                         {u.cmvpId && (
-                                            <button 
-                                                onClick={() => handleValidateCmvp(u.id, u.cmvpValidated)}
-                                                className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${
-                                                    u.cmvpValidated ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                                }`}
-                                            >
-                                                {u.cmvpValidated ? '✅ Aprobado (Revocar)' : '⚠️ Pendiente (Aprobar)'}
-                                            </button>
+                                            <div className="space-y-1.5 mt-1">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <button 
+                                                        onClick={() => handleValidateCmvp(u.id, u.cmvpValidated)}
+                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${
+                                                            u.cmvpValidated ? 'bg-emerald-100 text-emerald-750 hover:bg-emerald-200' : 'bg-amber-100 text-amber-750 hover:bg-amber-200'
+                                                        }`}
+                                                    >
+                                                        {u.cmvpValidated ? '✅ Aprobado (Revocar)' : '⚠️ Pendiente (Aprobar)'}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setSchedulingAudit(schedulingAudit === u.id ? null : u.id)}
+                                                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors border border-slate-200"
+                                                    >
+                                                        📅 Programar Auditoría
+                                                    </button>
+                                                </div>
+                                                {schedulingAudit === u.id && (
+                                                    <div className="flex items-center gap-1.5 mt-1 bg-slate-50 p-2 rounded-xl border border-slate-200 animate-in">
+                                                        <input 
+                                                            type="date"
+                                                            value={auditDate}
+                                                            onChange={e => setAuditDate(e.target.value)}
+                                                            className="px-2 py-1 text-[11px] border border-slate-300 rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary-500 cursor-pointer"
+                                                        />
+                                                        <button 
+                                                            onClick={() => handleScheduleAudit(u.id, u.fullName)}
+                                                            className="px-2 py-1 text-[10px] bg-primary-600 hover:bg-primary-700 text-white font-extrabold rounded shadow-sm"
+                                                        >
+                                                            Guardar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}

@@ -29,6 +29,8 @@ model Profile {
   avatarUrl     String?   @map("avatar_url")
   latitude      Float?                             // Emula geography(POINT) para SQLite
   longitude     Float?
+  passwordResetToken   String?   @map("password_reset_token")   // Token para recuperación de contraseña
+  passwordResetExpires DateTime? @map("password_reset_expires")  // Expiración del token (1 hora)
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -40,6 +42,8 @@ model Profile {
   medicalRecords         MedicalRecord[]
   transactions           Transaction[]
   reviews                Review[]
+  remindersAsClient       Reminder[] @relation("ClientReminders")
+  remindersCreated        Reminder[] @relation("CreatedReminders")
 
   @@map("profiles")
 }
@@ -65,6 +69,7 @@ model Pet {
   // Relations
   owner        Profile       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   appointments Appointment[]
+  reminders    Reminder[]
 
   @@map("pets")
 }
@@ -239,4 +244,30 @@ model Review {
   establishment Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
 
   @@map("reviews")
+}
+
+// ---------------------------------------------------------------------------
+// REMINDERS — Recordatorios de citas, controles y servicios
+// ---------------------------------------------------------------------------
+model Reminder {
+  id            String    @id @default(uuid())
+  clientId      String?   @map("client_id")
+  petId         String?   @map("pet_id")
+  appointmentId String?   @map("appointment_id")
+  createdBy     String    @map("created_by")
+  type          String    @default("control")
+  title         String
+  message       String?
+  dueDate       String    @map("due_date")
+  isCompleted   Boolean   @default(false) @map("is_completed")
+  completedAt   DateTime? @map("completed_at")
+  isGlobal      Boolean   @default(false) @map("is_global")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  client  Profile? @relation("ClientReminders", fields: [clientId], references: [id], onDelete: Cascade)
+  pet     Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  creator Profile  @relation("CreatedReminders", fields: [createdBy], references: [id])
+
+  @@map("reminders")
 }

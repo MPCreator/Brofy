@@ -1,6 +1,5 @@
-export const dynamic = 'force-dynamic'
 import { requireRole } from '@/lib/auth'
-import { getVetAppointments, getVetStats } from '@/lib/actions'
+import { getVetAppointments, getVetStats, getOpenFichas, getVetReminders } from '@/lib/actions'
 import Link from 'next/link'
 import {
     Zap,
@@ -14,18 +13,38 @@ import {
     Tag,
     DollarSign,
     PawPrint,
+    FileWarning,
 } from 'lucide-react'
 import { formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
+import { VetRemindersList } from '@/components/dashboard/vet-reminders'
 
 export default async function VetDashboard() {
     const session = await requireRole(['vet', 'provider'])
-    const [stats, appointments] = await Promise.all([
+    const [stats, appointments, openFichas, reminders] = await Promise.all([
         getVetStats(),
         getVetAppointments(),
+        getOpenFichas(),
+        getVetReminders(),
     ])
 
     const pendingValidation = appointments.filter(a => a.status === 'paid')
+
+    // Build unique patients list for the notification dropdown
+    const patientsMap = new Map<string, { petId: string; petName: string; clientId: string; clientName: string }>()
+    for (const apt of appointments) {
+        const pet = apt.pet as any
+        const client = apt.client as any
+        if (pet && client) {
+            patientsMap.set(pet.id, {
+                petId: pet.id,
+                petName: pet.name,
+                clientId: client.id,
+                clientName: client.fullName
+            })
+        }
+    }
+    const patientsList = Array.from(patientsMap.values())
     
     // Filtramos las citas programadas futuras que están pendientes de atención
     const upcomingAppointments = appointments.filter(a => {
@@ -38,10 +57,10 @@ export default async function VetDashboard() {
             {/* Welcome */}
             <div>
                 <h1 className="text-2xl font-bold text-slate-900">
-                    Dr. {session.fullName.split(' ')[0]} 🩺
+                    {session.role === 'vet' ? `Dr. ${session.fullName.split(' ')[0]} 🩺` : `${session.fullName.split(' ')[0]} 🏪`}
                 </h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Panel de control veterinario
+                    {session.role === 'vet' ? 'Panel de control veterinario' : 'Panel de control de servicios'}
                 </p>
             </div>
 
@@ -68,10 +87,10 @@ export default async function VetDashboard() {
                 <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-4 text-white shadow-lg">
                     <div className="flex items-center gap-2 mb-2">
                         <Zap className="w-4 h-4 opacity-80" />
-                        <span className="text-xs font-medium opacity-80">Pendientes OTP</span>
+                        <span className="text-xs font-medium opacity-80">Esperando</span>
                     </div>
                     <p className="text-2xl font-bold">{stats.pendingOtp}</p>
-                    <p className="text-xs opacity-80">esperando validación</p>
+                    <p className="text-xs opacity-80">clientes con código activo</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-100 p-4">
@@ -92,8 +111,8 @@ export default async function VetDashboard() {
                 >
                     <Zap className="w-7 h-7 opacity-80" />
                     <div>
-                        <p className="font-semibold text-sm">Validar OTP</p>
-                        <p className="text-xs opacity-80">Desbloquear ficha</p>
+                        <p className="font-semibold text-sm">Iniciar Atención</p>
+                        <p className="text-xs opacity-80">Ingresar código del cliente</p>
                     </div>
                 </Link>
                 <Link
@@ -102,8 +121,8 @@ export default async function VetDashboard() {
                 >
                     <ClipboardList className="w-7 h-7 text-primary-600" />
                     <div>
-                        <p className="font-semibold text-sm text-slate-900">Fast Entry</p>
-                        <p className="text-xs text-slate-500">Ficha rápida</p>
+                        <p className="font-semibold text-sm text-slate-900">Ficha Rápida</p>
+                        <p className="text-xs text-slate-500">Nuevo paciente</p>
                     </div>
                 </Link>
                 <Link
@@ -138,12 +157,15 @@ export default async function VetDashboard() {
                 </Link>
             </div>
 
+            {/* Notifications & Reminders Zone */}
+            <VetRemindersList initialReminders={reminders} patients={patientsList} />
+
             {/* Pending OTP Validation */}
             {pendingValidation.length > 0 && (
                 <section>
                     <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
                         <AlertCircle className="w-5 h-5 text-amber-500" />
-                        Esperando Validación OTP
+                        Clientes con código activo
                     </h2>
                     <div className="space-y-2">
                         {pendingValidation.map(apt => (
@@ -162,7 +184,40 @@ export default async function VetDashboard() {
                                         </p>
                                     </div>
                                     <span className="text-xs font-bold text-amber-700 bg-amber-200 px-2 py-1 rounded-full">
-                                        PAGADO → Validar
+                                        Pagada → Iniciar
+                                    </span>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* Fichas abiertas sin completar */}
+            {openFichas.length > 0 && (
+                <section>
+                    <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                        <FileWarning className="w-5 h-5 text-rose-500" />
+                        Fichas sin completar ({openFichas.length})
+                    </h2>
+                    <div className="space-y-2">
+                        {openFichas.map(apt => (
+                            <Link
+                                key={apt.id}
+                                href={`/dashboard/vet/fast-entry?appointmentId=${apt.id}`}
+                                className="block bg-rose-50 border border-rose-200 rounded-xl p-4 hover:bg-rose-100 transition-colors"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-900">
+                                            {(apt.client as { fullName: string })?.fullName || 'Cliente'}
+                                        </p>
+                                        <p className="text-xs text-slate-600">
+                                            {(apt.pet as { name: string })?.name} · {apt.serviceType}
+                                        </p>
+                                    </div>
+                                    <span className="text-xs font-bold text-rose-700 bg-rose-200 px-2 py-1 rounded-full">
+                                        Retomar ficha →
                                     </span>
                                 </div>
                             </Link>

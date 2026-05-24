@@ -1,5 +1,5 @@
 'use client'
-export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useCallback } from 'react'
 import { getNearbyEstablishments } from '@/lib/actions'
 import { getGoogleMapsDirectionsUrl } from '@/lib/utils'
@@ -8,7 +8,6 @@ import {
     Navigation,
     Star,
     Phone,
-    QrCode,
     Loader2,
     LocateFixed,
     AlertCircle,
@@ -33,6 +32,7 @@ export default function DiscoverPage() {
     const [error, setError] = useState('')
     const [activeFilter, setActiveFilter] = useState('all')
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+    const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'name'>('distance')
 
     const loadEstablishments = useCallback(async (filter: string, loc: { lat: number; lng: number }) => {
         setLoading(true)
@@ -94,6 +94,13 @@ export default function DiscoverPage() {
         }
     }
 
+    const sortedEstablishments = [...establishments].sort((a, b) => {
+        if (sortBy === 'distance') return a.distanceKm - b.distanceKm
+        if (sortBy === 'rating') return b.rating - a.rating
+        if (sortBy === 'name') return a.name.localeCompare(b.name)
+        return 0
+    })
+
     return (
         <div className="space-y-4 pb-20 lg:pb-0">
             {/* Header */}
@@ -145,6 +152,37 @@ export default function DiscoverPage() {
                 ))}
             </div>
 
+            {/* Sort Selector */}
+            {!loading && establishments.length > 0 && (
+                <div className="flex items-center justify-between bg-white border border-slate-100 p-2 rounded-2xl shadow-sm">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1.5">
+                        Ordenar por:
+                    </span>
+                    <div className="flex gap-1">
+                        {(['distance', 'rating', 'name'] as const).map(option => {
+                            const labels = {
+                                distance: '📍 Distancia',
+                                rating: '⭐ Valoración',
+                                name: '🔤 Nombre'
+                            }
+                            return (
+                                <button
+                                    key={option}
+                                    onClick={() => setSortBy(option)}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                        sortBy === option
+                                            ? 'bg-primary-100 text-primary-850 shadow-sm font-extrabold'
+                                            : 'text-slate-500 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    {labels[option]}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* Results */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-12">
@@ -158,15 +196,21 @@ export default function DiscoverPage() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {establishments.map(est => (
+                    {sortedEstablishments.map(est => (
                         <div
                             key={est.id}
                             className="bg-white rounded-2xl border border-slate-100 p-4 hover:border-primary-200 hover:shadow-card transition-all"
                         >
                             <div className="flex gap-3">
                                 {/* Type badge — links to detail page */}
-                                <Link href={`/establishment/${est.id}`} className="w-14 h-14 rounded-xl bg-primary-50 flex items-center justify-center text-xl flex-shrink-0 hover:bg-primary-100 transition-colors">
-                                    {typeFilters.find(f => f.value === est.type)?.emoji || '🏠'}
+                                <Link href={`/establishment/${est.id}`} className="w-14 h-14 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-center overflow-hidden flex-shrink-0 hover:bg-primary-100 transition-all shadow-sm">
+                                    {est.photoUrl ? (
+                                        <img src={est.photoUrl} alt={est.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-xl">
+                                            {typeFilters.find(f => f.value === est.type)?.emoji || '🏠'}
+                                        </span>
+                                    )}
                                 </Link>
 
                                 <div className="flex-1 min-w-0">
@@ -204,19 +248,19 @@ export default function DiscoverPage() {
                                                 </a>
                                             )}
 
-                                            <Link href={`/establishment/${est.id}`} className="p-2 rounded-lg bg-slate-50 text-slate-500 hover:bg-primary-50 hover:text-primary-600 transition-colors" title="Ver detalle">
+                                            <Link
+                                                href={`/establishment/${est.id}`}
+                                                className="p-2 rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors"
+                                                title="Ver perfil y solicitar turno"
+                                            >
                                                 <ExternalLink className="w-4 h-4" />
-                                            </Link>
-
-                                            <Link href={`/checkin/${est.qrCodeToken}`} className="p-2 rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors" title="Check-in">
-                                                <QrCode className="w-4 h-4" />
                                             </Link>
 
                                             <a
                                                 href={getGoogleMapsDirectionsUrl(est.latitude, est.longitude)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 text-white rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors shadow-sm"
                                             >
                                                 <Navigation className="w-3.5 h-3.5" />
                                                 Ir

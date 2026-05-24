@@ -86,6 +86,11 @@ export default function LoginPage() {
                         Crear cuenta
                     </Link>
                 </p>
+                <p className="text-center text-sm text-slate-400">
+                    <Link href="/olvidaste-contrasena" className="hover:text-primary-600 hover:underline transition-colors">
+                        ¿Olvidaste tu contraseña?
+                    </Link>
+                </p>
             </div>
         </main>
     )

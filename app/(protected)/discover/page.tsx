@@ -1,5 +1,5 @@
 'use client'
-export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useCallback } from 'react'
 import { getNearbyEstablishments } from '@/lib/actions'
 import { getGoogleMapsDirectionsUrl } from '@/lib/utils'
@@ -8,7 +8,6 @@ import {
     Navigation,
     Star,
     Phone,
-    QrCode,
     Loader2,
     LocateFixed,
     AlertCircle,
@@ -204,19 +203,19 @@ export default function DiscoverPage() {
                                                 </a>
                                             )}
 
-                                            <Link href={`/establishment/${est.id}`} className="p-2 rounded-lg bg-slate-50 text-slate-500 hover:bg-primary-50 hover:text-primary-600 transition-colors" title="Ver detalle">
+                                            <Link
+                                                href={`/establishment/${est.id}`}
+                                                className="p-2 rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors"
+                                                title="Ver perfil y solicitar turno"
+                                            >
                                                 <ExternalLink className="w-4 h-4" />
-                                            </Link>
-
-                                            <Link href={`/checkin/${est.qrCodeToken}`} className="p-2 rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors" title="Check-in">
-                                                <QrCode className="w-4 h-4" />
                                             </Link>
 
                                             <a
                                                 href={getGoogleMapsDirectionsUrl(est.latitude, est.longitude)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 text-white rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors shadow-sm"
                                             >
                                                 <Navigation className="w-3.5 h-3.5" />
                                                 Ir

@@ -80,7 +80,7 @@ export default function Home() {
                                     <KeyRound className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-900 text-sm">Recibe tu Código OTP</h3>
+                                    <h3 className="font-bold text-slate-900 text-sm">Recibe tu Código de Atención</h3>
                                     <p className="text-xs text-slate-500">Disponible en tu panel al instante</p>
                                 </div>
                                 <span className="ml-auto font-mono font-black text-amber-700 text-lg tracking-widest">7381</span>
@@ -121,8 +121,8 @@ export default function Home() {
                                 <CalendarCheck className="w-8 h-8" />
                             </div>
                             <div className="absolute -top-3 -right-3 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-black text-sm">1</div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-3">Reserva y Paga</h3>
-                            <p className="text-slate-600">Encuentra la veterinaria ideal, elige el servicio y el horario que te conviene. Paga el derecho de reserva (S/ 5) para confirmar tu lugar.</p>
+                            <h3 className="text-xl font-bold text-slate-900 mb-3">Solicita tu Turno Digital</h3>
+                            <p className="text-slate-600">Encuentra la veterinaria ideal, elige el servicio y el horario. Abona S/ 5 de acceso a plataforma para generar tu código de atención.</p>
                         </div>
 
                         <div className="relative text-center bg-surface-50 p-8 rounded-3xl border border-slate-100">
@@ -130,7 +130,7 @@ export default function Home() {
                                 <KeyRound className="w-8 h-8" />
                             </div>
                             <div className="absolute -top-3 -right-3 w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-black text-sm">2</div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-3">Tu Código OTP</h3>
+                            <h3 className="text-xl font-bold text-slate-900 mb-3">Tu Código de Atención</h3>
                             <p className="text-slate-600">Recibes un código único en tu panel. Al llegar, díselo al veterinario. Él lo ingresa para desbloquear tu ficha médica y comenzar la atención.</p>
                         </div>
 
@@ -170,9 +170,9 @@ export default function Home() {
                             <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6">
                                 <KeyRound className="w-7 h-7" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-3">Código OTP de Atención</h3>
+                            <h3 className="text-xl font-bold text-slate-900 mb-3">Código de Atención Rápida</h3>
                             <p className="text-slate-600">
-                                Reserva tu cita y paga en línea. Al llegar, solo muestra tu código OTP al veterinario. Sin filas, sin esperas innecesarias.
+                                Accede a tus servicios y paga de forma simple. Al llegar, solo muestra tu código de consulta al veterinario. Sin filas ni esperas innecesarias.
                             </p>
                         </div>
                         <div className="bg-white p-8 rounded-3xl border border-slate-100 hover:border-primary-200 transition-colors hover:shadow-lg">
@@ -182,6 +182,55 @@ export default function Home() {
                             <h3 className="text-xl font-bold text-slate-900 mb-3">Carnet Digital</h3>
                             <p className="text-slate-600">
                                 Mantén el registro de vacunas, diagnósticos y recetas siempre a salvo en tu cuenta. Nunca más pierdas una libreta física.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Security & Trust Section — Volviendo comercial la seguridad de los datos */}
+            <section className="py-20 bg-slate-50 border-t border-b border-slate-200/60">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center max-w-3xl mx-auto mb-16">
+                        <span className="text-xs font-bold uppercase tracking-wider text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full">
+                            🔐 Confianza y Seguridad
+                        </span>
+                        <h2 className="text-3xl font-extrabold text-slate-900 mt-4 mb-4">
+                            Tus datos y tus mascotas en las mejores manos
+                        </h2>
+                        <p className="text-slate-600 text-lg">
+                            Diseñado bajo estándares de seguridad y regulaciones legales peruanas para brindarte total tranquilidad.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="w-12 h-12 bg-primary-100 text-primary-600 rounded-2xl flex items-center justify-center mb-6">
+                                <ShieldCheck className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-2">Protección de Privacidad</h3>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                                Cumplimos estrictamente con la <strong>Ley N.° 29733 (Ley de Protección de Datos Personales de Perú)</strong>. Tu información médica y de contacto está cifrada y nunca se comparte sin tu consentimiento explícito.
+                            </p>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                                <Stethoscope className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-2">Médicos Habilitados</h3>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                                Validamos el código de habilitación del <strong>Colegio Médico Veterinario del Perú (CMVP)</strong> de todos los especialistas registrados en la plataforma. Sin sorpresas, solo profesionales validados.
+                            </p>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6">
+                                <Wallet className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-2">Transacciones Protegidas</h3>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                                Procesamos el cobro de la reserva mediante pasarelas de pago reguladas (como Izipay). Tus datos de facturación nunca quedan expuestos ni se almacenan en nuestros servidores.
                             </p>
                         </div>
                     </div>
@@ -206,9 +255,9 @@ export default function Home() {
                                 {[
                                     "Perfil público de tu local y tarifario de servicios actualizable.",
                                     "Agenda de citas con gestión de horarios y capacidad simultánea.",
-                                    "Panel \"Fast Entry\" para registrar fichas clínicas en segundos.",
+                                    "Panel de \"Ficha Rápida\" para registrar historias clínicas en segundos.",
                                     "Módulo financiero: ingresos, gastos y deuda de comisiones Brofy.",
-                                    "Sistema de validación OTP para garantizar la identidad del cliente.",
+                                    "Sistema de validación con Código de Atención para garantizar la identidad del cliente.",
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-start gap-3 text-slate-200">
                                         <div className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center shrink-0 mt-0.5">
@@ -232,8 +281,8 @@ export default function Home() {
                             </div>
                             <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-3xl space-y-4 mt-8">
                                 <ClipboardList className="w-8 h-8 text-emerald-400" />
-                                <h4 className="font-bold text-lg">Fast Entry</h4>
-                                <p className="text-sm text-slate-400">Registra síntomas y diagnósticos en segundos. También para clientes sin cuenta (walk-ins).</p>
+                                <h4 className="font-bold text-lg">Ficha Rápida</h4>
+                                <p className="text-sm text-slate-400">Registra síntomas y diagnósticos en segundos. También para clientes presenciales sin cita previa.</p>
                             </div>
                             <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-3xl space-y-4">
                                 <Wallet className="w-8 h-8 text-amber-400" />
@@ -242,8 +291,8 @@ export default function Home() {
                             </div>
                             <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-3xl space-y-4 mt-8">
                                 <KeyRound className="w-8 h-8 text-purple-400" />
-                                <h4 className="font-bold text-lg">Validación OTP</h4>
-                                <p className="text-sm text-slate-400">Confirma la identidad del cliente y desbloquea su ficha médica con su código único.</p>
+                                <h4 className="font-bold text-lg">Código de Consulta</h4>
+                                <p className="text-sm text-slate-400">Confirma la identidad del cliente y desbloquea su ficha médica con su código de atención de consulta.</p>
                             </div>
                         </div>
                     </div>

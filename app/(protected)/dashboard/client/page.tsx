@@ -1,6 +1,5 @@
-export const dynamic = 'force-dynamic'
 import { requireRole } from '@/lib/auth'
-import { getUserPets, getClientAppointments } from '@/lib/actions'
+import { getUserPets, getClientAppointments, getClientReminders } from '@/lib/actions'
 import Link from 'next/link'
 import {
     PawPrint,
@@ -13,17 +12,19 @@ import {
     AlertCircle,
     CalendarPlus,
     ShieldCheck,
-    QrCode,
 } from 'lucide-react'
 import { formatDate, formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
 import { ReviewForm } from '@/components/ui/review-form'
+import { QuickRescheduleButton } from '@/components/dashboard/quick-reschedule'
+import { ClientRemindersList } from '@/components/dashboard/client-reminders'
 
 export default async function ClientDashboard() {
     const session = await requireRole(['client'])
-    const [pets, appointments] = await Promise.all([
+    const [pets, appointments, reminders] = await Promise.all([
         getUserPets(),
         getClientAppointments(),
+        getClientReminders(),
     ])
 
     const recentAppointments = appointments.slice(0, 5)
@@ -53,28 +54,8 @@ export default async function ClientDashboard() {
                     <p className="text-sm opacity-80">Encuentra veterinarias y servicios cercanos</p>
                 </div>
             </Link>
-            <div className="grid grid-cols-2 gap-3">
-                <Link
-                    href="/dashboard/client/pets"
-                    className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-2xl hover:border-primary-200 hover:bg-primary-50/50 transition-colors"
-                >
-                    <PawPrint className="w-7 h-7 text-primary-600" />
-                    <div>
-                        <p className="font-semibold text-sm text-slate-900">Mis Mascotas</p>
-                        <p className="text-xs text-slate-500">{pets.length} registradas</p>
-                    </div>
-                </Link>
-                <Link
-                    href="/dashboard/discover"
-                    className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-2xl hover:border-primary-200 hover:bg-primary-50/50 transition-colors"
-                >
-                    <MapPin className="w-7 h-7 text-emerald-600" />
-                    <div>
-                        <p className="font-semibold text-sm text-slate-900">Descubrir</p>
-                        <p className="text-xs text-slate-500">Cerca de ti</p>
-                    </div>
-                </Link>
-            </div>
+            {/* Quick rebook — if user has a previous establishment */}
+            <QuickRescheduleButton />
 
             {/* My Pets Preview */}
             {pets.length > 0 && (
@@ -109,6 +90,9 @@ export default async function ClientDashboard() {
                     </div>
                 </section>
             )}
+
+            {/* Recordatorios y Controles */}
+            <ClientRemindersList initialReminders={reminders} />
 
             {/* Recent Appointments */}
             <section>
@@ -182,7 +166,70 @@ export default async function ClientDashboard() {
 
                                     {/* Review — only for completed */}
                                     {apt.status === 'completed' && (
-                                        <div className="px-4 pb-3">
+                                        <div className="px-4 pb-3 space-y-3">
+                                            {/* Expandable Consultation Details */}
+                                            {apt.medicalRecord && (
+                                                <details className="border-t border-slate-100 pt-3 group">
+                                                    <summary className="text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer list-none flex items-center justify-between focus:outline-none">
+                                                        <span className="flex items-center gap-1">📋 Ver receta e indicaciones médicas</span>
+                                                        <span className="text-[10px] transition-transform duration-200 group-open:rotate-180">▼</span>
+                                                    </summary>
+                                                    <div className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-2.5 text-slate-700 animate-in fade-in slide-in-from-top-1">
+                                                        {apt.medicalRecord.diagnosis && (
+                                                            <div>
+                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Diagnóstico</span>
+                                                                <p className="font-medium text-slate-900 mt-0.5">{apt.medicalRecord.diagnosis}</p>
+                                                            </div>
+                                                        )}
+                                                        {apt.medicalRecord.prescription && (
+                                                            <div>
+                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Receta / Prescripción</span>
+                                                                <p className="font-medium text-slate-900 bg-white border border-slate-200/60 rounded-lg p-2.5 mt-1 whitespace-pre-line leading-relaxed shadow-sm">
+                                                                    {apt.medicalRecord.prescription}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {apt.medicalRecord.treatment && (
+                                                            <div>
+                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Notas de Tratamiento</span>
+                                                                <p className="font-medium text-slate-850 mt-0.5 leading-relaxed">{apt.medicalRecord.treatment}</p>
+                                                            </div>
+                                                        )}
+                                                        {apt.medicalRecord.symptoms && Array.isArray(apt.medicalRecord.symptoms) && apt.medicalRecord.symptoms.length > 0 && (
+                                                            <div>
+                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Síntomas reportados</span>
+                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {apt.medicalRecord.symptoms.map((s: string) => (
+                                                                        <span key={s} className="px-2 py-0.5 bg-slate-200/60 text-slate-700 rounded-full text-[10px] font-medium">
+                                                                            {s}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {(apt.medicalRecord.weight || apt.medicalRecord.temperature || apt.medicalRecord.heartRate) && (
+                                                            <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-slate-200/60 text-[10px]">
+                                                                {apt.medicalRecord.weight && (
+                                                                    <div>
+                                                                        <span className="text-slate-400">Peso:</span> <strong className="text-slate-700">{apt.medicalRecord.weight} kg</strong>
+                                                                    </div>
+                                                                )}
+                                                                {apt.medicalRecord.temperature && (
+                                                                    <div>
+                                                                        <span className="text-slate-400">Temp:</span> <strong className="text-slate-700">{apt.medicalRecord.temperature} °C</strong>
+                                                                    </div>
+                                                                )}
+                                                                {apt.medicalRecord.heartRate && (
+                                                                    <div>
+                                                                        <span className="text-slate-400">F.C.:</span> <strong className="text-slate-700">{apt.medicalRecord.heartRate} bpm</strong>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </details>
+                                            )}
+                                            
                                             <ReviewForm
                                                 appointmentId={apt.id}
                                                 establishmentId={(apt.establishment as { id: string })?.id}

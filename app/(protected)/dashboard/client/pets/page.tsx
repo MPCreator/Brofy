@@ -5,8 +5,9 @@ import { getUserPets, addPet, updatePet, deletePet } from '@/lib/actions'
 import { SPECIES_OPTIONS } from '@/lib/types'
 import Link from 'next/link'
 import {
-    PawPrint, Plus, ChevronRight, Calendar, Weight, Pencil, Trash2, X, Save, Loader2
+    PawPrint, Plus, ChevronRight, Calendar, Weight, Pencil, Trash2, X, Save, Loader2, Camera
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 type PetForm = {
     id?: string
@@ -16,9 +17,8 @@ type PetForm = {
     dateOfBirth: string
     weight: string
     sex: string
+    photoUrl?: string
 }
-
-const emptyForm: PetForm = { name: '', species: 'dog', breed: '', dateOfBirth: '', weight: '', sex: 'unknown' }
 
 export default function PetsPage() {
     const [pets, setPets] = useState<any[]>([])
@@ -26,6 +26,10 @@ export default function PetsPage() {
     const [showForm, setShowForm] = useState(false)
     const [editingPet, setEditingPet] = useState<PetForm | null>(null)
     const [saving, setSaving] = useState(false)
+    
+    // Photo preview and base64 upload states
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+    const [photoBase64, setPhotoBase64] = useState<string | null>(null)
 
     useEffect(() => { loadPets() }, [])
 
@@ -34,6 +38,24 @@ export default function PetsPage() {
         const data = await getUserPets()
         setPets(data)
         setLoading(false)
+    }
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (file.size > 4 * 1024 * 1024) {
+            toast.error('La foto de la mascota no debe superar los 4MB')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            const base64String = reader.result as string
+            setPhotoPreview(base64String)
+            setPhotoBase64(base64String)
+        }
+        reader.readAsDataURL(file)
     }
 
     function startEdit(pet: any) {
@@ -45,32 +67,50 @@ export default function PetsPage() {
             dateOfBirth: pet.dateOfBirth || '',
             weight: pet.weight?.toString() || '',
             sex: pet.sex || 'unknown',
+            photoUrl: pet.photoUrl || undefined,
         })
+        setPhotoPreview(pet.photoUrl || null)
+        setPhotoBase64(null)
         setShowForm(true)
     }
 
     function startAdd() {
         setEditingPet(null)
+        setPhotoPreview(null)
+        setPhotoBase64(null)
         setShowForm(true)
     }
 
     async function handleSubmit(formData: FormData) {
         setSaving(true)
-        if (editingPet?.id) {
-            formData.set('id', editingPet.id)
-            await updatePet(formData)
-        } else {
-            await addPet(formData)
+        try {
+            if (photoBase64) {
+                formData.set('photoBase64', photoBase64)
+            }
+            if (editingPet?.id) {
+                formData.set('id', editingPet.id)
+                await updatePet(formData)
+                toast.success('Mascota actualizada correctamente')
+            } else {
+                await addPet(formData)
+                toast.success('Mascota agregada correctamente')
+            }
+            setShowForm(false)
+            setEditingPet(null)
+            setPhotoPreview(null)
+            setPhotoBase64(null)
+            loadPets()
+        } catch {
+            toast.error('Error al guardar la información de la mascota')
+        } finally {
+            setSaving(false)
         }
-        setSaving(false)
-        setShowForm(false)
-        setEditingPet(null)
-        loadPets()
     }
 
     async function handleDelete(pet: any) {
         if (!confirm(`¿Eliminar a ${pet.name}? Esta acción no se puede deshacer.`)) return
         await deletePet(pet.id)
+        toast.success('Mascota eliminada')
         loadPets()
     }
 
@@ -87,28 +127,50 @@ export default function PetsPage() {
 
             {/* Add/Edit Form */}
             {showForm && (
-                <form action={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 animate-in">
+                <form action={handleSubmit} className="bg-white rounded-3xl border border-slate-200 p-5 space-y-4 animate-in">
                     <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-slate-900">{editingPet?.id ? 'Editar mascota' : 'Nueva mascota'}</h3>
-                        <button type="button" onClick={() => { setShowForm(false); setEditingPet(null) }} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                        <h3 className="font-bold text-slate-900 text-lg">{editingPet?.id ? '✏️ Editar mascota' : '✨ Nueva mascota'}</h3>
+                        <button type="button" onClick={() => { setShowForm(false); setEditingPet(null) }} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <input name="name" defaultValue={editingPet?.name || ''} required placeholder="Nombre" className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                        <select name="species" defaultValue={editingPet?.species || 'dog'} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+
+                    {/* Interactive Pet Image Upload */}
+                    <div className="flex flex-col items-center gap-2 py-2 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <div className="relative group">
+                            <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden transition-all shadow-sm">
+                                {photoPreview ? (
+                                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <PawPrint className="w-12 h-12 text-slate-300" />
+                                )}
+                            </div>
+                            <label className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center cursor-pointer shadow-md transition-all">
+                                <Camera className="w-4 h-4" />
+                                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                            </label>
+                        </div>
+                        <p className="text-xs text-slate-400 font-medium">Haz clic para {photoPreview ? 'cambiar' : 'subir'} foto de tu mascota</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <input name="name" defaultValue={editingPet?.name || ''} required placeholder="Nombre de la mascota" className="col-span-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        <select name="species" defaultValue={editingPet?.species || 'dog'} className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium">
                             {SPECIES_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
-                        <select name="sex" defaultValue={editingPet?.sex || 'unknown'} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <select name="sex" defaultValue={editingPet?.sex || 'unknown'} className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium">
                             <option value="male">♂ Macho</option>
                             <option value="female">♀ Hembra</option>
                             <option value="unknown">Desconocido</option>
                         </select>
-                        <input name="breed" defaultValue={editingPet?.breed || ''} placeholder="Raza (opcional)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                        <input name="weight" type="number" step="0.1" defaultValue={editingPet?.weight || ''} placeholder="Peso kg" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                        <input name="dateOfBirth" type="date" defaultValue={editingPet?.dateOfBirth || ''} className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                        <input name="breed" defaultValue={editingPet?.breed || ''} placeholder="Raza (ej: Beagle)" className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        <input name="weight" type="number" step="0.1" defaultValue={editingPet?.weight || ''} placeholder="Peso (kg)" className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Fecha de nacimiento</label>
+                            <input name="dateOfBirth" type="date" defaultValue={editingPet?.dateOfBirth || ''} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <button type="button" onClick={() => { setShowForm(false); setEditingPet(null) }} className="flex-1 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancelar</button>
-                        <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                    <div className="flex gap-2.5 pt-2">
+                        <button type="button" onClick={() => { setShowForm(false); setEditingPet(null) }} className="flex-1 px-4 py-3 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50">Cancelar</button>
+                        <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-3 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-50">
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             {editingPet?.id ? 'Actualizar' : 'Crear'}
                         </button>
@@ -118,40 +180,51 @@ export default function PetsPage() {
 
             {/* Pet Cards */}
             {pets.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center">
+                <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
                     <PawPrint className="w-16 h-16 text-slate-200 mx-auto mb-4" />
                     <h2 className="text-lg font-semibold text-slate-900 mb-1">Sin mascotas registradas</h2>
                     <p className="text-sm text-slate-500 mb-4">Agrega tu primera mascota para comenzar</p>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {pets.map(pet => (
-                        <div key={pet.id} className="bg-white rounded-2xl border border-slate-100 p-4 hover:border-primary-200 hover:shadow-card transition-all">
-                            <div className="flex items-center gap-4">
-                                <Link href={`/dashboard/client/carnet/${pet.id}`} className="w-14 h-14 rounded-xl bg-primary-50 flex items-center justify-center text-2xl flex-shrink-0">
-                                    {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : pet.species === 'bird' ? '🐦' : '🐾'}
+                        <div key={pet.id} className="bg-white rounded-3xl border border-slate-100 p-5 hover:border-primary-200 hover:shadow-card transition-all flex flex-col justify-between">
+                            <div className="flex items-start gap-4">
+                                <Link href={`/dashboard/client/carnet/${pet.id}`} className="w-16 h-16 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                    {pet.photoUrl ? (
+                                        <img src={pet.photoUrl} alt={pet.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-3xl">
+                                            {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : pet.species === 'bird' ? '🐦' : '🐾'}
+                                        </span>
+                                    )}
                                 </Link>
                                 <Link href={`/dashboard/client/carnet/${pet.id}`} className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-slate-900">{pet.name}</h3>
-                                    <p className="text-xs text-slate-500 capitalize">
+                                    <h3 className="font-bold text-slate-900 text-lg group-hover:text-primary-600 transition-colors">{pet.name}</h3>
+                                    <p className="text-xs font-semibold text-slate-500 capitalize mt-0.5">
                                         {pet.species}{pet.breed ? ` · ${pet.breed}` : ''}{pet.sex && pet.sex !== 'unknown' ? ` · ${pet.sex === 'male' ? '♂' : '♀'}` : ''}
                                     </p>
-                                    <div className="flex items-center gap-3 mt-1.5">
+                                    <div className="flex items-center gap-3 mt-2.5">
                                         {pet.weight && (
-                                            <span className="flex items-center gap-1 text-xs text-slate-400">
-                                                <Weight className="w-3 h-3" /> {pet.weight} kg
+                                            <span className="flex items-center gap-1 text-xs font-medium text-slate-400">
+                                                <Weight className="w-3.5 h-3.5" /> {pet.weight} kg
                                             </span>
                                         )}
-                                        <span className="flex items-center gap-1 text-xs text-slate-400">
-                                            <Calendar className="w-3 h-3" /> {pet.medicalHistory?.length || 0} registros
+                                        <span className="flex items-center gap-1 text-xs font-medium text-slate-400">
+                                            <Calendar className="w-3.5 h-3.5" /> {pet.medicalHistory?.length || 0} atenciones
                                         </span>
                                     </div>
                                 </Link>
-                                <div className="flex flex-col gap-1 flex-shrink-0">
-                                    <button onClick={() => startEdit(pet)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Editar">
+                            </div>
+                            <div className="flex items-center justify-between border-t border-slate-50 mt-4 pt-3">
+                                <Link href={`/dashboard/client/carnet/${pet.id}`} className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1">
+                                    Ver carnet <ChevronRight className="w-3.5 h-3.5" />
+                                </Link>
+                                <div className="flex items-center gap-1.5">
+                                    <button onClick={() => startEdit(pet)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-colors" title="Editar">
                                         <Pencil className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => handleDelete(pet)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                                    <button onClick={() => handleDelete(pet)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors" title="Eliminar">
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>

@@ -67,7 +67,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                 const { processPayment } = await import('@/lib/actions');
                 const payResult = await processPayment(res.appointmentId);
                 if (payResult.success) {
-                    toast.success("¡Turno confirmado! Tu código OTP ya está disponible en tu panel.");
+                    toast.success("¡Turno confirmado! Tu código de atención ya está disponible en tu panel.");
                     onClose();
                 } else {
                     toast.error(payResult.message || "Error al procesar el pago");
@@ -278,7 +278,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                             <div className="bg-primary-50 border border-primary-100 rounded-xl p-3 flex items-start gap-2">
                                 <ShieldCheck className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
                                 <div className="text-xs text-primary-800 leading-relaxed">
-                                    <strong>Cargo por Acceso a Plataforma Brofy (S/ 5.00):</strong> Cubre la gestión digital de tu turno, verificación de habilitación profesional, almacenamiento del historial médico y generación de tu código de atención (OTP). Este cargo no constituye pago por el servicio veterinario.
+                                    <strong>Cargo por Acceso a Plataforma Brofy (S/ 5.00):</strong> Cubre la gestión digital de tu turno, verificación de habilitación profesional, almacenamiento del historial médico y generación de tu código de atención. Este cargo no constituye pago por el servicio veterinario.
                                 </div>
                             </div>
 

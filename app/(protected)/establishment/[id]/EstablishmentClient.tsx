@@ -6,10 +6,11 @@ import { formatPEN } from '@/lib/utils'
 import Link from 'next/link'
 import {
     MapPin, Phone, Star, Clock, ArrowLeft, Stethoscope, Navigation,
-    DollarSign, Shield, CalendarPlus, MessageSquare, User
+    DollarSign, Shield, CalendarPlus, MessageSquare, User, Lock
 } from 'lucide-react'
 import type { EstablishmentType } from '@/lib/types'
 import { BookingModal } from '@/components/dashboard/booking-modal'
+import { saveLastEstablishment } from '@/components/dashboard/quick-reschedule'
 
 const typeEmoji: Record<string, string> = {
     clinic: '🏥', groomer: '✂️', walker: '🐕‍🦺', hospital: '🏨', pet_shop: '🛍️'
@@ -29,6 +30,7 @@ export default function EstablishmentClient({ est, reviews }: { est: any; review
         type: est.type,
         address: est.address,
         city: est.city,
+        services: est.services || [],   // ← fix: pass services to BookingModal
     }
 
     return (
@@ -40,8 +42,14 @@ export default function EstablishmentClient({ est, reviews }: { est: any; review
                         <ArrowLeft className="w-4 h-4" /> Volver al buscador
                     </Link>
                     <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-3xl flex-shrink-0">
-                            {typeEmoji[est.type] || '🏠'}
+                        <div className="w-16 h-16 rounded-2xl bg-white/20 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {est.photoUrl ? (
+                                <img src={est.photoUrl} alt={est.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="text-3xl">
+                                    {typeEmoji[est.type] || '🏠'}
+                                </span>
+                            )}
                         </div>
                         <div className="flex-1">
                             <h1 className="text-2xl font-bold">{est.name}</h1>
@@ -73,14 +81,17 @@ export default function EstablishmentClient({ est, reviews }: { est: any; review
                 {/* Primary CTA — Reservar */}
                 <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-card space-y-3">
                     <button
-                        onClick={() => setShowBooking(true)}
+                        onClick={() => {
+                            saveLastEstablishment(est.id, est.name)
+                            setShowBooking(true)
+                        }}
                         className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-primary-600 text-white rounded-xl font-semibold text-base hover:bg-primary-700 shadow-lg shadow-primary-200 transition-all hover:shadow-xl active:scale-[0.98]"
                     >
                         <CalendarPlus className="w-5 h-5" />
                         Solicitar Turno Digital
                     </button>
                     <p className="text-xs text-center text-slate-400">
-                        Elige servicio y horario · Pago de acceso a plataforma: <strong className="text-slate-600">S/ 5.00</strong>
+                        Elige servicio y horario · Acceso a plataforma: <strong className="text-slate-600">S/ 5.00</strong>
                     </p>
                     <div className="flex gap-2">
                         {est.phone && (
@@ -98,6 +109,26 @@ export default function EstablishmentClient({ est, reviews }: { est: any; review
                         </a>
                     </div>
                 </div>
+
+                {/* Photo Gallery (if multiple photos are present) */}
+                {(() => {
+                    const photos = est.photoUrl ? est.photoUrl.split(',') : []
+                    if (photos.length <= 1) return null
+                    return (
+                        <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-3 shadow-sm">
+                            <h2 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                                🖼️ Galería del Local
+                            </h2>
+                            <div className="grid grid-cols-2 gap-2">
+                                {photos.map((url: string, index: number) => (
+                                    <div key={index} className="aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/60 shadow-sm relative group">
+                                        <img src={url} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                })()}
 
                 {/* Info Card */}
                 <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-3">

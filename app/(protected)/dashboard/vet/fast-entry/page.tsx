@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createMedicalRecord } from '@/lib/actions'
 import { COMMON_SYMPTOMS, COMMON_DIAGNOSES } from '@/lib/types'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -40,6 +40,35 @@ export default function FastEntryPage() {
     const [guestPetName, setGuestPetName] = useState('')
     const [guestPetSpecies, setGuestPetSpecies] = useState('dog')
     const [guestConsentConfirmed, setGuestConsentConfirmed] = useState(false)
+    const [nextVisit, setNextVisit] = useState('')
+
+    const [establishments, setEstablishments] = useState<any[]>([])
+    const [selectedEstId, setSelectedEstId] = useState('')
+    const [role, setRole] = useState('vet')
+
+    useEffect(() => {
+        async function loadInitialData() {
+            const { getMyEstablishments, getMyRole } = await import('@/lib/actions')
+            const [list, userRole] = await Promise.all([
+                getMyEstablishments(),
+                getMyRole()
+            ])
+            setEstablishments(list)
+            if (list.length > 0) {
+                setSelectedEstId(list[0].id)
+            }
+            setRole(userRole)
+        }
+        if (!appointmentId) {
+            loadInitialData()
+        } else {
+            async function fetchRole() {
+                const { getMyRole } = await import('@/lib/actions')
+                setRole(await getMyRole())
+            }
+            fetchRole()
+        }
+    }, [appointmentId])
 
     function addSymptom(symptom: string) {
         if (!symptoms.includes(symptom)) {
@@ -77,6 +106,7 @@ export default function FastEntryPage() {
                     diagnosis: diagnosis || undefined,
                     prescription: prescription || undefined,
                     treatment: treatment || undefined,
+                    nextVisit: nextVisit || undefined,
                 })
             } else {
                 if (!guestClientName || !guestPetName) {
@@ -95,6 +125,7 @@ export default function FastEntryPage() {
                     guestEmail,
                     guestPetName,
                     guestPetSpecies,
+                    establishmentId: selectedEstId || undefined,
                     weight: weight ? parseFloat(weight) : undefined,
                     temperature: temperature ? parseFloat(temperature) : undefined,
                     heartRate: heartRate ? parseInt(heartRate) : undefined,
@@ -136,10 +167,10 @@ export default function FastEntryPage() {
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <ClipboardList className="w-6 h-6 text-primary-600" />
-                    Fast Entry
+                    {role === 'provider' ? 'Ficha de Servicio' : 'Ficha Rápida'}
                 </h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Ficha médica rápida — llena en menos de 5 segundos
+                    {role === 'provider' ? 'Registra la atención en menos de 5 segundos' : 'Ficha médica rápida — llena en menos de 5 segundos'}
                 </p>
             </div>
 
@@ -154,7 +185,7 @@ export default function FastEntryPage() {
             {!appointmentId && (
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
                     <p className="text-sm text-blue-800 font-medium mb-2">
-                        👤 Ingreso Manual (Sin OTP)
+                        👤 Ingreso Manual (Sin código)
                     </p>
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
@@ -164,7 +195,7 @@ export default function FastEntryPage() {
                                 value={guestClientName}
                                 onChange={e => setGuestClientName(e.target.value)}
                                 placeholder="Ej: Juan Pérez"
-                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                             />
                         </div>
                         <div>
@@ -174,19 +205,35 @@ export default function FastEntryPage() {
                                 value={guestEmail}
                                 onChange={e => setGuestEmail(e.target.value)}
                                 placeholder="Para conectar su cuenta luego"
-                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                             />
                         </div>
-                        <div className="col-span-2 lg:col-span-1">
+                        <div>
                             <label className="text-xs font-medium text-blue-900 mb-1 block">Nombre Mascota *</label>
                             <input
                                 type="text"
                                 value={guestPetName}
                                 onChange={e => setGuestPetName(e.target.value)}
                                 placeholder="Ej: Firulais"
-                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                             />
                         </div>
+                        {establishments.length > 1 && (
+                            <div className="col-span-2 lg:col-span-3">
+                                <label className="text-xs font-semibold text-blue-900 mb-1 block">Sede de Atención *</label>
+                                <select
+                                    value={selectedEstId}
+                                    onChange={e => setSelectedEstId(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium cursor-pointer"
+                                >
+                                    {establishments.map(est => (
+                                        <option key={est.id} value={est.id}>
+                                            {est.name} ({est.district || 'General'})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {/* Patient consent declaration — legally required for third-party data */}
@@ -207,11 +254,13 @@ export default function FastEntryPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Vital Signs Row — 3 columns */}
-                <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-white rounded-xl border border-slate-200 p-3">
-                        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1">
-                            <Weight className="w-3.5 h-3.5" /> Peso (kg)
+                {role !== 'provider' && (
+                    <>
+                        {/* Vital Signs Row — 3 columns */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="bg-white rounded-xl border border-slate-200 p-3">
+                                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1">
+                                    <Weight className="w-3.5 h-3.5" /> Peso (kg)
                         </label>
                         <input
                             type="number"
@@ -339,11 +388,13 @@ export default function FastEntryPage() {
                         className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                     />
                 </div>
+                    </>
+                )}
 
                 {/* Treatment */}
                 <div>
                     <label className="text-sm font-medium text-slate-700 mb-1.5 block">
-                        Tratamiento / Notas
+                        {role === 'provider' ? 'Observaciones y Servicios Realizados' : 'Tratamiento / Notas'}
                     </label>
                     <textarea
                         value={treatment}
@@ -354,7 +405,19 @@ export default function FastEntryPage() {
                     />
                 </div>
 
-
+                {/* Next Visit / Reminder Control Date */}
+                <div>
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                        <CalendarDays className="w-4 h-4 text-primary-500" /> Próxima cita / Control (Recordatorio Automático)
+                    </label>
+                    <input
+                        type="date"
+                        value={nextVisit}
+                        onChange={e => setNextVisit(e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Si indicas una fecha, se creará un recordatorio automático en el panel del cliente.</p>
+                </div>
 
                 {/* Error */}
                 {error && (
@@ -374,7 +437,7 @@ export default function FastEntryPage() {
                     ) : (
                         <CheckCircle2 className="w-5 h-5" />
                     )}
-                    {loading ? 'Guardando...' : 'Guardar Ficha Médica'}
+                    {loading ? 'Guardando...' : role === 'provider' ? 'Guardar Ficha de Servicio' : 'Guardar Ficha Médica'}
                 </button>
             </form>
         </div>
