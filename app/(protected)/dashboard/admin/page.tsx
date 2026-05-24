@@ -13,8 +13,8 @@ export default async function AdminDashboard() {
         getAllRemindersAdmin(),
     ])
 
-    const adminUsers = users.filter(u => u.role !== 'admin')
-    const pendingCmvpVets = adminUsers.filter(u => u.role === 'vet' && u.cmvpId && !u.cmvpValidated)
+   const adminUsers = users.filter((u: any) => u.role !== 'admin')
+    const pendingCmvpVets = adminUsers.filter((u: any) => u.role === 'vet' && u.cmvpId && !u.cmvpValidated)
 
     return (
         <div className="space-y-8 pb-20 lg:pb-0 max-w-5xl mx-auto">
@@ -43,7 +43,7 @@ export default async function AdminDashboard() {
                     <div className="bg-white/80 rounded-2xl p-3 border border-amber-100/50 space-y-2">
                         <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">Profesionales por Auditar:</p>
                         <div className="divide-y divide-amber-100/30">
-                            {pendingCmvpVets.map(vet => (
+                            {pendingCmvpVets.map((vet: any) => (
                                 <div key={vet.id} className="py-2 flex items-center justify-between text-xs">
                                     <div>
                                         <span className="font-bold text-slate-800">{vet.fullName}</span>
