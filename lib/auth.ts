@@ -138,37 +138,53 @@ export async function signup(prevState: any, formData: FormData) {
 }
 
 export async function login(prevState: any, formData: FormData) {
+    console.log("Login action triggered with email:", formData.get('email'))
     const validatedFields = LoginSchema.safeParse({
         email: formData.get('email'),
         password: formData.get('password'),
     })
 
     if (!validatedFields.success) {
+        console.log("Validation failed", validatedFields.error.flatten().fieldErrors)
         return { errors: validatedFields.error.flatten().fieldErrors }
     }
 
     const { email, password } = validatedFields.data
 
-    const user = await prisma.profile.findUnique({ where: { email } })
+    let dashboardPath = '/dashboard/vet';
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-        return { message: 'Credenciales inválidas.' }
+    try {
+        const user = await prisma.profile.findUnique({ where: { email } })
+        console.log("User found in DB:", user ? user.email : 'No user')
+
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            console.log("Invalid credentials")
+            return { message: 'Credenciales inválidas.' }
+        }
+
+        // Create session
+        console.log("Creating session...")
+        await createSession({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            fullName: user.fullName,
+        })
+        console.log("Session created. Redirecting...")
+
+        // Determine redirect path based on role
+        dashboardPath = user.role === 'admin' 
+            ? '/dashboard/admin' 
+            : user.role === 'client' 
+                ? '/dashboard/client' 
+                : '/dashboard/vet'
+        
+    } catch (error) {
+        console.error("Error during login:", error)
+        return { message: 'Error de conexión. Inténtalo de nuevo.' }
     }
 
-    // Create session
-    await createSession({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        fullName: user.fullName,
-    })
-
-    // Redirect based on role
-    const dashboardPath = user.role === 'admin' 
-        ? '/dashboard/admin' 
-        : user.role === 'client' 
-            ? '/dashboard/client' 
-            : '/dashboard/vet'
+    // Redirect MUST be outside try/catch in Next.js Server Actions
     redirect(dashboardPath)
 }
 
@@ -192,13 +208,13 @@ export async function getSession() {
         })
         
         if (!user) {
-            // Stale cookie, clear it
-            cookieStore.delete('session')
+            console.log("getSession: user not found in DB for sub:", payload.sub)
             return null
         }
         
         return payload as unknown as SessionPayload
-    } catch (e) {
+    } catch (error) {
+        console.error("getSession: error verifying JWT:", error)
         return null
     }
 }

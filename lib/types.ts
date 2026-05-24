@@ -219,12 +219,12 @@ export const ESTABLISHMENT_TYPE_LABELS: Record<EstablishmentType, string> = {
 };
 
 export const APPOINTMENT_STATUS_LABELS = {
-  pending: { label: 'Pendiente', color: 'text-slate-600 bg-slate-100' },
+  pending: { label: 'Pendiente de pago', color: 'text-slate-600 bg-slate-100' },
   confirmed: { label: 'Confirmada', color: 'text-emerald-600 bg-emerald-50' },
-  paid: { label: 'Pagado', color: 'text-blue-600 bg-blue-100' },
-  validated: { label: 'Validado', color: 'text-indigo-600 bg-indigo-100' },
-  completed: { label: 'Completado', color: 'text-emerald-600 bg-emerald-100' },
-  cancelled: { label: 'Cancelado', color: 'text-red-600 bg-red-100' },
+  paid: { label: 'Pagada — Código activo', color: 'text-blue-600 bg-blue-100' },
+  validated: { label: 'En atención', color: 'text-indigo-600 bg-indigo-100' },
+  completed: { label: 'Completada', color: 'text-emerald-600 bg-emerald-100' },
+  cancelled: { label: 'Cancelada', color: 'text-red-600 bg-red-100' },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -247,7 +247,7 @@ export interface Service {
 export const SERVICE_CATEGORIES = [
   { value: 'consultation', label: 'Consulta' },
   { value: 'vaccination', label: 'Vacunación' },
-  { value: 'grooming', label: 'Grooming' },
+  { value: 'grooming', label: 'Estética canina' },
   { value: 'surgery', label: 'Cirugía' },
   { value: 'deworming', label: 'Desparasitación' },
   { value: 'test', label: 'Exámenes' },

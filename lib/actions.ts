@@ -5,11 +5,17 @@ import prisma from './prisma'
 import { getSession, requireSession, requireRole } from './auth'
 import { revalidatePath } from 'next/cache'
 import { calculateDistanceKm, generateOtp } from './utils'
+import { uploadImage } from './cloudinary'
 import type {
     MedicalHistoryEntry,
     EstablishmentWithDistance,
     OtpResult,
 } from './types'
+
+export async function getMyRole() {
+    const session = await getSession();
+    return session?.role || 'client';
+}
 
 // ============================================================================
 // PET ACTIONS
@@ -41,6 +47,12 @@ export async function addPet(formData: FormData) {
     }
 
     const { name, species, breed, dateOfBirth, weight, sex } = validatedFields.data
+    const photoBase64 = formData.get('photoBase64') as string
+
+    let photoUrl: string | null = null
+    if (photoBase64) {
+        photoUrl = await uploadImage(photoBase64, 'pets')
+    }
 
     try {
         await prisma.pet.create({
@@ -53,6 +65,7 @@ export async function addPet(formData: FormData) {
                 sex: sex || null,
                 ownerId: session.sub,
                 medicalHistory: '[]',
+                photoUrl,
             }
         })
 
@@ -111,6 +124,12 @@ export async function updatePet(formData: FormData) {
     const dateOfBirth = formData.get('dateOfBirth') as string
     const weight = Number(formData.get('weight'))
     const sex = formData.get('sex') as string
+    const photoBase64 = formData.get('photoBase64') as string
+
+    let photoUrl: string | undefined = undefined
+    if (photoBase64) {
+        photoUrl = await uploadImage(photoBase64, 'pets')
+    }
 
     await prisma.pet.update({
         where: { id, ownerId: session.sub },
@@ -121,6 +140,7 @@ export async function updatePet(formData: FormData) {
             dateOfBirth: dateOfBirth || null,
             weight: weight || null,
             sex: sex || null,
+            photoUrl: photoUrl || undefined,
         }
     })
 
@@ -246,6 +266,25 @@ export async function createEstablishment(formData: FormData) {
     const operatingHours = JSON.stringify({ is24h, openTime, closeTime })
     
     const concurrentSlots = parseInt(formData.get('concurrentSlots') as string) || 1
+    const photosBase64Str = formData.get('photosBase64') as string
+
+    let photoUrl: string | null = null
+    if (photosBase64Str) {
+        try {
+            const base64Arr = JSON.parse(photosBase64Str) as string[]
+            if (Array.isArray(base64Arr) && base64Arr.length > 0) {
+                const uploadedUrls = await Promise.all(
+                    base64Arr.slice(0, 4).map(b64 => {
+                        if (!b64) return null
+                        return uploadImage(b64, 'establishments')
+                    })
+                )
+                photoUrl = uploadedUrls.filter(Boolean).join(',')
+            }
+        } catch (e) {
+            console.error("Error parsing photosBase64 in createEstablishment:", e)
+        }
+    }
 
     await prisma.establishment.create({
         data: {
@@ -256,6 +295,7 @@ export async function createEstablishment(formData: FormData) {
             operatingHours,
             concurrentSlots,
             ownerId: session.sub,
+            photoUrl,
         }
     })
 
@@ -460,7 +500,7 @@ export async function createMedicalRecord(data: {
     if (!appointment) {
         return {
             success: false,
-            message: 'La cita no está validada o no tienes permiso. Verifica el OTP primero.'
+            message: 'La cita no está activa o no tienes permiso para editarla. Verifica el código de atención primero.'
         }
     }
 
@@ -506,6 +546,22 @@ export async function createMedicalRecord(data: {
         }
     })
 
+    // Crear recordatorio automático si hay próxima visita
+    if (data.nextVisit && appointment.clientId) {
+        await prisma.reminder.create({
+            data: {
+                clientId: appointment.clientId,
+                petId: appointment.petId,
+                appointmentId: appointment.id,
+                createdBy: session.sub,
+                type: 'control',
+                title: `Próximo control - ${appointment.serviceType === 'consultation' ? 'Consulta' : 'Servicio'}`,
+                message: `Control programado en el establecimiento. Tratamiento o notas sugeridas.`,
+                dueDate: data.nextVisit,
+            }
+        })
+    }
+
     revalidatePath('/dashboard/vet')
     revalidatePath('/dashboard/client')
 
@@ -521,6 +577,7 @@ export async function createGuestFastEntry(data: {
     guestEmail?: string;
     guestPetName: string;
     guestPetSpecies: string;
+    establishmentId?: string;
     weight?: number;
     temperature?: number;
     heartRate?: number;
@@ -531,8 +588,13 @@ export async function createGuestFastEntry(data: {
 }) {
     const session = await requireRole(['vet'])
 
-    // Obtener el primer establecimiento del Vet
-    const est = await prisma.establishment.findFirst({ where: { ownerId: session.sub } })
+    let est = null
+    if (data.establishmentId) {
+        est = await prisma.establishment.findFirst({ where: { id: data.establishmentId, ownerId: session.sub } })
+    }
+    if (!est) {
+        est = await prisma.establishment.findFirst({ where: { ownerId: session.sub } })
+    }
     if (!est) return { success: false, message: 'No tienes un establecimiento registrado.' }
 
     // 1. Buscar o Crear perfil fantasma
@@ -757,6 +819,28 @@ export async function getVetAppointments() {
     })
 }
 
+/**
+ * Devuelve citas en estado 'validated' que NO tienen ficha médica completada.
+ * Permite al vet retomar fichas que quedaron abiertas.
+ */
+export async function getOpenFichas() {
+    const session = await getSession()
+    if (!session) return []
+
+    return prisma.appointment.findMany({
+        where: {
+            providerId: session.sub,
+            status: 'validated',
+            medicalRecord: null,  // sin ficha completada
+        },
+        include: {
+            pet: true,
+            client: { select: { id: true, fullName: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+    })
+}
+
 export async function getMedicalHistory(petId: string) {
     const session = await getSession()
     if (!session) return []
@@ -873,6 +957,12 @@ export async function updateProfile(formData: FormData) {
     const fullName = formData.get('fullName') as string
     const phone = formData.get('phone') as string
     const cmvpId = formData.get('cmvpId') as string
+    const avatarBase64 = formData.get('avatarBase64') as string
+
+    let avatarUrl: string | undefined = undefined
+    if (avatarBase64) {
+        avatarUrl = await uploadImage(avatarBase64, 'avatars')
+    }
 
     await prisma.profile.update({
         where: { id: session.sub },
@@ -880,6 +970,7 @@ export async function updateProfile(formData: FormData) {
             fullName: fullName || undefined,
             phone: phone || null,
             cmvpId: cmvpId || null,
+            avatarUrl: avatarUrl || undefined,
         }
     })
 
@@ -1105,6 +1196,31 @@ export async function updateEstablishment(formData: FormData) {
     const operatingHours = JSON.stringify({ is24h, openTime, closeTime })
     
     const concurrentSlots = parseInt(formData.get('concurrentSlots') as string) || 1
+    const photosBase64Str = formData.get('photosBase64') as string
+
+    let photoUrl: string | undefined = undefined
+    if (photosBase64Str) {
+        try {
+            const base64Arr = JSON.parse(photosBase64Str) as string[]
+            if (Array.isArray(base64Arr)) {
+                const processedUrls = await Promise.all(
+                    base64Arr.slice(0, 4).map(async item => {
+                        if (!item) return null
+                        if (item.startsWith('data:image')) {
+                            return await uploadImage(item, 'establishments')
+                        }
+                        if (item.startsWith('http')) {
+                            return item
+                        }
+                        return null
+                    })
+                )
+                photoUrl = processedUrls.filter(Boolean).join(',')
+            }
+        } catch (e) {
+            console.error("Error parsing photosBase64 in updateEstablishment:", e)
+        }
+    }
 
     await prisma.establishment.update({
         where: { id },
@@ -1117,6 +1233,7 @@ export async function updateEstablishment(formData: FormData) {
             type: newType,
             operatingHours,
             concurrentSlots,
+            photoUrl: photoUrl !== undefined ? photoUrl : undefined,
         }
     })
 
@@ -1212,3 +1329,149 @@ export async function updateClaimStatus(claimId: string, status: string) {
     revalidatePath('/dashboard/admin')
     return { success: true }
 }
+
+// ============================================================================
+// REMINDERS (Recordatorios)
+// ============================================================================
+
+export async function createReminder(data: {
+    clientId: string;
+    petId?: string;
+    appointmentId?: string;
+    type: string;
+    title: string;
+    message?: string;
+    dueDate: string;
+}) {
+    const session = await requireRole(['vet', 'admin'])
+    const reminder = await prisma.reminder.create({
+        data: {
+            clientId: data.clientId,
+            petId: data.petId || null,
+            appointmentId: data.appointmentId || null,
+            createdBy: session.sub,
+            type: data.type,
+            title: data.title,
+            message: data.message || null,
+            dueDate: data.dueDate,
+        }
+    })
+    revalidatePath('/dashboard/client')
+    revalidatePath('/dashboard/vet')
+    return { success: true, reminder }
+}
+
+export async function getClientReminders() {
+    const session = await getSession()
+    if (!session) return []
+    // Get personal reminders + global reminders created by admin
+    return prisma.reminder.findMany({
+        where: {
+            OR: [
+                { clientId: session.sub },
+                { isGlobal: true }
+            ]
+        },
+        include: {
+            pet: { select: { name: true } },
+            creator: { select: { fullName: true } }
+        },
+        orderBy: { dueDate: 'asc' }
+    })
+}
+
+export async function getVetReminders() {
+    const session = await requireRole(['vet', 'provider'])
+    // Vets see reminders they created, or global templates
+    return prisma.reminder.findMany({
+        where: {
+            OR: [
+                { createdBy: session.sub },
+                { isGlobal: true }
+            ]
+        },
+        include: {
+            client: { select: { fullName: true } },
+            pet: { select: { name: true } }
+        },
+        orderBy: { dueDate: 'asc' }
+    })
+}
+
+export async function completeReminder(id: string) {
+    const session = await getSession()
+    if (!session) return { success: false, message: 'No autorizado' }
+    await prisma.reminder.update({
+        where: { id },
+        data: {
+            isCompleted: true,
+            completedAt: new Date()
+        }
+    })
+    revalidatePath('/dashboard')
+    return { success: true }
+}
+
+export async function deleteReminder(id: string) {
+    const session = await getSession()
+    if (!session) return { success: false, message: 'No autorizado' }
+    await prisma.reminder.delete({
+        where: { id }
+    })
+    revalidatePath('/dashboard')
+    return { success: true }
+}
+
+export async function createGlobalReminder(data: {
+    type: string;
+    title: string;
+    message?: string;
+    dueDate: string;
+}) {
+    const session = await requireRole(['admin'])
+    const reminder = await prisma.reminder.create({
+        data: {
+            createdBy: session.sub,
+            type: data.type,
+            title: data.title,
+            message: data.message || null,
+            dueDate: data.dueDate,
+            isGlobal: true
+        }
+    })
+    revalidatePath('/dashboard/admin')
+    return { success: true, reminder }
+}
+
+export async function getAllRemindersAdmin() {
+    await requireRole(['admin'])
+    return prisma.reminder.findMany({
+        include: {
+            client: { select: { fullName: true, email: true } },
+            pet: { select: { name: true } },
+            creator: { select: { fullName: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+}
+
+export async function createAdminAuditReminder(data: {
+    vetId: string;
+    vetName: string;
+    dueDate: string;
+}) {
+    const session = await requireRole(['admin'])
+    const reminder = await prisma.reminder.create({
+        data: {
+            clientId: session.sub,
+            createdBy: session.sub,
+            type: 'control',
+            title: `Revisar habilitación CMVP de ${data.vetName}`,
+            message: `Auditoría periódica de colegiatura CMVP del veterinario en el portal público.`,
+            dueDate: data.dueDate,
+        }
+    })
+    revalidatePath('/dashboard/admin')
+    return { success: true, reminder }
+}
+
