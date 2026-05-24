@@ -28,7 +28,7 @@ export default async function VetDashboard() {
         getVetReminders(),
     ])
 
-    const pendingValidation = appointments.filter(a => a.status === 'paid')
+    const pendingValidation = appointments.filter((a:any) => a.status === 'paid')
 
     // Build unique patients list for the notification dropdown
     const patientsMap = new Map<string, { petId: string; petName: string; clientId: string; clientName: string }>()
@@ -47,10 +47,21 @@ export default async function VetDashboard() {
     const patientsList = Array.from(patientsMap.values())
     
     // Filtramos las citas programadas futuras que están pendientes de atención
-    const upcomingAppointments = appointments.filter(a => {
-        if (!a.scheduledAt || a.status === 'cancelled' || a.status === 'completed' || a.status === 'validated') return false
+    const upcomingAppointments = appointments
+    .filter((a: any) => {
+        if (
+            !a.scheduledAt ||
+            a.status === 'cancelled' ||
+            a.status === 'completed' ||
+            a.status === 'validated'
+        ) return false
+
         return new Date(a.scheduledAt) >= new Date(new Date().setHours(0,0,0,0))
-    }).sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())
+    })
+    .sort((a: any, b: any) =>
+        new Date(a.scheduledAt!).getTime() -
+        new Date(b.scheduledAt!).getTime()
+    )
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
@@ -168,7 +179,7 @@ export default async function VetDashboard() {
                         Clientes con código activo
                     </h2>
                     <div className="space-y-2">
-                        {pendingValidation.map(apt => (
+                        {pendingValidation.map((apt:any) => (
                             <Link
                                 key={apt.id}
                                 href={`/dashboard/vet/validate?appointmentId=${apt.id}`}
@@ -201,7 +212,7 @@ export default async function VetDashboard() {
                         Fichas sin completar ({openFichas.length})
                     </h2>
                     <div className="space-y-2">
-                        {openFichas.map(apt => (
+                        {openFichas.map((apt:any) => (
                             <Link
                                 key={apt.id}
                                 href={`/dashboard/vet/fast-entry?appointmentId=${apt.id}`}
@@ -236,7 +247,7 @@ export default async function VetDashboard() {
                         </h2>
                     </div>
                     <div className="space-y-2">
-                        {upcomingAppointments.map(apt => (
+                        {upcomingAppointments.map((apt:any) => (
                             <div key={apt.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-center gap-4">
                                 <div className="text-center px-3 border-r border-slate-100">
                                     <div className="text-xs font-bold text-primary-600 uppercase">
@@ -300,7 +311,7 @@ export default async function VetDashboard() {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {appointments.slice(0, 8).map(apt => {
+                        {appointments.slice(0, 8).map((apt:any) => {
                             const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]
                             return (
                                 <div
