@@ -62,10 +62,11 @@ export default function FastEntryPage() {
         if (!appointmentId) {
             loadInitialData()
         } else {
-            async function fetchRole() {
+            const fetchRole = async () => {
                 const { getMyRole } = await import('@/lib/actions')
                 setRole(await getMyRole())
             }
+
             fetchRole()
         }
     }, [appointmentId])
