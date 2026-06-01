@@ -24,7 +24,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import PhotoCarousel from '@/components/landing/PhotoCarousel'
-import { getSession } from '@/lib/auth'
 
 const CATEGORIES = [
     { value: 'all', label: 'Todos', emoji: '🏠' },
@@ -66,16 +65,6 @@ function SearchParamsHandler({
 }
 
 export default function DiscoverPage() {
-    const [session, setSession] = useState<any>(null)
-    const [loadingSession, setLoadingSession] = useState(true)
-
-    useEffect(() => {
-        getSession().then(sess => {
-            setSession(sess)
-            setLoadingSession(false)
-        })
-    }, [])
-
     const [establishments, setEstablishments] = useState<EstablishmentWithDistance[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -240,40 +229,20 @@ export default function DiscoverPage() {
                             <Image 
                                 src="/logo.png" 
                                 alt="Brofy Logo" 
-                                width={240} 
-                                height={131} 
-                                className="object-contain h-[48px] sm:h-[64px]" 
-                                style={{ width: 'auto' }}
+                                width={180} 
+                                height={98} 
+                                className="object-contain h-[48px] w-auto" 
                                 priority 
                             />
                         </Link>
                     </div>
                     <div className="flex items-center gap-4">
-                        {!loadingSession && (
-                            session ? (
-                                <Link 
-                                    href={
-                                        session.role === 'admin' 
-                                            ? '/dashboard/admin' 
-                                            : session.role === 'vet' || session.role === 'provider' 
-                                                ? '/dashboard/vet' 
-                                                : '/dashboard/client'
-                                    } 
-                                    className="bg-primary-600 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95"
-                                >
-                                    Mi Panel 🐾
-                                </Link>
-                            ) : (
-                                <>
-                                    <Link href="/login" className="text-sm font-semibold text-slate-650 hover:text-primary-600 transition-colors">
-                                        Ingresar
-                                    </Link>
-                                    <Link href="/signup" className="bg-primary-600 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95">
-                                        Crear cuenta
-                                    </Link>
-                                </>
-                            )
-                        )}
+                        <Link href="/login" className="text-sm font-semibold text-slate-650 hover:text-primary-600 transition-colors">
+                            Ingresar
+                        </Link>
+                        <Link href="/signup" className="bg-primary-600 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95">
+                            Crear cuenta
+                        </Link>
                     </div>
                 </div>
             </header>

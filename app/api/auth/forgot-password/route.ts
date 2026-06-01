@@ -1,45 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import crypto from 'crypto'
 
 export async function POST(req: NextRequest) {
     const { email } = await req.json()
 
-    if (!email) {
-        return NextResponse.json({ error: 'El correo electrónico es requerido.' }, { status: 400 })
-    }
-
-    const lowercasedEmail = email.toLowerCase()
-
-    // Verificar si el usuario existe
-    const user = await prisma.profile.findUnique({ where: { email: lowercasedEmail } })
-    
+    const user = await prisma.profile.findUnique({ where: { email: email.toLowerCase() } })
     if (!user || user.password === 'guest-no-login') {
-        // Seguridad: No revelamos si el correo existe o no en la plataforma
-        return NextResponse.json({ 
-            success: true, 
-            message: 'Si el correo está registrado, recibirás un enlace de recuperación en los próximos minutos.' 
-        })
+        // No revelar si el usuario existe o no (seguridad)
+        return NextResponse.json({ error: 'Si el correo está registrado, recibirás el enlace de recuperación.' })
     }
 
-    const supabase = createClient()
-    
-    // Callback PKCE que intercambiará el código de sesión y redirigirá a /restablecer-contrasena
-    const requestUrl = new URL(req.url)
-    const origin = requestUrl.origin
-    const redirectTo = `${origin}/api/auth/callback?next=/restablecer-contrasena`
+    // Generar token aleatorio
+    const token = crypto.randomBytes(32).toString('hex')
+    const expires = new Date(Date.now() + 60 * 60 * 1000) // 1 hora
 
-    const { error } = await supabase.auth.resetPasswordForEmail(lowercasedEmail, {
-        redirectTo,
+    await prisma.profile.update({
+        where: { id: user.id },
+        data: {
+            passwordResetToken: token,
+            passwordResetExpires: expires,
+        } as any,
     })
 
-    if (error) {
-        console.error("Supabase resetPasswordForEmail error:", error.message)
-        return NextResponse.json({ error: 'Hubo un problema al solicitar el restablecimiento. Inténtalo de nuevo.' }, { status: 500 })
-    }
-
-    return NextResponse.json({ 
-        success: true, 
-        message: 'Enlace de recuperación enviado exitosamente a tu correo.' 
-    })
+    // En producción enviarías un email. Por ahora retornamos el token directamente.
+    return NextResponse.json({ token })
 }

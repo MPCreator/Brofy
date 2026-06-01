@@ -36,8 +36,7 @@ export default function LoginPage() {
                             alt="Brofy Logo" 
                             width={340} 
                             height={185} 
-                            className="object-contain w-72 md:w-[320px]" 
-                            style={{ height: 'auto' }}
+                            className="object-contain w-72 md:w-[320px] h-auto" 
                             priority 
                         />
                     </Link>

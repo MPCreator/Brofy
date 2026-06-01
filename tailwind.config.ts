@@ -9,12 +9,17 @@ const config: Config = {
         extend: {
             colors: {
                 primary: {
-                    50: '#f0f9ff',
-                    100: '#e0f2fe',
-                    500: '#0ea5e9', // Sky blue-ish
-                    600: '#0284c7', // Brand Color
-                    700: '#0369a1',
-                    900: '#0c4a6e',
+                    50: '#eefbfe',
+                    100: '#d0f4fc',
+                    200: '#a1e9fa',
+                    300: '#72def7',
+                    400: '#43d3f5',
+                    500: '#0ba7c8',
+                    600: '#078EAD',
+                    700: '#05728a',
+                    800: '#045668',
+                    900: '#033b47',
+                    950: '#011e25',
                 },
                 emergency: {
                     500: '#ef4444', // Red-500

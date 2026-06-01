@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 
 // Routes that don't require authentication
 const publicPaths = ['/', '/login', '/signup', '/terminos', '/privacidad', '/libro-de-reclamaciones', '/olvidaste-contrasena']
@@ -13,8 +12,11 @@ function isPublicPath(pathname: string): boolean {
     return false
 }
 
+import { jwtVerify } from 'jose'
+
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
+    const sessionCookie = request.cookies.get('session')?.value
 
     // Allow static files and API routes
     if (
@@ -25,58 +27,58 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
     }
 
-    // Inicializar el response base
-    let response = NextResponse.next({
-        request: {
-            headers: request.headers,
-        },
-    })
+    let isValidSession = false;
 
-    // Crear cliente de Supabase para middleware
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                getAll() {
-                    return request.cookies.getAll()
-                },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-                    response = NextResponse.next({
-                        request: {
-                            headers: request.headers,
-                        },
-                    })
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        response.cookies.set(name, value, options)
-                    )
-                },
-            },
+    if (sessionCookie) {
+        try {
+            const key = new TextEncoder().encode(process.env.JWT_SECRET || 'brofy_secret_key_change_in_production_2025');
+            await jwtVerify(sessionCookie, key);
+            isValidSession = true;
+        } catch (error) {
+            // Invalid JWT (expired, wrong signature, etc.)
+            isValidSession = false;
         }
-    )
+    }
 
-    // Obtener la sesión y actualizar cookies
-    const { data: { user } } = await supabase.auth.getUser()
-    const isValidSession = !!user
-
-    // Rutas públicas
+    // Allow public paths
     if (isPublicPath(pathname)) {
-        // Si tiene sesión y entra a login/signup, redirige al dashboard
+        // Clear cookie flag from Server Components
+        if (request.nextUrl.searchParams.get('clear') === 'true') {
+            const response = NextResponse.next();
+            response.cookies.set('session', '', { maxAge: 0, path: '/' });
+            return response;
+        }
+
+        // If logged in and trying to access login/signup, redirect to dashboard
         if (isValidSession && (pathname === '/login' || pathname === '/signup')) {
             return NextResponse.redirect(new URL('/dashboard', request.url))
         }
-        return response
+
+        // If cookie exists but is invalid, clear it on public pages too so they can log in
+        if (sessionCookie && !isValidSession) {
+            const response = NextResponse.next();
+            response.cookies.set('session', '', { maxAge: 0, path: '/' });
+            return response;
+        }
+
+        return NextResponse.next()
     }
 
-    // Rutas protegidas - si no hay sesión, redirige a login
+    // Protected route — check for valid session
     if (!isValidSession) {
         const loginUrl = new URL('/login', request.url)
         loginUrl.searchParams.set('from', pathname)
-        return NextResponse.redirect(loginUrl)
+        const response = NextResponse.redirect(loginUrl)
+        
+        // Clear the invalid cookie
+        if (sessionCookie) {
+            response.cookies.set('session', '', { maxAge: 0, path: '/' })
+        }
+        
+        return response
     }
 
-    return response
+    return NextResponse.next()
 }
 
 export const config = {

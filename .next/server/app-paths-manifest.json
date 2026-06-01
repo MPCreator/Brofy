@@ -1,0 +1,11 @@
+{
+  "/not-found": "app/not-found.js",
+  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
+  "/page": "app/page.js",
+  "/(protected)/dashboard/vet/fast-entry/page": "app/(protected)/dashboard/vet/fast-entry/page.js",
+  "/(protected)/dashboard/vet/page": "app/(protected)/dashboard/vet/page.js",
+  "/(protected)/dashboard/vet/establishment/page": "app/(protected)/dashboard/vet/establishment/page.js",
+  "/(protected)/dashboard/vet/services/page": "app/(protected)/dashboard/vet/services/page.js",
+  "/(protected)/dashboard/vet/validate/page": "app/(protected)/dashboard/vet/validate/page.js",
+  "/(protected)/dashboard/vet/finances/page": "app/(protected)/dashboard/vet/finances/page.js"
+}

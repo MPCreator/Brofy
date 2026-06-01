@@ -31,6 +31,9 @@ model Profile {
   longitude     Float?
   passwordResetToken   String?   @map("password_reset_token")   // Token para recuperación de contraseña
   passwordResetExpires DateTime? @map("password_reset_expires")  // Expiración del token (1 hora)
+  failedAttempts       Int       @default(0) @map("failed_attempts")
+  lockoutUntil         DateTime? @map("lockout_until")
+  creditBalance        Float     @default(0.00) @map("credit_balance")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -63,6 +66,8 @@ model Pet {
   microchipId    String?  @map("microchip_id")
   photoUrl       String?  @map("photo_url")
   medicalHistory String   @default("[]") @map("medical_history") // JSON string (JSONB en PG)
+  isActive       Boolean  @default(true) @map("is_active")
+  cuh            String?  @unique                                      // CUH: Código Único de Huella (memorizable)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -91,10 +96,12 @@ model Establishment {
   phone          String?
   description    String?
   photoUrl       String?  @map("photo_url")
+  logoUrl        String?  @map("logo_url")
   rating         Float    @default(0.0)
   isActive       Boolean  @default(true) @map("is_active")
   operatingHours String   @default("{}") @map("operating_hours") // JSON string
   concurrentSlots Int      @default(1) @map("concurrent_slots") // Capacidad de atención simultánea
+  dni            String?                                               // DNI / Identificador único de local (memorizable)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -119,6 +126,7 @@ model Service {
   duration        Int      @default(30)              // Duración en minutos
   category        String   @default("general")      // 'consultation', 'vaccination', 'grooming', 'surgery', 'deworming', 'test', 'walk', 'bath'
   isActive        Boolean  @default(true) @map("is_active")
+  tariffUpdatedAt DateTime @default(now()) @map("tariff_updated_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -137,7 +145,7 @@ model Appointment {
   petId             String   @map("pet_id")
   establishmentId   String   @map("establishment_id")
   providerId        String?  @map("provider_id")
-  status            String   @default("pending")     // 'pending', 'paid', 'validated', 'completed', 'cancelled'
+  status            String   @default("pending")     // 'pending', 'paid', 'validated', 'completed', 'cancelled', 'disputed'
   serviceType       String   @default("consultation") @map("service_type")
   commissionAmount  Float    @default(5.00) @map("commission_amount")  // S/ 5 reserva, S/ 6 walk-in
   commissionType    String   @default("booking") @map("commission_type") // 'booking' | 'walkin'
@@ -147,6 +155,12 @@ model Appointment {
   notes             String?
   scheduledAt       DateTime? @map("scheduled_at")
   completedAt       DateTime? @map("completed_at")
+  bookedServices    String   @default("[]") @map("booked_services")
+  totalServicePrice Float    @default(0.00) @map("total_service_price")
+  rescheduledAt     DateTime? @map("rescheduled_at")
+  rescheduleProposedBy String? @map("reschedule_proposed_by")
+  denunciaReason    String?  @map("denuncia_reason")                    // Motivo de la denuncia/disputa por inasistencia
+  denunciaStatus    String?  @map("denuncia_status")                    // 'pending' | 'resolved_refunded' | 'resolved_rejected'
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 

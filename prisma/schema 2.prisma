@@ -1,0 +1,273 @@
+// ============================================================================
+// BROFY — Schema Prisma (Supabase / PostgreSQL)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// PROFILES — Usuarios de la plataforma
+// ---------------------------------------------------------------------------
+model Profile {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String                             // Solo para desarrollo local (Supabase Auth lo maneja en prod)
+  fullName  String   @map("full_name")
+  role      String   @default("client")        // 'vet', 'client', 'provider'
+  cmvpId    String?  @map("cmvp_id")           // Solo para vets, validación manual
+  cmvpValidated Boolean   @default(false) @map("cmvp_validated")
+  isActive      Boolean   @default(true)  @map("is_active")      // Para suspensión de cuenta
+  revisionMsg   String?   @map("revision_msg")                   // Mensaje de admin al usuario
+  phone         String?
+  avatarUrl     String?   @map("avatar_url")
+  latitude      Float?                             // Emula geography(POINT) para SQLite
+  longitude     Float?
+  passwordResetToken   String?   @map("password_reset_token")   // Token para recuperación de contraseña
+  passwordResetExpires DateTime? @map("password_reset_expires")  // Expiración del token (1 hora)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  pets                   Pet[]
+  establishments         Establishment[]
+  appointmentsAsClient   Appointment[]    @relation("ClientAppointments")
+  appointmentsAsProvider Appointment[]    @relation("ProviderAppointments")
+  medicalRecords         MedicalRecord[]
+  transactions           Transaction[]
+  reviews                Review[]
+  remindersAsClient       Reminder[] @relation("ClientReminders")
+  remindersCreated        Reminder[] @relation("CreatedReminders")
+
+  @@map("profiles")
+}
+
+// ---------------------------------------------------------------------------
+// PETS — Mascotas del cliente
+// ---------------------------------------------------------------------------
+model Pet {
+  id             String   @id @default(uuid())
+  ownerId        String   @map("owner_id")
+  name           String
+  species        String                        // 'dog', 'cat', 'bird', 'rabbit', etc.
+  breed          String?
+  dateOfBirth    String?  @map("date_of_birth") // ISO date string (SQLite no tiene DATE nativo)
+  weight         Float?                         // kg
+  sex            String?                        // 'male', 'female', 'unknown'
+  microchipId    String?  @map("microchip_id")
+  photoUrl       String?  @map("photo_url")
+  medicalHistory String   @default("[]") @map("medical_history") // JSON string (JSONB en PG)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner        Profile       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  reminders    Reminder[]
+
+  @@map("pets")
+}
+
+// ---------------------------------------------------------------------------
+// ESTABLISHMENTS — Locales de servicio veterinario
+// ---------------------------------------------------------------------------
+model Establishment {
+  id             String   @id @default(uuid())
+  ownerId        String   @map("owner_id")
+  name           String
+  address        String
+  district       String?                       // Distrito (Miraflores, San Isidro, etc.)
+  city           String   @default("Lima")
+  latitude       Float                         // Emula geography(POINT)
+  longitude      Float
+  type           String   @default("clinic")   // 'clinic', 'groomer', 'walker', 'hospital', 'pet_shop'
+  qrCodeToken    String   @unique @default(uuid()) @map("qr_code_token") // Token único para QR
+  phone          String?
+  description    String?
+  photoUrl       String?  @map("photo_url")
+  rating         Float    @default(0.0)
+  isActive       Boolean  @default(true) @map("is_active")
+  operatingHours String   @default("{}") @map("operating_hours") // JSON string
+  concurrentSlots Int      @default(1) @map("concurrent_slots") // Capacidad de atención simultánea
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner        Profile       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  services     Service[]
+  reviews      Review[]
+
+  @@map("establishments")
+}
+
+// ---------------------------------------------------------------------------
+// SERVICES — Tarifario de cada establecimiento
+// ---------------------------------------------------------------------------
+model Service {
+  id              String   @id @default(uuid())
+  establishmentId String   @map("establishment_id")
+  name            String
+  description     String?
+  price           Float                              // Precio en soles
+  duration        Int      @default(30)              // Duración en minutos
+  category        String   @default("general")      // 'consultation', 'vaccination', 'grooming', 'surgery', 'deworming', 'test', 'walk', 'bath'
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  establishment Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@map("services")
+}
+
+// ---------------------------------------------------------------------------
+// APPOINTMENTS — Citas con flujo de validación "Mano Dura"
+// ---------------------------------------------------------------------------
+model Appointment {
+  id                String   @id @default(uuid())
+  clientId          String   @map("client_id")
+  petId             String   @map("pet_id")
+  establishmentId   String   @map("establishment_id")
+  providerId        String?  @map("provider_id")
+  status            String   @default("pending")     // 'pending', 'paid', 'validated', 'completed', 'cancelled'
+  serviceType       String   @default("consultation") @map("service_type")
+  commissionAmount  Float    @default(5.00) @map("commission_amount")  // S/ 5 reserva, S/ 6 walk-in
+  commissionType    String   @default("booking") @map("commission_type") // 'booking' | 'walkin'
+  otpValidationCode String?  @map("otp_validation_code")               // OTP de 6 dígitos
+  otpExpiresAt      DateTime? @map("otp_expires_at")
+  paymentId         String?  @map("payment_id")                        // ID de transacción pasarela
+  notes             String?
+  scheduledAt       DateTime? @map("scheduled_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  client        Profile       @relation("ClientAppointments", fields: [clientId], references: [id])
+  pet           Pet           @relation(fields: [petId], references: [id])
+  establishment Establishment @relation(fields: [establishmentId], references: [id])
+  provider      Profile?      @relation("ProviderAppointments", fields: [providerId], references: [id])
+  medicalRecord MedicalRecord?
+  review        Review?
+
+  @@map("appointments")
+}
+
+// ---------------------------------------------------------------------------
+// MEDICAL_RECORDS — Fichas médicas (solo creables post-OTP validación)
+// ---------------------------------------------------------------------------
+model MedicalRecord {
+  id            String   @id @default(uuid())
+  appointmentId String   @unique @map("appointment_id")
+  vetId         String   @map("vet_id")
+  weight        Float?                           // Peso actual en kg
+  temperature   Float?                           // Temperatura en °C
+  heartRate     Int?     @map("heart_rate")       // bpm
+  symptoms      String   @default("[]")           // JSON array de síntomas (TEXT[] en PG)
+  diagnosis     String?
+  prescription  String?
+  treatment     String?
+  nextVisit     String?  @map("next_visit")       // ISO date string
+  attachments   String   @default("[]")           // JSON array de URLs
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  vet         Profile     @relation(fields: [vetId], references: [id])
+
+  @@map("medical_records")
+}
+
+// ---------------------------------------------------------------------------
+// TRANSACTIONS — Ingresos y gastos del proveedor/vet
+// ---------------------------------------------------------------------------
+model Transaction {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  type        String                            // 'income' | 'expense'
+  amount      Float                              // Monto en soles
+  category    String   @default("other")        // 'consultation', 'surgery', 'grooming', 'supplies', 'rent', 'salary', 'other'
+  description String?
+  date        String                             // ISO date string
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+// ---------------------------------------------------------------------------
+// CLAIMS — Libro de Reclamaciones
+// ---------------------------------------------------------------------------
+model Claim {
+  id             String   @id @default(uuid())
+  fullName       String   @map("full_name")
+  documentId     String   @map("document_id")
+  email          String
+  phone          String
+  address        String
+  claimType      String   @map("claim_type") // 'queja' o 'reclamo'
+  description    String
+  request        String
+  status         String   @default("pending") // 'pending', 'resolved'
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("claims")
+}
+
+// ---------------------------------------------------------------------------
+// REVIEWS — Valoraciones de establecimientos
+// ---------------------------------------------------------------------------
+model Review {
+  id              String   @id @default(uuid())
+  appointmentId   String   @unique @map("appointment_id")
+  clientId        String   @map("client_id")
+  establishmentId String   @map("establishment_id")
+  rating          Int      // 1-5
+  comment         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  client        Profile       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  establishment Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+// ---------------------------------------------------------------------------
+// REMINDERS — Recordatorios de citas, controles y servicios
+// ---------------------------------------------------------------------------
+model Reminder {
+  id            String    @id @default(uuid())
+  clientId      String?   @map("client_id")
+  petId         String?   @map("pet_id")
+  appointmentId String?   @map("appointment_id")
+  createdBy     String    @map("created_by")
+  type          String    @default("control")
+  title         String
+  message       String?
+  dueDate       String    @map("due_date")
+  isCompleted   Boolean   @default(false) @map("is_completed")
+  completedAt   DateTime? @map("completed_at")
+  isGlobal      Boolean   @default(false) @map("is_global")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  client  Profile? @relation("ClientReminders", fields: [clientId], references: [id], onDelete: Cascade)
+  pet     Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  creator Profile  @relation("CreatedReminders", fields: [createdBy], references: [id])
+
+  @@map("reminders")
+}

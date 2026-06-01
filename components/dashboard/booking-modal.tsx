@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { getUserPets, createAppointment } from "@/lib/actions";
-import { Clock, CheckCircle, PawPrint, DollarSign, ShieldCheck, AlertCircle } from "lucide-react";
+import { getUserPets, createAppointment, getProfile, bookWithCredits, updateProfile } from "@/lib/actions";
+import { Clock, CheckCircle, PawPrint, DollarSign, ShieldCheck, AlertCircle, Phone, Check, Loader2 } from "lucide-react";
 import { IzipayMock } from "@/components/ui/izipay-mock";
 import { toast } from "sonner";
 import type { Establishment } from "@/lib/types";
@@ -18,14 +18,20 @@ interface BookingModalProps {
 export function BookingModal({ establishment, isOpen, onClose }: BookingModalProps) {
     const [step, setStep] = useState(1);
     const [pets, setPets] = useState<any[]>([]);
+    const [clientProfile, setClientProfile] = useState<any>(null);
 
     // Selection state
     const [selectedPet, setSelectedPet] = useState<string | null>(null);
-    const [selectedService, setSelectedService] = useState<any | null>(null);
+    const [selectedServices, setSelectedServices] = useState<any[]>([]);
     const [selectedDay, setSelectedDay] = useState("");
     const [selectedTime, setSelectedTime] = useState("");
     const [notes, setNotes] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+
+    // Phone editing state in modal flow
+    const [phoneCode, setPhoneCode] = useState("+51");
+    const [phoneInput, setPhoneInput] = useState("");
+    const [savingPhone, setSavingPhone] = useState(false);
 
     // Compute final date
     const date = selectedDay && selectedTime ? new Date(`${selectedDay}T${selectedTime}`).toISOString() : "";
@@ -35,78 +41,156 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
             loadData();
             setStep(1);
             setSelectedPet(null);
-            setSelectedService(null);
+            setSelectedServices([]);
             setSelectedDay("");
             setSelectedTime("");
             setNotes("");
+            setPhoneInput("");
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, establishment]);
 
     const loadData = async () => {
-        const p = await getUserPets();
-        setPets(p);
+        try {
+            const [p, profile] = await Promise.all([
+                getUserPets(),
+                getProfile()
+            ]);
+            setPets(p);
+            setClientProfile(profile);
+            if (profile?.phone) {
+                // Prefill digits by stripping +countrycode
+                setPhoneInput(profile.phone.replace(/^\+\d+/, ""));
+            }
+        } catch (e) {
+            console.error("Error al cargar datos iniciales del modal", e);
+        }
+    };
+
+    const toggleService = (svc: any) => {
+        if (selectedServices.find(s => s.id === svc.id)) {
+            setSelectedServices(selectedServices.filter(s => s.id !== svc.id));
+        } else {
+            setSelectedServices([...selectedServices, svc]);
+        }
+    };
+
+    const handleSavePhone = async () => {
+        if (phoneInput.length < 9) {
+            toast.error("El número de teléfono móvil debe tener al menos 9 dígitos");
+            return false;
+        }
+        setSavingPhone(true);
+        try {
+            const fullPhone = `${phoneCode}${phoneInput}`;
+            const formData = new FormData();
+            formData.set("fullName", clientProfile?.fullName || "");
+            formData.set("phone", fullPhone);
+
+            const res = await updateProfile(formData);
+            if (res.success) {
+                setClientProfile({ ...clientProfile, phone: fullPhone });
+                toast.success("Teléfono registrado correctamente");
+                setSavingPhone(false);
+                return true;
+            } else {
+                toast.error("Error al registrar el teléfono");
+            }
+        } catch (e) {
+            toast.error("Error de conexión al guardar el teléfono");
+        }
+        setSavingPhone(false);
+        return false;
     };
 
     const handleBook = async () => {
-        if (!selectedPet || !date || !establishment) return;
+        if (!selectedPet || !date || !establishment || selectedServices.length === 0) return;
+
+        // Si no tiene teléfono en el perfil, exigir guardarlo primero
+        if (!clientProfile?.phone) {
+            const saved = await handleSavePhone();
+            if (!saved) return;
+        }
 
         setIsLoading(true);
         try {
+            // Req 3: Crear cita pasando array de serviceIds
             const res = await createAppointment({
                 petId: selectedPet,
                 establishmentId: establishment.id,
                 providerId: establishment.ownerId,
-                serviceType: selectedService?.name || selectedService?.category || 'consultation',
+                serviceIds: selectedServices.map(s => s.id),
                 commissionType: 'booking',
                 scheduledAt: date,
                 notes,
             });
 
             if (res.success && res.appointmentId) {
-                const { processPayment } = await import('@/lib/actions');
-                const payResult = await processPayment(res.appointmentId);
-                if (payResult.success) {
-                    toast.success("¡Turno confirmado! Tu código de atención ya está disponible en tu panel.");
-                    onClose();
+                const totalCommission = 5.00 * selectedServices.length;
+                const hasCredits = clientProfile && clientProfile.creditBalance >= totalCommission;
+
+                if (hasCredits) {
+                    // Procesar canje con créditos/Huellitas
+                    const payResult = await bookWithCredits(res.appointmentId);
+                    if (payResult.success) {
+                        toast.success("¡Turno confirmado y canjeado con tus Huellitas! Tu código de atención ya está disponible.");
+                        onClose();
+                    } else {
+                        toast.error(payResult.message || "Error al procesar el canje de Huellitas");
+                    }
                 } else {
-                    toast.error(payResult.message || "Error al procesar el pago");
+                    // Si no tiene créditos, procesar vía pasarela (IzipayMock)
+                    const { processPayment } = await import('@/lib/actions');
+                    const payResult = await processPayment(res.appointmentId);
+                    if (payResult.success) {
+                        toast.success("¡Turno confirmado! Tu código de atención ya está disponible en tu panel.");
+                        onClose();
+                    } else {
+                        toast.error(payResult.message || "Error al procesar el pago");
+                    }
                 }
             } else {
                 toast.error(res.error || "Error al solicitar el turno");
             }
-        } catch (e) {
-            toast.error("Error de conexión. Intenta de nuevo.");
+        } catch (e: any) {
+            toast.error(e.message || "Error de conexión. Intenta de nuevo.");
         }
         setIsLoading(false);
     };
 
-    // Build time slots based on service duration
+    // Build time slots based on total sum of service durations
     const buildSlots = () => {
-        const duration = selectedService?.duration || 30;
+        const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0) || 30;
         const slots: string[] = [];
-        for (let h = 9; h < 19; h++) {
-            for (let m = 0; m < 60; m += duration) {
-                if (h === 18 && m > 0) break;
-                slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
-            }
+        const startMinutes = 9 * 60;   // 09:00
+        const endMinutes = 18 * 60;    // 18:00 — last slot must end by this time
+        for (let mins = startMinutes; mins + totalDuration <= endMinutes; mins += totalDuration) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
         }
         return slots;
     };
 
     const services = establishment?.services?.filter(s => s.isActive !== false) || [];
+    const totalServicePrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
+    const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const totalPlatformFee = 5.00 * selectedServices.length;
+
+    // Verificar si el saldo de créditos cubre el acceso a la plataforma en Huellitas
+    const hasEnoughCredits = clientProfile && clientProfile.creditBalance >= totalPlatformFee;
 
     if (!isOpen) return null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md bg-white max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-md bg-white max-h-[90vh] overflow-y-auto rounded-3xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-primary-700">
                         {step === 1 && "1. Elige tu mascota"}
-                        {step === 2 && "2. Selecciona el servicio"}
+                        {step === 2 && "2. Selecciona servicios"}
                         {step === 3 && "3. Elige tu horario"}
-                        {step === 4 && "4. Acceso a plataforma"}
+                        {step === 4 && "4. Confirmación de Reserva"}
                         <span className="text-sm font-normal text-slate-400 ml-auto">Paso {step} de 4</span>
                     </DialogTitle>
                 </DialogHeader>
@@ -121,13 +205,13 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                     <button
                                         key={pet.id}
                                         onClick={() => setSelectedPet(pet.id)}
-                                        className={`p-4 border-2 rounded-xl text-left transition-all ${selectedPet === pet.id ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200' : 'border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
+                                        className={`p-4 border-2 rounded-2xl text-left transition-all ${selectedPet === pet.id ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200' : 'border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
                                     >
-                                        <div className="font-bold text-slate-800 flex items-center gap-2">
-                                            <PawPrint className="w-4 h-4 text-slate-400" />
+                                        <div className="font-bold text-slate-800 flex items-center gap-2 truncate">
+                                            <PawPrint className="w-4 h-4 text-slate-400 flex-shrink-0" />
                                             {pet.name}
                                         </div>
-                                        <div className="text-xs text-slate-500 mt-1">{pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</div>
+                                        <div className="text-xs text-slate-500 mt-1 capitalize truncate">{pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</div>
                                     </button>
                                 ))}
                                 {pets.length === 0 && (
@@ -140,11 +224,11 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                         </div>
                     )}
 
-                    {/* Step 2: Service selection */}
+                    {/* Step 2: Multiple Service Selection */}
                     {step === 2 && (
                         <div className="space-y-3">
                             <p className="text-xs text-slate-500">
-                                Selecciona el servicio que necesitas en <strong>{establishment?.name}</strong>:
+                                Selecciona uno o más servicios que deseas reservar en <strong>{establishment?.name}</strong>:
                             </p>
 
                             {services.length === 0 ? (
@@ -154,53 +238,124 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {services.map((svc: any) => (
-                                        <button
-                                            key={svc.id}
-                                            onClick={() => setSelectedService(svc)}
-                                            className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 text-left transition-all ${selectedService?.id === svc.id ? 'border-primary-500 bg-primary-50' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}
-                                        >
-                                            <div>
-                                                <p className="font-semibold text-slate-900 text-sm">{svc.name}</p>
-                                                {svc.description && (
-                                                    <p className="text-xs text-slate-500 mt-0.5">{svc.description}</p>
-                                                )}
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="flex items-center gap-1 text-xs text-slate-500">
-                                                        <Clock className="w-3 h-3" /> {svc.duration} min
-                                                    </span>
+                                    {services.map((svc: any) => {
+                                        const isSelected = selectedServices.some(s => s.id === svc.id);
+                                        return (
+                                            <button
+                                                key={svc.id}
+                                                type="button"
+                                                onClick={() => toggleService(svc)}
+                                                className={`w-full flex items-center justify-between p-3.5 rounded-2xl border-2 text-left transition-all ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary-600 border-primary-600 text-white' : 'border-slate-350 bg-white'}`}>
+                                                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-slate-900 text-sm">{svc.name}</p>
+                                                        {svc.description && (
+                                                            <p className="text-xs text-slate-500 mt-0.5">{svc.description}</p>
+                                                        )}
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                                                                <Clock className="w-3 h-3" /> {svc.duration} min
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="text-right shrink-0 ml-3">
-                                                <p className="font-bold text-emerald-700 text-base">{formatPEN(svc.price)}</p>
-                                                <p className="text-[10px] text-slate-400">precio del servicio</p>
-                                            </div>
-                                        </button>
-                                    ))}
+                                                <div className="text-right shrink-0 ml-3">
+                                                    <p className="font-bold text-emerald-700 text-base">{formatPEN(svc.price)}</p>
+                                                    <p className="text-[10px] text-slate-400">precio del servicio</p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
 
-                            {/* Legal clarification note */}
-                            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3 mt-2">
+                            {/* Dynamic Platform Fee Summary */}
+                            {selectedServices.length > 0 && (
+                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5 animate-in fade-in">
+                                    <div className="flex justify-between text-xs text-slate-600">
+                                        <span>Servicios seleccionados:</span>
+                                        <strong className="text-slate-800">{selectedServices.length}</strong>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-600">
+                                        <span>Suma total de servicios:</span>
+                                        <strong className="text-emerald-700">{formatPEN(totalServicePrice)}</strong>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-primary-700 font-semibold border-t border-slate-200/80 pt-1.5">
+                                        <span className="flex items-center gap-1">Cargo de Plataforma (S/ 5 c/u):</span>
+                                        <span>{formatPEN(totalPlatformFee)}</span>
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 text-center pt-1">
+                                        +S/ 5.00 adicionales agregados por cada servicio extra seleccionado en el turno
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-2xl p-3 mt-2">
                                 <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                                 <p className="text-xs text-blue-700 leading-relaxed">
-                                    El precio del servicio se paga directamente al establecimiento. El paso final cobra <strong>S/ 5.00</strong> por el acceso a la plataforma Brofy (gestión digital del turno, verificación profesional y código de atención).
+                                    El valor del servicio se abona directamente al local. El paso final cobra únicamente el acceso a la plataforma Brofy (código de atención, validación y carnet digital).
                                 </p>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 3: Date & Time */}
+                    {/* Step 3: Date & Time + Mandatory Phone */}
                     {step === 3 && (
                         <div className="space-y-4">
                             {/* Summary bar */}
-                            <div className="bg-primary-50 border border-primary-100 p-3 rounded-xl flex items-center gap-3">
+                            <div className="bg-primary-50 border border-primary-100 p-3.5 rounded-2xl flex items-center gap-3">
                                 <CheckCircle className="w-5 h-5 text-primary-600 shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-semibold text-primary-900 text-sm truncate">{selectedService?.name}</p>
-                                    <p className="text-xs text-primary-700">{pets.find(p => p.id === selectedPet)?.name} · {selectedService?.duration} min · {formatPEN(selectedService?.price || 0)}</p>
+                                    <p className="font-semibold text-primary-900 text-sm truncate">
+                                        {selectedServices.map(s => s.name).join(" + ")}
+                                    </p>
+                                    <p className="text-xs text-primary-700 font-medium">
+                                        {pets.find(p => p.id === selectedPet)?.name} · {totalDuration} min · {formatPEN(totalServicePrice)}
+                                    </p>
                                 </div>
                             </div>
+
+                            {/* Req 7: In-flow Phone Registration if missing */}
+                            {!clientProfile?.phone && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2.5 animate-in slide-in-from-top-2">
+                                    <p className="text-xs font-semibold text-amber-950 flex items-center gap-1.5">
+                                        <Phone className="w-4 h-4 text-amber-600" /> Teléfono de Contacto Obligatorio
+                                    </p>
+                                    <p className="text-[10px] text-amber-800 leading-relaxed">
+                                        Brofy y el veterinario requieren de forma obligatoria tu teléfono para poder coordinar detalles y verificar tu turno:
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={phoneCode}
+                                            onChange={e => setPhoneCode(e.target.value)}
+                                            className="px-2.5 py-2.5 bg-white border border-amber-200 rounded-xl text-xs font-medium cursor-pointer focus:outline-none"
+                                        >
+                                            <option value="+51">🇵🇪 +51</option>
+                                            <option value="+54">🇦🇷 +54</option>
+                                            <option value="+56">🇨🇱 +56</option>
+                                            <option value="+57">🇨🇴 +57</option>
+                                            <option value="+52">🇲🇽 +52</option>
+                                            <option value="+593">🇪🇨 +593</option>
+                                        </select>
+                                        <div className="relative flex-1">
+                                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                            <input
+                                                type="tel"
+                                                required
+                                                placeholder="999 999 999"
+                                                value={phoneInput}
+                                                onChange={e => setPhoneInput(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                                                className="w-full pl-9 pr-3 py-2.5 bg-white border border-amber-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[9px] text-amber-600 font-medium">* Se guardará permanentemente en tu perfil al confirmar</p>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-700">Fecha</label>
@@ -216,11 +371,9 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-700">
                                     Horario
-                                    {selectedService && (
-                                        <span className="ml-2 text-xs text-slate-400 font-normal">
-                                            (bloques de {selectedService.duration} min)
-                                        </span>
-                                    )}
+                                    <span className="ml-2 text-xs text-slate-400 font-normal">
+                                        (duración total de {totalDuration} min)
+                                    </span>
                                 </label>
                                 <div className="grid grid-cols-4 gap-2">
                                     {!selectedDay ? (
@@ -228,8 +381,9 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                     ) : buildSlots().map(slot => (
                                         <button
                                             key={slot}
+                                            type="button"
                                             onClick={() => setSelectedTime(slot)}
-                                            className={`py-2 text-sm font-medium rounded-lg border transition-all ${selectedTime === slot ? 'bg-primary-600 text-white border-primary-600' : 'bg-white border-slate-200 text-slate-700 hover:border-primary-300'}`}
+                                            className={`py-2 text-xs font-bold rounded-xl border transition-all ${selectedTime === slot ? 'bg-primary-600 text-white border-primary-600' : 'bg-white border-slate-200 text-slate-700 hover:border-primary-300'}`}
                                         >
                                             {slot}
                                         </button>
@@ -238,92 +392,145 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700">Notas para el veterinario (opcional)</label>
+                                <label className="text-sm font-medium text-slate-700">Notas para el local (opcional)</label>
                                 <textarea
                                     className="w-full p-3 border border-slate-200 rounded-xl bg-white h-16 resize-none focus:outline-none focus:ring-2 focus:ring-primary-300 text-sm"
-                                    placeholder="Síntomas previos, alergias conocidas..."
+                                    placeholder="Síntomas previos, requerimientos especiales..."
                                     onChange={(e) => setNotes(e.target.value)}
                                 />
                             </div>
                         </div>
                     )}
 
-                    {/* Step 4: Platform access payment */}
+                    {/* Step 4: Real Platform Credits or Izipay */}
                     {step === 4 && (
                         <div className="space-y-4">
-                            {/* Appointment summary */}
-                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2 text-sm">
+                            {/* Summary */}
+                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2 text-sm animate-in fade-in">
                                 <p className="font-semibold text-slate-900">{establishment?.name}</p>
-                                <div className="flex justify-between text-slate-600">
-                                    <span>Servicio</span>
-                                    <span className="font-medium">{selectedService?.name}</span>
+                                <div className="flex justify-between text-slate-650 text-xs">
+                                    <span>Servicios ({selectedServices.length})</span>
+                                    <span className="font-medium truncate max-w-[200px]">
+                                        {selectedServices.map(s => s.name).join(" + ")}
+                                    </span>
                                 </div>
-                                <div className="flex justify-between text-slate-600">
+                                <div className="flex justify-between text-slate-650 text-xs">
                                     <span>Mascota</span>
                                     <span className="font-medium">{pets.find(p => p.id === selectedPet)?.name}</span>
                                 </div>
-                                <div className="flex justify-between text-slate-600">
+                                <div className="flex justify-between text-slate-650 text-xs">
                                     <span>Horario</span>
-                                    <span className="font-medium">
-                                        {selectedDay && new Date(`${selectedDay}T${selectedTime}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })} · {selectedTime}
+                                    <span className="font-semibold text-slate-800">
+                                        {selectedDay && new Date(`${selectedDay}T${selectedTime}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })} · {selectedTime} ({totalDuration} min)
                                     </span>
                                 </div>
-                                <div className="flex justify-between text-slate-600 pt-2 border-t border-slate-200">
-                                    <span>Precio del servicio</span>
-                                    <span className="font-bold text-emerald-700">{formatPEN(selectedService?.price || 0)}</span>
+                                <div className="flex justify-between text-slate-650 text-xs pt-2 border-t border-slate-250/80">
+                                    <span>Total servicios a abonar en sede:</span>
+                                    <span className="font-bold text-emerald-700 text-sm">{formatPEN(totalServicePrice)}</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400">El precio del servicio se abona directamente al establecimiento.</p>
-                            </div>
-
-                            <div className="bg-primary-50 border border-primary-100 rounded-xl p-3 flex items-start gap-2">
-                                <ShieldCheck className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-                                <div className="text-xs text-primary-800 leading-relaxed">
-                                    <strong>Cargo por Acceso a Plataforma Brofy (S/ 5.00):</strong> Cubre la gestión digital de tu turno, verificación de habilitación profesional, almacenamiento del historial médico y generación de tu código de atención. Este cargo no constituye pago por el servicio veterinario.
+                                <div className="flex justify-between text-primary-800 text-xs font-semibold pt-1 border-t border-dashed border-slate-200">
+                                    <span>Cargo plataforma Brofy:</span>
+                                    <span className="font-bold text-primary-700 text-sm">{formatPEN(totalPlatformFee)}</span>
                                 </div>
                             </div>
 
-                            <IzipayMock
-                                amount={5.00}
-                                description="Acceso a Plataforma Brofy — Gestión de Turno Digital"
-                                onSuccess={handleBook}
-                            />
+                            {/* Real Huellitas System Badge */}
+                            {clientProfile && clientProfile.creditBalance > 0 && (
+                                <div className="bg-primary-50 border border-primary-200 p-3.5 rounded-2xl flex items-start gap-2.5 animate-in slide-in-from-top-1">
+                                    <ShieldCheck className="w-5 h-5 text-primary-600 shrink-0 mt-0.5" />
+                                    <div className="text-xs text-primary-800">
+                                        <p className="font-bold">Saldo: {(clientProfile.creditBalance * 100).toFixed(0)} Huellitas disponibles 🐾</p>
+                                        <p className="mt-0.5 opacity-95">
+                                            Tu saldo está guardado como **Huellitas** (puntos) para futuros beneficios de lealtad y devoluciones.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Payment execution buttons */}
+                            {hasEnoughCredits ? (
+                                <div className="space-y-2 pt-2 animate-in zoom-in-95">
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center text-xs text-slate-600 font-medium">
+                                        Se descontarán <strong className="text-emerald-700 font-bold">{formatPEN(totalPlatformFee)}</strong> de tu saldo de créditos.
+                                    </div>
+                                    <button
+                                        onClick={handleBook}
+                                        disabled={isLoading}
+                                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-base transition-all shadow-md"
+                                    >
+                                        {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        Canjear con Crédito Brofy Gratis
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3.5 flex items-start gap-2">
+                                        <ShieldCheck className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-primary-800 leading-relaxed">
+                                            <strong>Acceso a Plataforma (S/ {totalPlatformFee.toFixed(2)}):</strong> Cubre la gestión multiservicios del turno, inmutabilidad de la tarifa frente a variaciones, historial de carnet y validación.
+                                        </div>
+                                    </div>
+
+                                    {/* Pasarela Izipay lista para conectarse */}
+                                    <IzipayMock
+                                        amount={totalPlatformFee}
+                                        description={`Acceso a Plataforma Brofy — ${selectedServices.length} Servicios`}
+                                        buttonText="Pagar con Izipay"
+                                        onSuccess={handleBook}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
 
                 {step < 4 && (
-                    <DialogFooter className="flex justify-between sm:justify-between gap-2">
+                    <DialogFooter className="flex justify-between sm:justify-between gap-2 border-t border-slate-100 pt-3">
                         {step > 1 ? (
-                            <button onClick={() => setStep(step - 1)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm">
+                            <button type="button" onClick={() => setStep(step - 1)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-semibold">
                                 ← Atrás
                             </button>
                         ) : <div />}
 
                         {step === 1 && (
                             <button
+                                type="button"
                                 onClick={() => setStep(2)}
                                 disabled={!selectedPet}
-                                className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+                                className="bg-primary-600 text-white px-6 py-2.5 rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold shadow-md shadow-primary-100"
                             >
                                 Siguiente →
                             </button>
                         )}
                         {step === 2 && (
                             <button
+                                type="button"
                                 onClick={() => setStep(3)}
-                                disabled={!selectedService}
-                                className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+                                disabled={selectedServices.length === 0}
+                                className="bg-primary-600 text-white px-6 py-2.5 rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold shadow-md shadow-primary-100"
                             >
                                 Elegir Horario →
                             </button>
                         )}
                         {step === 3 && (
                             <button
-                                onClick={() => setStep(4)}
-                                disabled={!date}
-                                className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 shadow-lg shadow-primary-200 text-sm font-semibold"
+                                type="button"
+                                onClick={async () => {
+                                    // Validar campos de teléfono antes de continuar si está vacío
+                                    if (!clientProfile?.phone) {
+                                        if (phoneInput.length < 9) {
+                                            toast.error("Por favor registra un número de celular de 9 dígitos válido");
+                                            return;
+                                        }
+                                        const saved = await handleSavePhone();
+                                        if (!saved) return;
+                                    }
+                                    setStep(4);
+                                }}
+                                disabled={!date || (!clientProfile?.phone && phoneInput.length < 9) || savingPhone}
+                                className="bg-primary-600 text-white px-6 py-2.5 rounded-xl hover:bg-primary-700 disabled:opacity-50 shadow-md shadow-primary-100 text-sm font-bold"
                             >
-                                Continuar → S/ 5.00
+                                {savingPhone ? "Guardando Teléfono..." : `Confirmar Turno → ${formatPEN(totalPlatformFee)}`}
                             </button>
                         )}
                     </DialogFooter>
