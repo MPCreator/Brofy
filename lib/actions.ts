@@ -55,6 +55,19 @@ export async function addPet(formData: FormData) {
     }
 
     try {
+        // Generate unique CUH with collision retry
+        let cuh = ''
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+            const candidate = `CUH-${randomDigits}`
+            const existing = await prisma.pet.findFirst({ where: { cuh: candidate } })
+            if (!existing) {
+                cuh = candidate
+                break
+            }
+        }
+        if (!cuh) cuh = `CUH-${Date.now().toString().slice(-6)}`
+
         await prisma.pet.create({
             data: {
                 name,
@@ -66,6 +79,7 @@ export async function addPet(formData: FormData) {
                 ownerId: session.sub,
                 medicalHistory: '[]',
                 photoUrl,
+                cuh,
             }
         })
 
@@ -83,13 +97,27 @@ export async function getUserPets() {
 
     try {
         const pets = await prisma.pet.findMany({
-            where: { ownerId: session.sub },
+            where: { ownerId: session.sub, isActive: true },
             orderBy: { createdAt: 'desc' }
         })
-        return pets.map(pet => ({
-            ...pet,
-            medicalHistory: JSON.parse(pet.medicalHistory) as MedicalHistoryEntry[],
-        }))
+        
+        const updatedPets = []
+        for (const pet of pets) {
+            if (!pet.cuh) {
+                const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+                const generatedCuh = `CUH-${randomDigits}`
+                await prisma.pet.update({
+                    where: { id: pet.id },
+                    data: { cuh: generatedCuh }
+                })
+                pet.cuh = generatedCuh
+            }
+            updatedPets.push({
+                ...pet,
+                medicalHistory: JSON.parse(pet.medicalHistory) as MedicalHistoryEntry[],
+            })
+        }
+        return updatedPets
     } catch {
         return []
     }
@@ -103,10 +131,21 @@ export async function getPetById(petId: string) {
         where: {
             id: petId,
             ownerId: session.sub,
+            isActive: true,
         }
     })
 
     if (!pet) return null
+
+    if (!pet.cuh) {
+        const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+        const generatedCuh = `CUH-${randomDigits}`
+        await prisma.pet.update({
+            where: { id: pet.id },
+            data: { cuh: generatedCuh }
+        })
+        pet.cuh = generatedCuh
+    }
 
     return {
         ...pet,
@@ -152,8 +191,9 @@ export async function deletePet(petId: string) {
     const session = await requireSession()
 
     try {
-        await prisma.pet.delete({
-            where: { id: petId, ownerId: session.sub }
+        await prisma.pet.update({
+            where: { id: petId, ownerId: session.sub },
+            data: { isActive: false }
         })
         revalidatePath('/dashboard/client')
         return { success: true }
@@ -169,9 +209,30 @@ export async function deletePet(petId: string) {
 export async function getEstablishments() {
     const establishments = await prisma.establishment.findMany({
         where: { isActive: true },
-        orderBy: { rating: 'desc' },
+        include: {
+            services: {
+                where: { isActive: true }
+            },
+            reviews: true
+        },
     })
-    return establishments
+    
+    // Calculate dynamic rating and review counts from actual database reviews
+    const mapped = establishments.map(est => {
+        const reviewsCount = est.reviews.length
+        const avgRating = reviewsCount > 0
+            ? est.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewsCount
+            : 0
+        return {
+            ...est,
+            rating: avgRating,
+            reviewsCount
+        }
+    })
+
+    // Sort by rating (descending), putting new/unrated establishments at the end
+    mapped.sort((a, b) => b.rating - a.rating)
+    return mapped
 }
 
 export async function getNearbyEstablishments(
@@ -186,19 +247,31 @@ export async function getNearbyEstablishments(
 
     const establishments = await prisma.establishment.findMany({
         where: whereClause,
+        include: {
+            reviews: true,
+            services: true
+        }
     })
 
-    // Calculate distance using Haversine (emulates PostGIS ST_Distance for SQLite)
-    const withDistance = establishments.map(est => ({
-        ...est,
-        operatingHours: JSON.parse(est.operatingHours) as Record<string, { open: string; close: string }>,
-        distanceKm: calculateDistanceKm(userLat, userLng, est.latitude, est.longitude),
-    }))
+    // Calculate distance and average rating
+    const withDistance = establishments.map(est => {
+        const reviewsCount = est.reviews.length
+        const avgRating = reviewsCount > 0
+            ? est.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewsCount
+            : 0
+        return {
+            ...est,
+            rating: avgRating,
+            reviewsCount,
+            operatingHours: JSON.parse(est.operatingHours) as Record<string, { open: string; close: string }>,
+            distanceKm: calculateDistanceKm(userLat, userLng, est.latitude, est.longitude),
+        }
+    })
 
     // Sort by distance
     withDistance.sort((a, b) => a.distanceKm - b.distanceKm)
 
-    return withDistance as EstablishmentWithDistance[]
+    return withDistance as unknown as EstablishmentWithDistance[]
 }
 
 export async function getEstablishmentByQr(qrToken: string) {
@@ -210,11 +283,20 @@ export async function getEstablishmentByQr(qrToken: string) {
             }
         }
     })
+    if (establishment && !establishment.dni) {
+        const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+        const generatedDni = `EST-${randomDigits}`
+        await prisma.establishment.update({
+            where: { id: establishment.id },
+            data: { dni: generatedDni }
+        })
+        establishment.dni = generatedDni
+    }
     return establishment
 }
 
 export async function getEstablishmentById(id: string) {
-    return prisma.establishment.findUnique({
+    const establishment = await prisma.establishment.findUnique({
         where: { id },
         include: {
             owner: {
@@ -222,7 +304,18 @@ export async function getEstablishmentById(id: string) {
             }
         }
     })
+    if (establishment && !establishment.dni) {
+        const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+        const generatedDni = `EST-${randomDigits}`
+        await prisma.establishment.update({
+            where: { id: establishment.id },
+            data: { dni: generatedDni }
+        })
+        establishment.dni = generatedDni
+    }
+    return establishment
 }
+
 
 const CreateEstablishmentSchema = z.object({
     name: z.string().min(1),
@@ -267,6 +360,7 @@ export async function createEstablishment(formData: FormData) {
     
     const concurrentSlots = parseInt(formData.get('concurrentSlots') as string) || 1
     const photosBase64Str = formData.get('photosBase64') as string
+    const logoBase64 = formData.get('logoBase64') as string
 
     let photoUrl: string | null = null
     if (photosBase64Str) {
@@ -286,6 +380,18 @@ export async function createEstablishment(formData: FormData) {
         }
     }
 
+    let logoUrl: string | null = null
+    if (logoBase64) {
+        try {
+            logoUrl = await uploadImage(logoBase64, 'logos')
+        } catch (e) {
+            console.error("Error uploading logo in createEstablishment:", e)
+        }
+    }
+
+    const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+    const dni = `EST-${randomDigits}`
+
     await prisma.establishment.create({
         data: {
             ...validated.data,
@@ -296,6 +402,8 @@ export async function createEstablishment(formData: FormData) {
             concurrentSlots,
             ownerId: session.sub,
             photoUrl,
+            logoUrl,
+            dni,
         }
     })
 
@@ -315,40 +423,116 @@ export async function createAppointment(data: {
     petId: string;
     establishmentId: string;
     providerId?: string;
-    serviceType: string;
+    serviceType?: string;
+    serviceIds?: string[];
     commissionType: 'booking' | 'walkin';
     scheduledAt?: string;
     notes?: string;
 }) {
     const session = await requireRole(['client'])
 
-    const commissionAmount = data.commissionType === 'booking' ? 5.00 : 6.00
+    // Req 7: Verificar teléfono obligatorio antes de agendar
+    const clientProfile = await prisma.profile.findUnique({
+        where: { id: session.sub },
+        select: { phone: true }
+    })
+    if (!clientProfile || !clientProfile.phone || clientProfile.phone.trim() === '') {
+        return { success: false, error: 'El número de teléfono es obligatorio para agendar citas. Por favor, regístralo en tu Perfil de Configuración.' }
+    }
 
-    // Anti-saturación: Evitar citas solapadas (30 minutos de margen)
+    // Req 3: Obtener servicios y precios
+    let selectedServicesList: Array<{ id: string; name: string; price: number; duration: number }> = []
+    let totalServicePrice = 0
+    let totalDuration = 30
+    let serviceTypeName = data.serviceType || 'Consulta'
+
+    if (data.serviceIds && data.serviceIds.length > 0) {
+        const dbServices = await prisma.service.findMany({
+            where: { id: { in: data.serviceIds }, establishmentId: data.establishmentId }
+        })
+        if (dbServices.length > 0) {
+            selectedServicesList = dbServices.map(s => ({
+                id: s.id,
+                name: s.name,
+                price: s.price,
+                duration: s.duration
+            }))
+            totalServicePrice = dbServices.reduce((sum, s) => sum + s.price, 0)
+            totalDuration = dbServices.reduce((sum, s) => sum + s.duration, 0)
+            serviceTypeName = dbServices.map(s => s.name).join(' + ')
+        }
+    } else if (data.serviceType) {
+        const dbService = await prisma.service.findFirst({
+            where: { name: data.serviceType, establishmentId: data.establishmentId }
+        })
+        if (dbService) {
+            selectedServicesList = [{
+                id: dbService.id,
+                name: dbService.name,
+                price: dbService.price,
+                duration: dbService.duration
+            }]
+            totalServicePrice = dbService.price
+            totalDuration = dbService.duration
+            serviceTypeName = dbService.name
+        } else {
+            selectedServicesList = [{
+                id: 'default',
+                name: data.serviceType,
+                price: 0,
+                duration: 30
+            }]
+        }
+    }
+
+    const numServices = selectedServicesList.length > 0 ? selectedServicesList.length : 1
+    const commissionAmount = data.commissionType === 'booking' ? (5.00 * numServices) : (6.00 * numServices)
+
+    // Req 4: Prevención robusta de solapamientos basada en duraciones reales
     if (data.scheduledAt) {
         const requestedTime = new Date(data.scheduledAt)
-        const thirtyMinsBefore = new Date(requestedTime.getTime() - 30 * 60000)
-        const thirtyMinsAfter = new Date(requestedTime.getTime() + 30 * 60000)
+        const newStart = requestedTime.getTime()
+        const newEnd = newStart + totalDuration * 60000
 
-        const [overlappingCount, est] = await Promise.all([
-            prisma.appointment.count({
-                where: {
-                    establishmentId: data.establishmentId,
-                    status: { notIn: ['cancelled'] },
-                    scheduledAt: {
-                        gte: thirtyMinsBefore,
-                        lte: thirtyMinsAfter
-                    }
+        // Buscar citas en rango amplio de 4 horas antes/después
+        const wideAppointments = await prisma.appointment.findMany({
+            where: {
+                establishmentId: data.establishmentId,
+                status: { notIn: ['cancelled'] },
+                scheduledAt: {
+                    gte: new Date(requestedTime.getTime() - 4 * 60 * 60 * 1000),
+                    lte: new Date(requestedTime.getTime() + 4 * 60 * 60 * 1000)
                 }
-            }),
-            prisma.establishment.findUnique({
-                where: { id: data.establishmentId },
-                select: { concurrentSlots: true }
-            })
-        ])
+            }
+        })
 
-        if (est && overlappingCount >= est.concurrentSlots) {
-            return { success: false, error: 'El horario seleccionado ya está ocupado. Por favor, elige otro horario (mínimo 30 min de diferencia).' }
+        let overlapCount = 0
+        for (const apt of wideAppointments) {
+            if (!apt.scheduledAt) continue
+            const aptStart = new Date(apt.scheduledAt).getTime()
+            
+            let aptDuration = 30
+            try {
+                const booked = JSON.parse(apt.bookedServices)
+                if (Array.isArray(booked) && booked.length > 0) {
+                    aptDuration = booked.reduce((sum: number, s: any) => sum + (s.duration || 30), 0)
+                }
+            } catch {}
+            const aptEnd = aptStart + aptDuration * 60000
+
+            // startA < endB && endA > startB
+            if (newStart < aptEnd && newEnd > aptStart) {
+                overlapCount++
+            }
+        }
+
+        const est = await prisma.establishment.findUnique({
+            where: { id: data.establishmentId },
+            select: { concurrentSlots: true }
+        })
+
+        if (est && overlapCount >= est.concurrentSlots) {
+            return { success: false, error: `El horario seleccionado (${totalDuration} min) tiene cruces de horarios con la capacidad del local. Por favor elige otro horario.` }
         }
     }
 
@@ -358,9 +542,11 @@ export async function createAppointment(data: {
             petId: data.petId,
             establishmentId: data.establishmentId,
             providerId: data.providerId || null,
-            serviceType: data.serviceType,
+            serviceType: serviceTypeName,
             commissionType: data.commissionType,
             commissionAmount,
+            bookedServices: JSON.stringify(selectedServicesList),
+            totalServicePrice,
             scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
             notes: data.notes || null,
             status: 'pending',
@@ -400,13 +586,14 @@ export async function processPayment(appointmentId: string): Promise<OtpResult> 
     const otp = generateOtp()
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutos
 
-    // Actualizar cita: status → 'paid', guardar OTP
+    // Actualizar cita: status → 'paid', guardar OTP y su expiración
     await prisma.appointment.update({
         where: { id: appointmentId },
         data: {
             status: 'paid',
             paymentId: mockPaymentId,
             otpValidationCode: otp,
+            otpExpiresAt: expiresAt,
         }
     })
 
@@ -451,6 +638,9 @@ export async function validateOtp(appointmentId: string, code: string) {
             id: appointmentId,
             status: 'paid',
             otpValidationCode: code,
+            establishment: {
+                ownerId: session.sub
+            }
         }
     })
 
@@ -464,6 +654,8 @@ export async function validateOtp(appointmentId: string, code: string) {
         data: {
             status: 'validated',
             providerId: session.sub,
+            otpValidationCode: null,
+            otpExpiresAt: null,
         }
     })
 
@@ -487,12 +679,12 @@ export async function createMedicalRecord(data: {
 }) {
     const session = await requireRole(['vet'])
 
-    // Verificar que la cita está validada y pertenece al vet
+    // Verificar que la cita está validada o completada y pertenece al vet
     const appointment = await prisma.appointment.findFirst({
         where: {
             id: data.appointmentId,
             providerId: session.sub,
-            status: 'validated',
+            status: { in: ['validated', 'completed'] },
         },
         include: { pet: true },
     })
@@ -504,50 +696,122 @@ export async function createMedicalRecord(data: {
         }
     }
 
-    // Crear registro médico
-    const record = await prisma.medicalRecord.create({
-        data: {
+    // Check if medical record already exists
+    const existingRecord = await prisma.medicalRecord.findUnique({
+        where: { appointmentId: data.appointmentId }
+    })
+
+    let record;
+    if (existingRecord) {
+        // Check if within 24 hours
+        const hoursSinceCreation = (new Date().getTime() - existingRecord.createdAt.getTime()) / (1000 * 60 * 60)
+        if (hoursSinceCreation > 24) {
+            return {
+                success: false,
+                message: 'La ficha médica ya fue completada hace más de 24 horas y no se puede editar.'
+            }
+        }
+
+        // Update existing record
+        record = await prisma.medicalRecord.update({
+            where: { id: existingRecord.id },
+            data: {
+                weight: data.weight !== undefined ? data.weight : existingRecord.weight,
+                temperature: data.temperature !== undefined ? data.temperature : existingRecord.temperature,
+                heartRate: data.heartRate !== undefined ? data.heartRate : existingRecord.heartRate,
+                symptoms: JSON.stringify(data.symptoms),
+                diagnosis: data.diagnosis || null,
+                prescription: data.prescription || null,
+                treatment: data.treatment || null,
+                nextVisit: data.nextVisit || null,
+            }
+        })
+
+        // Update corresponding entry in the pet's medicalHistory array
+        const pet = appointment.pet
+        let currentHistory: any[] = JSON.parse(pet.medicalHistory)
+        
+        const appointmentDate = new Date(existingRecord.createdAt).toISOString().split('T')[0]
+        let matchIndex = currentHistory.findIndex((entry: any) => entry.appointmentId === data.appointmentId)
+        if (matchIndex === -1) {
+            // Fallback match
+            matchIndex = currentHistory.findIndex((entry: any) => 
+                entry.provider === session.fullName && 
+                entry.date === appointmentDate
+            )
+        }
+
+        const updatedEntry: any = {
             appointmentId: data.appointmentId,
-            vetId: session.sub,
-            weight: data.weight || null,
-            temperature: data.temperature || null,
-            heartRate: data.heartRate || null,
-            symptoms: JSON.stringify(data.symptoms),
-            diagnosis: data.diagnosis || null,
-            prescription: data.prescription || null,
-            treatment: data.treatment || null,
-            nextVisit: data.nextVisit || null,
+            date: appointmentDate,
+            type: 'consultation',
+            description: data.diagnosis || 'Consulta general',
+            provider: session.fullName,
+            notes: data.prescription || undefined,
         }
-    })
 
-    // Actualizar el medical_history JSONB de la mascota
-    const pet = appointment.pet
-    const currentHistory: MedicalHistoryEntry[] = JSON.parse(pet.medicalHistory)
-    const newEntry: MedicalHistoryEntry = {
-        date: new Date().toISOString().split('T')[0],
-        type: 'consultation',
-        description: data.diagnosis || 'Consulta general',
-        provider: session.fullName,
-        notes: data.prescription || undefined,
+        if (matchIndex > -1) {
+            currentHistory[matchIndex] = updatedEntry
+        } else {
+            currentHistory.push(updatedEntry)
+        }
+
+        await prisma.pet.update({
+            where: { id: pet.id },
+            data: { medicalHistory: JSON.stringify(currentHistory) }
+        })
+    } else {
+        // Create new record
+        record = await prisma.medicalRecord.create({
+            data: {
+                appointmentId: data.appointmentId,
+                vetId: session.sub,
+                weight: data.weight || null,
+                temperature: data.temperature || null,
+                heartRate: data.heartRate || null,
+                symptoms: JSON.stringify(data.symptoms),
+                diagnosis: data.diagnosis || null,
+                prescription: data.prescription || null,
+                treatment: data.treatment || null,
+                nextVisit: data.nextVisit || null,
+            }
+        })
+
+        // Add to pet's medicalHistory array
+        const pet = appointment.pet
+        const currentHistory: any[] = JSON.parse(pet.medicalHistory)
+        const newEntry: any = {
+            appointmentId: data.appointmentId,
+            date: new Date().toISOString().split('T')[0],
+            type: 'consultation',
+            description: data.diagnosis || 'Consulta general',
+            provider: session.fullName,
+            notes: data.prescription || undefined,
+        }
+        currentHistory.push(newEntry)
+
+        await prisma.pet.update({
+            where: { id: pet.id },
+            data: { medicalHistory: JSON.stringify(currentHistory) }
+        })
+
+        // Marcar la cita como completada
+        await prisma.appointment.update({
+            where: { id: data.appointmentId },
+            data: {
+                status: 'completed',
+                completedAt: new Date(),
+            }
+        })
     }
-    currentHistory.push(newEntry)
-
-    await prisma.pet.update({
-        where: { id: pet.id },
-        data: { medicalHistory: JSON.stringify(currentHistory) }
-    })
-
-    // Marcar la cita como completada
-    await prisma.appointment.update({
-        where: { id: data.appointmentId },
-        data: {
-            status: 'completed',
-            completedAt: new Date(),
-        }
-    })
 
     // Crear recordatorio automático si hay próxima visita
     if (data.nextVisit && appointment.clientId) {
+        // Delete existing reminder for this appointment if any, to avoid duplicate controls
+        await prisma.reminder.deleteMany({
+            where: { appointmentId: appointment.id }
+        })
+        
         await prisma.reminder.create({
             data: {
                 clientId: appointment.clientId,
@@ -784,7 +1048,13 @@ export async function getClientAppointments() {
         where: { clientId: session.sub },
         include: {
             pet: true,
-            establishment: true,
+            establishment: {
+                include: {
+                    services: {
+                        where: { isActive: true }
+                    }
+                }
+            },
             provider: { select: { id: true, fullName: true, cmvpId: true } },
             medicalRecord: true,
             review: true,
@@ -869,6 +1139,130 @@ export async function getMedicalHistory(petId: string) {
     return records
 }
 
+export async function getMedicalRecordByAppointment(appointmentId: string) {
+    const session = await requireRole(['vet', 'provider'])
+
+    const record = await prisma.medicalRecord.findUnique({
+        where: { appointmentId },
+        include: {
+            appointment: {
+                select: {
+                    pet: true,
+                    client: true,
+                }
+            }
+        }
+    })
+
+    if (!record) return null
+
+    // Check if within 24 hours of creation
+    const isEditable = (new Date().getTime() - record.createdAt.getTime()) <= 24 * 60 * 60 * 1000
+
+    return {
+        ...record,
+        isEditable,
+        symptoms: JSON.parse(record.symptoms) as string[],
+    }
+}
+
+export async function getPetHistoryForProvider(petId: string, appointmentId: string) {
+    const session = await requireRole(['vet', 'provider'])
+
+    // Fetch the appointment to check its date/time
+    const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        select: { scheduledAt: true }
+    })
+
+    if (!appointment) return []
+
+    const appointmentTime = appointment.scheduledAt ? new Date(appointment.scheduledAt) : new Date()
+
+    // Fetch all medical records for this pet that were created at or BEFORE the appointment's scheduled date
+    const records = await prisma.medicalRecord.findMany({
+        where: {
+            appointment: { petId },
+            createdAt: { lte: appointmentTime }
+        },
+        include: {
+            vet: { select: { fullName: true, cmvpId: true } },
+            appointment: {
+                select: { scheduledAt: true, serviceType: true, establishment: true }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+
+    return records
+}
+
+export async function getAppointmentForVet(appointmentId: string) {
+    const session = await requireRole(['vet', 'provider'])
+
+    const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        include: {
+            pet: true,
+            client: true,
+        }
+    })
+
+    if (!appointment) return null
+
+    // Fetch existing medical record if any
+    const record = await prisma.medicalRecord.findUnique({
+        where: { appointmentId }
+    })
+
+    let isEditable = true
+    let symptoms: string[] = []
+    if (record) {
+        isEditable = (new Date().getTime() - record.createdAt.getTime()) <= 24 * 60 * 60 * 1000
+        try {
+            symptoms = JSON.parse(record.symptoms) as string[]
+        } catch {
+            symptoms = []
+        }
+    }
+
+    // Fetch history before this appointment
+    const appointmentTime = appointment.scheduledAt ? new Date(appointment.scheduledAt) : new Date()
+    const history = await prisma.medicalRecord.findMany({
+        where: {
+            appointment: { petId: appointment.petId },
+            createdAt: { lte: appointmentTime },
+            // If the record exists, exclude it from past history list
+            id: record ? { not: record.id } : undefined
+        },
+        include: {
+            vet: { select: { fullName: true, cmvpId: true } },
+            appointment: {
+                select: { scheduledAt: true, serviceType: true, establishment: true }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+
+    return {
+        appointment: {
+            id: appointment.id,
+            serviceType: appointment.serviceType,
+            status: appointment.status,
+            scheduledAt: appointment.scheduledAt,
+            notes: appointment.notes,
+            pet: appointment.pet,
+            client: appointment.client,
+        },
+        record: record ? {
+            ...record,
+            symptoms,
+            isEditable,
+        } : null,
+        history,
+    }
+}
+
 export async function updateAppointmentStatus(appointmentId: string, status: string) {
     const session = await requireRole(['vet', 'provider'])
     
@@ -947,6 +1341,7 @@ export async function getProfile() {
             id: true, email: true, fullName: true, role: true,
             cmvpId: true, phone: true, avatarUrl: true,
             latitude: true, longitude: true,
+            creditBalance: true,
         }
     })
 }
@@ -992,11 +1387,26 @@ export async function getEstablishmentServices(establishmentId: string) {
 export async function getMyEstablishments() {
     const session = await getSession()
     if (!session) return []
-    return prisma.establishment.findMany({
+    const establishments = await prisma.establishment.findMany({
         where: { ownerId: session.sub },
         include: { services: { where: { isActive: true } } },
         orderBy: { createdAt: 'desc' },
     })
+
+    const updatedEstablishments = []
+    for (const est of establishments) {
+        if (!est.dni) {
+            const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
+            const generatedDni = `EST-${randomDigits}`
+            await prisma.establishment.update({
+                where: { id: est.id },
+                data: { dni: generatedDni }
+            })
+            est.dni = generatedDni
+        }
+        updatedEstablishments.push(est)
+    }
+    return updatedEstablishments
 }
 
 export async function addService(formData: FormData) {
@@ -1038,10 +1448,44 @@ export async function updateService(formData: FormData) {
 
     const service = await prisma.service.findFirst({
         where: { id },
-        include: { establishment: { select: { ownerId: true } } }
+        include: { establishment: { select: { name: true, ownerId: true, id: true } } }
     })
     if (!service || service.establishment.ownerId !== session.sub) {
         return { message: 'No autorizado' }
+    }
+
+    const newPrice = parseFloat(formData.get('price') as string)
+    const oldPrice = service.price
+
+    // If price has changed, send alerts to clients with active reservations
+    if (!isNaN(newPrice) && newPrice !== oldPrice) {
+        const activeAppointments = await prisma.appointment.findMany({
+            where: {
+                establishmentId: service.establishmentId,
+                status: { in: ['pending', 'paid'] }
+            }
+        })
+
+        for (const appt of activeAppointments) {
+            try {
+                const svcs = JSON.parse(appt.bookedServices || '[]')
+                const hasService = svcs.some((s: any) => s.id === id)
+                if (hasService) {
+                    await prisma.reminder.create({
+                        data: {
+                            clientId: appt.clientId,
+                            createdBy: session.sub,
+                            type: 'alerta',
+                            title: `Cambio de precio en ${service.name}`,
+                            message: `El precio del servicio "${service.name}" en "${service.establishment.name}" ha sido actualizado de S/ ${oldPrice.toFixed(2)} a S/ ${newPrice.toFixed(2)}. Tu reserva actual se respetará con la tarifa contratada originalmente.`,
+                            dueDate: new Date().toISOString().split('T')[0],
+                        }
+                    })
+                }
+            } catch (err) {
+                console.error("Error parsing bookedServices", err)
+            }
+        }
     }
 
     await prisma.service.update({
@@ -1049,9 +1493,10 @@ export async function updateService(formData: FormData) {
         data: {
             name: formData.get('name') as string,
             description: (formData.get('description') as string) || null,
-            price: parseFloat(formData.get('price') as string),
+            price: newPrice,
             duration: parseInt(formData.get('duration') as string) || 30,
             category: (formData.get('category') as string) || 'general',
+            tariffUpdatedAt: new Date()
         }
     })
 
@@ -1197,6 +1642,7 @@ export async function updateEstablishment(formData: FormData) {
     
     const concurrentSlots = parseInt(formData.get('concurrentSlots') as string) || 1
     const photosBase64Str = formData.get('photosBase64') as string
+    const logoBase64 = formData.get('logoBase64') as string
 
     let photoUrl: string | undefined = undefined
     if (photosBase64Str) {
@@ -1222,6 +1668,21 @@ export async function updateEstablishment(formData: FormData) {
         }
     }
 
+    let logoUrl: string | null | undefined = undefined
+    if (logoBase64 !== null && logoBase64 !== undefined) {
+        if (logoBase64 === '') {
+            logoUrl = null
+        } else if (logoBase64.startsWith('data:image')) {
+            try {
+                logoUrl = await uploadImage(logoBase64, 'logos')
+            } catch (e) {
+                console.error("Error uploading logo in updateEstablishment:", e)
+            }
+        } else if (logoBase64.startsWith('http')) {
+            logoUrl = logoBase64
+        }
+    }
+
     await prisma.establishment.update({
         where: { id },
         data: {
@@ -1234,6 +1695,7 @@ export async function updateEstablishment(formData: FormData) {
             operatingHours,
             concurrentSlots,
             photoUrl: photoUrl !== undefined ? photoUrl : undefined,
+            logoUrl: logoUrl !== undefined ? logoUrl : undefined,
         }
     })
 
@@ -1290,7 +1752,44 @@ export async function deleteAccount(userId: string) {
         where: { id: userId }
     })
     revalidatePath('/dashboard/admin')
-    return { success: true }
+}
+
+export async function sendCustomEmailFromAdmin({ userId, subject, body }: { userId: string; subject: string; body: string }) {
+    await requireRole(['admin'])
+    
+    const user = await prisma.profile.findUnique({
+        where: { id: userId }
+    })
+    
+    if (!user) {
+        return { success: false, error: 'Usuario no encontrado.' }
+    }
+
+    const { sendEmail } = await import('./mail')
+    
+    const html = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: #078EAD; margin: 0;">Mensaje de Administración de Brofy</h2>
+            </div>
+            <p>Estimado/a <strong>${user.fullName}</strong>,</p>
+            <p style="white-space: pre-wrap; line-height: 1.6; color: #334155;">${body}</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #64748b; text-align: center;">Este es un mensaje administrativo puntual enviado directamente desde la administración de Brofy.</p>
+        </div>
+    `
+
+    const res = await sendEmail({
+        to: user.email,
+        subject: `Brofy Admin: ${subject}`,
+        html
+    })
+
+    if (res.success) {
+        return { success: true }
+    } else {
+        return { success: false, error: res.error }
+    }
 }
 
 // ============================================================================
@@ -1475,3 +1974,349 @@ export async function createAdminAuditReminder(data: {
     return { success: true, reminder }
 }
 
+// ============================================================================
+// REAL CREDITS, CLAIMS, RESCHEDULING & TIME LIMITATION ACTIONS
+// ============================================================================
+
+export async function bookWithCredits(appointmentId: string) {
+    const session = await requireRole(['client'])
+    
+    const appointment = await prisma.appointment.findFirst({
+        where: { id: appointmentId, clientId: session.sub, status: 'pending' }
+    })
+    if (!appointment) return { success: false, message: 'Cita no encontrada' }
+    
+    const client = await prisma.profile.findUnique({
+        where: { id: session.sub },
+        select: { creditBalance: true }
+    })
+    if (!client || client.creditBalance < appointment.commissionAmount) {
+        return { success: false, message: 'Saldo de créditos insuficiente' }
+    }
+    
+    // Deduce el saldo de créditos y marca la cita como pagada
+    await prisma.$transaction([
+        prisma.profile.update({
+            where: { id: session.sub },
+            data: { creditBalance: { decrement: appointment.commissionAmount } }
+        }),
+        prisma.appointment.update({
+            where: { id: appointmentId },
+            data: {
+                status: 'paid',
+                otpValidationCode: Math.floor(100000 + Math.random() * 900000).toString(),
+                otpExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+            }
+        })
+    ])
+    
+    revalidatePath('/dashboard/client')
+    revalidatePath('/dashboard/client/pending')
+    return { success: true }
+}
+
+export async function fileDenuncia(appointmentId: string, reason: string) {
+    const session = await requireRole(['client'])
+
+    const appointment = await prisma.appointment.findFirst({
+        where: {
+            id: appointmentId,
+            clientId: session.sub,
+            status: { in: ['paid', 'confirmed', 'validated'] },
+        },
+        include: { client: true }
+    })
+    if (!appointment) return { success: false, message: 'Cita no encontrada o no tiene un estado válido para denuncia.' }
+
+    // Verificar que el horario programado ya haya pasado
+    if (appointment.scheduledAt && new Date(appointment.scheduledAt).getTime() > Date.now()) {
+        return { success: false, message: 'Solo puedes reportar inasistencia después de la hora programada de la cita.' }
+    }
+
+    await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { 
+            status: 'disputed', 
+            denunciaReason: reason,
+            denunciaStatus: 'pending',
+            notes: appointment.notes ? `${appointment.notes}\n[Denuncia: ${reason}]` : `Denuncia: ${reason}`
+        }
+    })
+
+    revalidatePath('/dashboard/client')
+    revalidatePath('/dashboard/client/pending')
+    return { success: true, message: 'Tu reporte ha sido enviado. Un administrador de Brofy revisará la inasistencia y, de ser validada, se te reembolsarán tus Huellitas.' }
+}
+export async function proposeReschedule(appointmentId: string, newDate: string, notes: string) {
+    const session = await requireSession()
+
+    const appointment = await prisma.appointment.findFirst({
+        where: {
+            id: appointmentId,
+            OR: [
+                { clientId: session.sub },
+                { providerId: session.sub },
+                { establishment: { ownerId: session.sub } }
+            ]
+        }
+    })
+    if (!appointment) return { success: false, message: 'Cita no encontrada o no tienes autorización' }
+
+    await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+            rescheduledAt: new Date(newDate),
+            rescheduleProposedBy: session.sub,
+            notes: notes ? `${appointment.notes || ''} [Propuesta Reprog (${session.role === 'client' ? 'Cliente' : 'Proveedor'}): ${notes}]` : appointment.notes
+        }
+    })
+
+    if (session.role === 'client') {
+        // Alert the provider
+        if (appointment.providerId) {
+            await prisma.reminder.create({
+                data: {
+                    clientId: appointment.providerId,
+                    createdBy: session.sub,
+                    type: 'control',
+                    title: 'Contrapropuesta de Reprogramación (Cliente)',
+                    message: `${session.fullName} (Cliente) ha propuesto una fecha alternativa para la cita: el ${new Date(newDate).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`,
+                    dueDate: new Date().toISOString().split('T')[0]
+                }
+            })
+        }
+    } else {
+        // Alert the client
+        if (appointment.clientId) {
+            await prisma.reminder.create({
+                data: {
+                    clientId: appointment.clientId,
+                    createdBy: session.sub,
+                    type: 'control',
+                    title: 'Propuesta de Reprogramación de Cita',
+                    message: `${session.fullName} ha propuesto reprogramar la cita para el ${new Date(newDate).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Acepta en tu pestaña de Pendientes sin costo adicional o propón tu propio horario.`,
+                    dueDate: new Date().toISOString().split('T')[0]
+                }
+            })
+        }
+    }
+
+    revalidatePath('/dashboard/vet')
+    revalidatePath('/dashboard/client')
+    revalidatePath('/dashboard/client/pending')
+    return { success: true }
+}
+
+export async function acceptReschedule(appointmentId: string) {
+    const session = await requireSession()
+
+    const appointment = await prisma.appointment.findFirst({
+        where: {
+            id: appointmentId,
+            OR: [
+                { clientId: session.sub },
+                { providerId: session.sub },
+                { establishment: { ownerId: session.sub } }
+            ]
+        }
+    })
+    if (!appointment || !appointment.rescheduledAt) {
+        return { success: false, message: 'Cita o propuesta de reprogramación no encontrada' }
+    }
+
+    if (appointment.rescheduleProposedBy === session.sub) {
+        return { success: false, message: 'No puedes aceptar tu propia propuesta de reprogramación' }
+    }
+
+    await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+            scheduledAt: appointment.rescheduledAt,
+            rescheduledAt: null,
+            rescheduleProposedBy: null,
+        }
+    })
+
+    revalidatePath('/dashboard/client')
+    revalidatePath('/dashboard/client/pending')
+    revalidatePath('/dashboard/vet')
+    return { success: true }
+}
+
+export async function getAllDisputedAppointments() {
+    const session = await requireRole(['admin'])
+    
+    return prisma.appointment.findMany({
+        where: {
+            OR: [
+                { status: 'disputed' },
+                { denunciaStatus: 'pending' }
+            ]
+        },
+        include: {
+            client: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    phone: true,
+                    creditBalance: true
+                }
+            },
+            pet: {
+                select: {
+                    id: true,
+                    name: true,
+                    species: true,
+                    breed: true,
+                    cuh: true
+                }
+            },
+            establishment: {
+                select: {
+                    id: true,
+                    name: true,
+                    phone: true,
+                    ownerId: true,
+                    dni: true,
+                    owner: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            phone: true,
+                            email: true
+                        }
+                    }
+                }
+            }
+        },
+        orderBy: { updatedAt: 'desc' }
+    })
+}
+
+export async function resolveDenunciaAdmin(
+    appointmentId: string,
+    status: 'resolved_refunded' | 'resolved_rejected',
+    applySanction: boolean
+) {
+    const session = await requireRole(['admin'])
+
+    const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        include: { client: true }
+    })
+
+    if (!appointment) return { success: false, message: 'Cita no encontrada.' }
+
+    try {
+        if (status === 'resolved_refunded') {
+            await prisma.$transaction([
+                prisma.appointment.update({
+                    where: { id: appointmentId },
+                    data: {
+                        status: 'cancelled',
+                        denunciaStatus: 'resolved_refunded',
+                        notes: `${appointment.notes || ''}\n[Resolución Admin: A favor del cliente. Reembolso de ${appointment.commissionAmount * 100} Huellitas. ${applySanction ? 'SANCIÓN APLICADA al proveedor.' : ''}]`
+                    }
+                }),
+                prisma.profile.update({
+                    where: { id: appointment.clientId },
+                    data: {
+                        creditBalance: {
+                            increment: appointment.commissionAmount
+                        }
+                    }
+                })
+            ])
+            revalidatePath('/dashboard/admin')
+            revalidatePath('/dashboard/client/pending')
+            return { success: true, message: `Disputa resuelta a favor del cliente. Se reembolsaron ${(appointment.commissionAmount * 100).toFixed(0)} Huellitas.` }
+        } else {
+            await prisma.appointment.update({
+                where: { id: appointmentId },
+                data: {
+                    status: 'cancelled',
+                    denunciaStatus: 'resolved_rejected',
+                    notes: `${appointment.notes || ''}\n[Resolución Admin: A favor del proveedor. Sin reembolso. ${applySanction ? 'SANCIÓN APLICADA al proveedor.' : ''}]`
+                }
+            })
+            revalidatePath('/dashboard/admin')
+            revalidatePath('/dashboard/client/pending')
+            return { success: true, message: 'Disputa resuelta a favor del proveedor. Reembolso denegado.' }
+        }
+    } catch (e) {
+        console.error('Error resolving dispute:', e)
+        return { success: false, message: 'Ocurrió un error al procesar la resolución.' }
+    }
+}
+
+export async function acceptPriceChange(appointmentId: string) {
+    const session = await getSession()
+    if (!session) return { success: false, message: 'No autenticado' }
+
+    const apt = await prisma.appointment.findFirst({
+        where: { id: appointmentId, clientId: session.sub },
+        include: { establishment: { include: { services: true } } }
+    })
+    if (!apt) return { success: false, message: 'Cita no encontrada' }
+
+    try {
+        const bookedSvcs = JSON.parse(apt.bookedServices || '[]')
+        let totalNewPrice = 0
+        const updatedBookedSvcs = bookedSvcs.map((s: any) => {
+            const master = apt.establishment.services.find(m => m.id === s.id)
+            if (master) {
+                totalNewPrice += master.price
+                return { ...s, price: master.price }
+            }
+            totalNewPrice += s.price
+            return s
+        })
+
+        await prisma.appointment.update({
+            where: { id: appointmentId },
+            data: {
+                bookedServices: JSON.stringify(updatedBookedSvcs),
+                totalServicePrice: totalNewPrice
+            }
+        })
+
+        revalidatePath('/dashboard/client/pending')
+        return { success: true }
+    } catch (err) {
+        return { success: false, message: 'Error al aceptar tarifa' }
+    }
+}
+
+export async function cancelAppointmentWithRefund(appointmentId: string) {
+    const session = await getSession()
+    if (!session) return { success: false, message: 'No autenticado' }
+
+    const apt = await prisma.appointment.findFirst({
+        where: { id: appointmentId, clientId: session.sub }
+    })
+    if (!apt) return { success: false, message: 'Cita no encontrada' }
+    if (apt.status === 'cancelled' || apt.status === 'completed') {
+        return { success: false, message: 'Cita ya finalizada' }
+    }
+
+    const refundCredits = apt.commissionAmount
+
+    try {
+        await prisma.$transaction([
+            prisma.appointment.update({
+                where: { id: appointmentId },
+                data: { status: 'cancelled' }
+            }),
+            prisma.profile.update({
+                where: { id: apt.clientId },
+                data: { creditBalance: { increment: refundCredits } }
+            })
+        ])
+
+        revalidatePath('/dashboard/client/pending')
+        return { success: true }
+    } catch (err) {
+        return { success: false, message: 'Error al cancelar la cita' }
+    }
+}

@@ -7,7 +7,7 @@ import { Mail, ArrowLeft, CheckCircle2, KeyRound } from 'lucide-react'
 export default function OlvidasteContrasenaPage() {
     const [email, setEmail] = useState('')
     const [loading, setLoading] = useState(false)
-    const [result, setResult] = useState<{ token?: string; error?: string } | null>(null)
+    const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null)
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -38,34 +38,25 @@ export default function OlvidasteContrasenaPage() {
                         </p>
                     </div>
 
-                    {result?.token ? (
-                        <div className="space-y-4">
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    {result?.success ? (
+                        <div className="space-y-4 text-center">
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex flex-col items-center gap-3">
+                                <CheckCircle2 className="w-10 h-10 text-emerald-600 flex-shrink-0" />
                                 <div>
-                                    <p className="font-semibold text-emerald-800 text-sm">¡Enlace generado!</p>
-                                    <p className="text-xs text-emerald-700 mt-0.5">
-                                        Copia el siguiente enlace para restablecer tu contraseña:
+                                    <p className="font-semibold text-emerald-800 text-base">¡Enlace enviado!</p>
+                                    <p className="text-xs text-emerald-700 mt-1">
+                                        Hemos enviado las instrucciones para restablecer tu contraseña a tu correo. Revisa tu bandeja de entrada o spam.
                                     </p>
                                 </div>
                             </div>
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                                <p className="text-xs text-slate-500 mb-1 font-medium">Enlace de restablecimiento:</p>
-                                <Link
-                                    href={`/restablecer-contrasena/${result.token}`}
-                                    className="text-sm text-primary-600 font-mono break-all hover:underline"
-                                >
-                                    /restablecer-contrasena/{result.token}
-                                </Link>
-                            </div>
-                            <p className="text-xs text-center text-slate-400">
-                                Este enlace expira en 1 hora.
+                            <p className="text-xs text-slate-400">
+                                El enlace de recuperación es válido por 1 hora.
                             </p>
                             <Link
-                                href={`/restablecer-contrasena/${result.token}`}
+                                href="/login"
                                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors"
                             >
-                                Ir a restablecer contraseña →
+                                <ArrowLeft className="w-4 h-4" /> Volver al inicio de sesión
                             </Link>
                         </div>
                     ) : (

@@ -28,7 +28,7 @@ export default function TerminosPage() {
                         </div>
                         <h1 className="text-3xl font-extrabold text-slate-900">Términos y Condiciones de Uso</h1>
                         <p className="text-slate-500 mt-2 text-sm">
-                            Última actualización: 15 de mayo de 2026 · Versión 1.0
+                            Última actualización: 28 de mayo de 2026 · Versión 1.1
                         </p>
                     </div>
 
@@ -54,6 +54,8 @@ export default function TerminosPage() {
                             <p><strong>Servicio Digital:</strong> El conjunto de funcionalidades que Brofy provee: directorio, reserva de agenda, sistema de Código de Atención de verificación de identidad, gestión de historial médico digital, y procesamiento de pagos por el uso de infraestructura.</p>
                             <p><strong>Acto Médico:</strong> La consulta, diagnóstico, tratamiento, cirugía o cualquier intervención de salud animal, prestada exclusivamente por el Profesional habilitado y bajo su plena responsabilidad.</p>
                             <p><strong>Cargo por Infraestructura:</strong> El pago de S/ 5.00 (cinco soles con 00/100) que el Cliente abona a Brofy por el uso de la infraestructura digital, intermediación tecnológica y verificación de habilitación profesional, tal como se define en la cláusula 5.</p>
+                            <p><strong>Código Único de Huella (CUH):</strong> El identificador único, memorizable y alfanumérico generado por la Plataforma para cada mascota registrada (con formato <code className="font-mono bg-slate-100 px-1 rounded">CUH-XXXXXX</code> con 6 dígitos aleatorios), el cual sirve para identificación digital externa y asociación correcta del historial clínico digital.</p>
+                            <p><strong>Huellitas:</strong> El sistema de puntaje de fidelización, incentivos y devoluciones de Brofy otorgado a los Clientes. Las Huellitas se acumulan exclusivamente mediante devoluciones y reembolsos validados administrativamente por inasistencia. La equivalencia interna de las Huellitas es de 500 Huellitas equivalentes a S/ 5.00 (cinco soles).</p>
                         </div>
                     </section>
 
@@ -84,6 +86,39 @@ export default function TerminosPage() {
                             <p>Para acceder a las funcionalidades de la Plataforma, el Usuario deberá registrarse y crear una cuenta personal proporcionando información veraz, exacta y actualizada. El Usuario es responsable de mantener la confidencialidad de sus credenciales de acceso.</p>
                             <p>Para el registro como Profesional de tipo Clínica u Hospital, la Plataforma requerirá el número de colegiatura del Colegio Médico Veterinario del Perú (CMVP) como mecanismo de verificación de habilitación profesional, de conformidad con la Ley N.º 30407, Ley de Protección y Bienestar Animal.</p>
                             <p>Brofy se reserva el derecho de suspender o cancelar cuentas que infrinjan los presentes T&C, proporcionen información falsa o incurran en conductas fraudulentas.</p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 3.A */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">3.A. Seguridad de Acceso y Política de Intentos Fallidos</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                La Plataforma implementa un mecanismo de protección contra accesos no autorizados. Tras <strong>cinco (5) intentos fallidos consecutivos</strong> de inicio de sesión, la cuenta del Usuario será bloqueada temporalmente por un periodo de <strong>quince (15) minutos</strong>.
+                            </p>
+                            <p>
+                                Este mecanismo tiene como finalidad prevenir ataques de fuerza bruta y proteger la información sensible del Usuario, sus mascotas y su historial clínico. El Usuario será notificado de los intentos restantes en cada fallo de autenticación.
+                            </p>
+                            <p>
+                                Si el Usuario olvida su contraseña, podrá utilizar el mecanismo de recuperación de contraseña disponible en la pantalla de inicio de sesión.
+                            </p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 3.B */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">3.B. Aplicación Web Progresiva (PWA) e Instalación de Aplicación</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                La Plataforma provee compatibilidad de <strong>Aplicación Web Progresiva (PWA)</strong>, permitiendo al Usuario instalar Brofy directamente en la pantalla de inicio de su dispositivo móvil (iOS y Android) u ordenador (Windows y macOS) para un acceso standalone similar a una app nativa.
+                            </p>
+                            <p>
+                                Para el óptimo funcionamiento y prestación del Servicio Digital a través del formato PWA, la aplicación requiere permisos consentidos del dispositivo, incluyendo: (i) geolocalización (a fin de localizar y mapear establecimientos cercanos en el descubrimiento), y (ii) acceso a la cámara del dispositivo (a fin de habilitar el escaneo del código QR físico para iniciar la atención). El Usuario tiene plena facultad de otorgar, denegar o revocar dichos permisos en cualquier momento desde la configuración de su navegador u sistema operativo.
+                            </p>
                         </div>
                     </section>
 
@@ -146,6 +181,100 @@ export default function TerminosPage() {
 
                     <hr className="border-slate-100" />
 
+                    {/* 5.A */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">5.A. Programa de Fidelización &quot;Huellitas&quot; y Código Único de Huella (CUH) de Mascotas</h2>
+                        <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                Con el fin de recompensar la lealtad de los Usuarios y proveer un mecanismo digital eficiente de devolución, la Plataforma cuenta con el sistema de incentivos **Huellitas**.
+                            </p>
+                            <p>
+                                Cada mascota registrada en la Plataforma recibe de manera automática y gratuita un **Código Único de Huella (CUH)**. Este identificador es ajeno e independiente del ID técnico de la base de datos de la Plataforma, y ha sido diseñado específicamente con una longitud y formato fácil de memorizar y transcribir por el Usuario. El CUH habilita la identificación digital de la mascota en establecimientos externos y la sincronización correcta de su Carnet de Vacunación e Historial Clínico.
+                            </p>
+                            <p className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium">
+                                🆔 UNICIDAD DE IDENTIDAD: El CUH funciona como un número de identidad único e intransferible para cada mascota. Está estrictamente prohibido falsificar, clonar, simular o asociar el CUH de una mascota a otra distinta. El uso fraudulento o indebido del CUH para falsear el historial médico o evadir responsabilidades administrativas en la plataforma resultará en la suspensión permanente de la cuenta del Usuario.
+                            </p>
+                            <p>
+                                Por su parte, la billetera digital del Cliente reflejará sus créditos en puntos **Huellitas** a una tasa de conversión de **100 Huellitas = S/ 1.00** (de esta forma, 500 Huellitas equivalen exactamente a S/ 5.00). Las Huellitas acumuladas en la cuenta del Cliente por concepto de devoluciones, reembolsos o promociones de lealtad podrán ser utilizadas libremente para el pago del Cargo por Uso de Infraestructura al agendar nuevas citas en la Plataforma.
+                            </p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 5.B */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">5.B. Reserva Multi-Servicio y Cargos Proporcionales</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                La Plataforma permite al Usuario seleccionar múltiples servicios en una sola reserva. Cada servicio seleccionado incrementa el Cargo por Uso de Infraestructura Digital en <strong>S/ 5.00 (cinco soles con 00/100) adicionales</strong> por cada servicio extra agregado al turno.
+                            </p>
+                            <p>
+                                Este incremento proporcional retribuye el mayor coste de gestión, coordinación de tiempos, validación de cruces de horarios y verificación de disponibilidad que demanda un turno multi-servicio frente a un turno simple.
+                            </p>
+                            <p>
+                                La duración total del turno será la suma de las duraciones individuales de cada servicio seleccionado, y el sistema de prevención de solapamientos verificará que la capacidad del establecimiento pueda absorber el bloque completo.
+                            </p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 5.C */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">5.C. Pasarelas de Pago Externas y Seguridad de Transacciones</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                La Plataforma Brofy delega la recaudación y procesamiento de pagos digitales a procesadores y pasarelas de pago de terceros debidamente reguladas y certificadas (como **Izipay**). 
+                            </p>
+                            <p>
+                                Brofy no almacena, transmite ni procesa en sus servidores locales datos de tarjetas bancarias (como números de tarjeta, códigos CVV o fechas de vencimiento). Todas las transacciones se efectúan directamente a través de los entornos securizados de las pasarelas bancarias externas.
+                            </p>
+                            <p>
+                                Por consiguiente, Brofy se exime de cualquier responsabilidad civil por caídas de sistema, fallas operativas de las pasarelas, transacciones denegadas o cargos no reconocidos surgidos en el ámbito técnico de estos procesadores de pago externos. Toda aclaración o disputa transaccional deberá gestionarse ante el emisor de la tarjeta y la pasarela emisora.
+                            </p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 5.D */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">5.D. Incumplimiento Parcial o Reprogramación Parcial de Servicios en Reserva Multi-Servicio</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                En el caso de reservas multi-servicio que hayan sido validadas mediante el código OTP e iniciadas, pero en las cuales el Profesional o establecimiento **se vea imposibilitado de completar la totalidad de los servicios agendados** en dicha sesión (por ejemplo, por falta de tiempo material, fatiga de la mascota, o emergencias del establecimiento), se aplicará el siguiente procedimiento de reprogramación y protección:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 text-slate-650 pl-2">
+                                <li><strong>Propuesta de Reprogramación Directa y Gratuita:</strong> El Profesional está obligado a coordinar directamente y proponer al Cliente un turno de reprogramación exclusivo para los servicios que quedaron pendientes de ejecución. **Esta reprogramación se realizará a coste cero para el Cliente**, quedando Brofy exenta de cobrar una nueva comisión o Cargo por Uso de Infraestructura por este nuevo turno fraccionado, al entenderse ya liquidada en la reserva original.</li>
+                                <li><strong>Procedimiento de Registro por el Profesional:</strong> Para formalizar esta reprogramación de servicios pendientes sin que se apliquen cargos adicionales, el Profesional deberá registrar el nuevo turno complementario en coordinación directa con el soporte de Brofy o mediante las herramientas específicas de agenda gratuita provistas para compensación de fallos de servicio.</li>
+                                <li><strong>Derecho a Disputa Parcial y Devolución Proporcional:</strong> En caso de que el Profesional no ofrezca una fecha idónea o el Cliente no preste su conformidad para la reprogramación del servicio pendiente, el Cliente podrá registrar una Denuncia Parcial dentro de las 24 horas. El Administrador de Brofy auditará el caso y reembolsará al Cliente la porción correspondiente del Cargo de Infraestructura en puntos **Huellitas** (ej: 500 Huellitas reembolsadas si el servicio principal cancelado representaba la comisión pagada), aplicando las sanciones correspondientes al Profesional por incumplimiento de agenda.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 5.E */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">5.E. Política de Tarifarios de Servicios y Modificaciones de Precios</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                Los Profesionales y establecimientos tienen plena libertad e independencia comercial para definir, modificar y actualizar las tarifas de sus propios servicios en la Plataforma en cualquier momento. **Brofy no interviene ni impone precios sobre los servicios ofrecidos por los proveedores.**
+                            </p>
+                            <p>
+                                En resguardo de los derechos y el consentimiento de ambas partes, cuando un Profesional actualice el precio de un servicio que ya ha sido previamente reservado por un Cliente (alza de tarifa), se aplicará el siguiente procedimiento de transparencia obligatoria:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 text-slate-650 pl-2">
+                                <li><strong>Anuncio y Notificación de Alza:</strong> La Plataforma notificará inmediatamente al Cliente que posee una reserva activa sobre la actualización de la tarifa, indicando de forma explícita el precio anterior y el nuevo precio fijado por el establecimiento.</li>
+                                <li><strong>Opción de Continuidad (Aceptación):</strong> El Cliente podrá otorgar su expreso consentimiento para continuar con el servicio aceptando la nueva tarifa fijada, lo que actualizará el costo final de la cita en su panel.</li>
+                                <li><strong>Opción de Cancelación sin Penalidad (Reembolso de Comisión):</strong> En caso de no estar de acuerdo con el alza de precio, el Cliente tendrá el derecho indisputable de **cancelar la reserva a coste cero**. Al ejercer esta cancelación, Brofy reembolsará de manera inmediata el 100% del Cargo por Uso de Infraestructura en puntos **Huellitas** a la billetera digital del Cliente (S/ 5.00 acreditados como 500 Huellitas) para su uso en futuras reservas, quedando liberado de cualquier compromiso de pago de honorarios frente al proveedor.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
                     {/* 6 */}
                     <section className="space-y-3">
                         <h2 className="text-lg font-bold text-slate-900">6. Comisiones a Profesionales</h2>
@@ -179,6 +308,52 @@ export default function TerminosPage() {
 
                     <hr className="border-slate-100" />
 
+                    {/* 7.A — No Show & Audited Dispute Flow */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">7.A. Inasistencias de Proveedores, No-Show de Usuarios y Flujo de Auditoría Administrativa de Denuncias</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                El Cargo por Uso de Infraestructura Digital definido en la Cláusula 5 se entiende <strong>íntegramente devengado y percibido</strong> por Brofy en el momento en que los servicios digitales son efectivamente prestados al Usuario, lo que ocurre al generarse el código de atención y confirmarse la agenda en la Plataforma.
+                            </p>
+                            <p>
+                                En consecuencia, la <strong>inasistencia del Usuario</strong> a la cita agendada (no-show) o su decisión voluntaria de no concurrir al local del Profesional <strong>no genera derecho a reembolso, compensación ni devolución</strong> del Cargo.
+                            </p>
+                            <p>
+                                Sin perjuicio de lo anterior, si la inasistencia o incumplimiento es responsabilidad directa del Profesional o establecimiento seleccionado, el Cliente podrá registrar una denuncia o reporte de inasistencia (&quot;Denuncia&quot;) a través de la Plataforma dentro de las 24 horas posteriores a la cita. La opción de registrar una Denuncia estará habilitada en el panel del Cliente a partir de los <strong>quince (15) minutos</strong> de tolerancia posteriores a la hora pactada de la cita, otorgando dicho periodo de gracia al establecimiento para absorber demoras menores ajenas al control operativo.
+                            </p>
+                            <p className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-900 font-medium">
+                                ⚖️ PROCESO DE AUDITORÍA: Las denuncias por inasistencia ya no se reembolsan de manera automática. Al presentarse una Denuncia, la cita cambiará a estado &quot;En Disputa&quot; (disputed). El Administrador de Brofy auditará el caso recabando información de ambas partes y resolverá con criterio justo:
+                                <br />
+                                1. <strong>A favor del Cliente:</strong> Se constata el incumplimiento del Profesional. Se cancelará definitivamente la cita y se reembolsará el 100% de la comisión en puntos **Huellitas** a la cuenta del Cliente (S/ 5.00 devueltos como 500 Huellitas). Adicionalmente, Brofy se reserva el derecho de aplicar sanciones administrativas o advertencias al Profesional.
+                                <br />
+                                2. <strong>A favor del Proveedor:</strong> Se constata que el Profesional estuvo disponible pero el Cliente incurrió en inasistencia (no-show). Se desestimará el reclamo sin otorgar reembolsos en Huellitas.
+                            </p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
+                    {/* 7.B — Cloudinary Image Moderation & Ownership */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">7.B. Carga de Imágenes, Propiedad Intelectual y Moderación de Contenido</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                La Plataforma permite tanto a los Clientes como a los Profesionales subir imágenes (fotografías de mascotas, fotos de locales, logotipos de establecimientos, perfiles personales, entre otros). 
+                            </p>
+                            <p>
+                                El Usuario y el Profesional declaran bajo juramento ser titulares absolutos de los derechos de propiedad intelectual y de imagen sobre las fotos que cargan en la Plataforma, o en su defecto poseer la autorización expresa del titular legítimo. 
+                            </p>
+                            <p>
+                                Queda terminantemente prohibido subir, compartir o enlazar imágenes que contengan material ofensivo, violento, pornográfico, racista, difamatorio, que infrinjan derechos de autor de terceros o que vulneren la privacidad de las personas.
+                            </p>
+                            <p className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-red-950 font-medium">
+                                🚫 POLÍTICA DE ELIMINACIÓN Y MODERACIÓN: Brofy utiliza servicios de almacenamiento en la nube externos (como **Cloudinary**) para la gestión e indexación de archivos. Brofy se reserva el derecho absoluto de auditar, moderar y eliminar de forma inmediata, definitiva y sin previo aviso cualquier imagen cargada que incumpla estas políticas, que sea reportada por la comunidad o que sea considerada no adecuada para la plataforma. El desacato reiterado de esta cláusula resultará en la cancelación irrevocable de la cuenta del infractor.
+                            </p>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
                     {/* 8 */}
                     <section className="space-y-3">
                         <h2 className="text-lg font-bold text-slate-900">8. Sistema de Valoraciones</h2>
@@ -205,27 +380,9 @@ export default function TerminosPage() {
 
                     <hr className="border-slate-100" />
 
-                    {/* 7a — No Show */}
+                    {/* 10 */}
                     <section className="space-y-3">
-                        <h2 className="text-lg font-bold text-slate-900">7.A. No-Show e Inasistencia del Usuario</h2>
-                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
-                            <p>
-                                El Cargo por Uso de Infraestructura Digital definido en la Cláusula 5 se entiende <strong>íntegramente devengado y percibido</strong> por Brofy en el momento en que los servicios digitales son efectivamente prestados al Usuario, lo que ocurre al generarse el código de atención y confirmarse la agenda en la Plataforma.
-                            </p>
-                            <p>
-                                En consecuencia, la <strong>inasistencia del Usuario</strong> a la cita agendada (no-show) o su decisión voluntaria de no concurrir al local del Profesional <strong>no genera derecho a reembolso, compensación ni devolución</strong> del Cargo, dado que los servicios digitales para los que fue abonado ya fueron íntegramente prestados.
-                            </p>
-                            <p>
-                                Esto no aplica en caso de cancelación del servicio por parte del Profesional, supuesto en el cual Brofy analizará cada caso individualmente y podrá ofrecer un crédito equivalente para una futura reserva.
-                            </p>
-                        </div>
-                    </section>
-
-                    <hr className="border-slate-100" />
-
-                    {/* 9 */}
-                    <section className="space-y-3">
-                        <h2 className="text-lg font-bold text-slate-900">9. Resolución de Disputas y Jurisdicción</h2>
+                        <h2 className="text-lg font-bold text-slate-900">10. Resolución de Disputas y Jurisdicción</h2>
                         <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
                             <p>
                                 Cualquier controversia derivada de los presentes T&C será sometida, en primera instancia, a un mecanismo de negociación directa. Si no se alcanza acuerdo en un plazo de 15 días hábiles, la controversia será resuelta por un árbitro único del Centro de Arbitraje de la Cámara de Comercio de Lima, aplicándose el derecho peruano.
@@ -242,9 +399,9 @@ export default function TerminosPage() {
 
                     <hr className="border-slate-100" />
 
-                    {/* 10 */}
+                    {/* 11 */}
                     <section className="space-y-3">
-                        <h2 className="text-lg font-bold text-slate-900">10. Modificaciones a los Términos</h2>
+                        <h2 className="text-lg font-bold text-slate-900">11. Modificaciones a los Términos</h2>
                         <p className="text-sm text-slate-700 leading-relaxed">
                             Brofy se reserva el derecho de modificar los presentes T&C en cualquier momento. Las modificaciones serán notificadas al Usuario con al menos 15 días de anticipación a través del correo electrónico registrado y/o mediante aviso destacado en la Plataforma. El uso continuado de la Plataforma tras la fecha de vigencia de los T&C modificados constituye aceptación de los nuevos términos.
                         </p>
@@ -252,9 +409,9 @@ export default function TerminosPage() {
 
                     <hr className="border-slate-100" />
 
-                    {/* 11 */}
+                    {/* 12 */}
                     <section className="space-y-3">
-                        <h2 className="text-lg font-bold text-slate-900">11. Contacto</h2>
+                        <h2 className="text-lg font-bold text-slate-900">12. Contacto</h2>
                         <p className="text-sm text-slate-700 leading-relaxed">
                             Para consultas sobre los presentes T&C, puede contactarnos en: <strong>legal@brofy.pe</strong>. Para reclamos sobre el servicio, utilice el{' '}
                             <Link href="/libro-de-reclamaciones" className="text-primary-600 underline">

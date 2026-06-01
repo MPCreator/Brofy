@@ -11,6 +11,15 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         statusBarStyle: "default",
+        title: "Brofy",
+    },
+    icons: {
+        icon: [
+            { url: "/brofy1.png", type: "image/png" },
+            { url: "/favicon.ico", sizes: "any" }
+        ],
+        shortcut: "/favicon.ico",
+        apple: "/brofy1.png",
     },
 };
 
@@ -18,7 +27,7 @@ export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
     viewportFit: "cover",
-    themeColor: "#0284c7",
+    themeColor: "#078EAD",
 };
 
 import { EmergencyLauncher } from "@/components/features/emergency/EmergencyLauncher";

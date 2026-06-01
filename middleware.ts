@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 // Routes that don't require authentication
 const publicPaths = ['/', '/login', '/signup', '/terminos', '/privacidad', '/libro-de-reclamaciones', '/olvidaste-contrasena']
@@ -7,14 +8,13 @@ const publicPaths = ['/', '/login', '/signup', '/terminos', '/privacidad', '/lib
 function isPublicPath(pathname: string): boolean {
     if (publicPaths.some(p => pathname === p)) return true
     if (pathname.startsWith('/restablecer-contrasena')) return true
+    if (pathname.startsWith('/discover')) return true
+    if (pathname.startsWith('/establishment')) return true
     return false
 }
 
-import { jwtVerify } from 'jose'
-
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
-    const sessionCookie = request.cookies.get('session')?.value
 
     // Allow static files and API routes
     if (
@@ -25,58 +25,58 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
     }
 
-    let isValidSession = false;
+    // Inicializar el response base
+    let response = NextResponse.next({
+        request: {
+            headers: request.headers,
+        },
+    })
 
-    if (sessionCookie) {
-        try {
-            const key = new TextEncoder().encode(process.env.JWT_SECRET || 'brofy_secret_key_change_in_production_2025');
-            await jwtVerify(sessionCookie, key);
-            isValidSession = true;
-        } catch (error) {
-            // Invalid JWT (expired, wrong signature, etc.)
-            isValidSession = false;
+    // Crear cliente de Supabase para middleware
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return request.cookies.getAll()
+                },
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+                    response = NextResponse.next({
+                        request: {
+                            headers: request.headers,
+                        },
+                    })
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        response.cookies.set(name, value, options)
+                    )
+                },
+            },
         }
-    }
+    )
 
-    // Allow public paths
+    // Obtener la sesión y actualizar cookies
+    const { data: { user } } = await supabase.auth.getUser()
+    const isValidSession = !!user
+
+    // Rutas públicas
     if (isPublicPath(pathname)) {
-        // Clear cookie flag from Server Components
-        if (request.nextUrl.searchParams.get('clear') === 'true') {
-            const response = NextResponse.next();
-            response.cookies.delete('session');
-            return response;
-        }
-
-        // If logged in and trying to access login/signup, redirect to dashboard
+        // Si tiene sesión y entra a login/signup, redirige al dashboard
         if (isValidSession && (pathname === '/login' || pathname === '/signup')) {
             return NextResponse.redirect(new URL('/dashboard', request.url))
         }
-
-        // If cookie exists but is invalid, clear it on public pages too so they can log in
-        if (sessionCookie && !isValidSession) {
-            const response = NextResponse.next();
-            response.cookies.delete('session');
-            return response;
-        }
-
-        return NextResponse.next()
-    }
-
-    // Protected route — check for valid session
-    if (!isValidSession) {
-        const loginUrl = new URL('/login', request.url)
-        loginUrl.searchParams.set('from', pathname)
-        const response = NextResponse.redirect(loginUrl)
-        
-        // Clear the invalid cookie
-        if (sessionCookie) {
-            response.cookies.delete('session')
-        }
-        
         return response
     }
 
-    return NextResponse.next()
+    // Rutas protegidas - si no hay sesión, redirige a login
+    if (!isValidSession) {
+        const loginUrl = new URL('/login', request.url)
+        loginUrl.searchParams.set('from', pathname)
+        return NextResponse.redirect(loginUrl)
+    }
+
+    return response
 }
 
 export const config = {

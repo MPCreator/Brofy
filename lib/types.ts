@@ -82,6 +82,7 @@ export interface Establishment {
   phone?: string | null;
   description?: string | null;
   photoUrl?: string | null;
+  logoUrl?: string | null;
   rating: number;
   isActive: boolean;
   operatingHours: Record<string, { open: string; close: string }>;
@@ -141,6 +142,8 @@ export interface MedicalRecord {
 
 export interface EstablishmentWithDistance extends Establishment {
   distanceKm: number;
+  services?: any[];
+  reviewsCount?: number;
 }
 
 // ---------------------------------------------------------------------------

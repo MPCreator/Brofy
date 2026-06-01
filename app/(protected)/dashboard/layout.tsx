@@ -1,6 +1,9 @@
 import { getSession, logout } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
+import { OnboardingTour } from '@/components/dashboard/onboarding-tour'
+import { DashboardNav } from '@/components/dashboard/dashboard-nav'
 import {
     Home,
     PawPrint,
@@ -14,6 +17,7 @@ import {
     Tag,
     Settings,
     ShieldCheck,
+    Clock,
 } from 'lucide-react'
 
 export default async function DashboardLayout({
@@ -28,58 +32,24 @@ export default async function DashboardLayout({
     const isAdmin = session.role === 'admin'
     const basePath = isAdmin ? '/dashboard/admin' : (isVet ? '/dashboard/vet' : '/dashboard/client')
 
-    // Full sidebar navigation (desktop)
-    const sidebarItems = isAdmin 
-        ? [
-            { href: '/dashboard/admin', icon: ShieldCheck, label: 'Panel Admin' },
-            { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
-        ]
-        : isVet
-            ? [
-                { href: '/dashboard/vet', icon: Home, label: 'Inicio' },
-                { href: '/dashboard/vet/validate', icon: Zap, label: 'Iniciar Atención' },
-                { href: '/dashboard/vet/fast-entry', icon: ClipboardList, label: 'Ficha Rápida' },
-                { href: '/dashboard/vet/establishment', icon: Building2, label: 'Mi Local' },
-                { href: '/dashboard/vet/services', icon: Tag, label: 'Servicios' },
-                { href: '/dashboard/vet/finances', icon: DollarSign, label: 'Finanzas' },
-                { href: '/dashboard/discover', icon: MapPin, label: 'Descubrir' },
-                { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
-            ]
-            : [
-                { href: '/dashboard/client', icon: Home, label: 'Inicio' },
-                { href: '/dashboard/client/pets', icon: PawPrint, label: 'Mascotas' },
-                { href: '/dashboard/discover', icon: MapPin, label: 'Descubrir' },
-                { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
-            ]
-
-    // Bottom nav (mobile) — limited to 5 items max
-    const bottomNavItems = isAdmin
-        ? [
-            { href: '/dashboard/admin', icon: ShieldCheck, label: 'Admin' },
-            { href: '/dashboard/settings', icon: User, label: 'Perfil' },
-        ]
-        : isVet
-            ? [
-                { href: '/dashboard/vet', icon: Home, label: 'Inicio' },
-                { href: '/dashboard/vet/validate', icon: Zap, label: 'Atención' },
-                { href: '/dashboard/vet/services', icon: Tag, label: 'Servicios' },
-                { href: '/dashboard/vet/finances', icon: DollarSign, label: 'Finanzas' },
-                { href: '/dashboard/settings', icon: User, label: 'Perfil' },
-            ]
-            : [
-                { href: '/dashboard/client', icon: Home, label: 'Inicio' },
-                { href: '/dashboard/client/pets', icon: PawPrint, label: 'Mascotas' },
-                { href: '/dashboard/discover', icon: MapPin, label: 'Descubrir' },
-                { href: '/dashboard/settings', icon: User, label: 'Perfil' },
-            ]
-
     return (
         <div className="min-h-screen bg-surface-50">
+            {/* Onboarding Tour Guide */}
+            <OnboardingTour role={session.role} />
+
             {/* Mobile top bar */}
             <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 lg:hidden">
-                <div className="flex items-center justify-between px-4 h-14">
-                    <Link href={basePath} className="text-xl font-bold text-primary-600 tracking-tight">
-                        Brofy
+                <div className="flex items-center justify-between px-4 h-20">
+                    <Link href={basePath} className="flex items-center text-xl font-extrabold text-primary-600 tracking-tight">
+                        <Image 
+                            src="/logo.png" 
+                            alt="Brofy Logo" 
+                            width={160} 
+                            height={87} 
+                            className="object-contain w-[140px]" 
+                            style={{ height: 'auto' }}
+                            priority 
+                        />
                     </Link>
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
@@ -100,22 +70,20 @@ export default async function DashboardLayout({
 
             {/* Desktop sidebar */}
             <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:w-64 bg-white border-r border-slate-100">
-                <div className="flex items-center gap-2 px-6 h-16 border-b border-slate-100">
-                    <span className="text-2xl font-bold text-primary-600 tracking-tight">Brofy</span>
+                <div className="flex items-center px-6 h-24 border-b border-slate-100">
+                    <Image 
+                        src="/logo.png" 
+                        alt="Brofy Logo" 
+                        width={200} 
+                        height={109} 
+                        className="object-contain w-[180px]" 
+                        style={{ height: 'auto' }}
+                        priority 
+                    />
                 </div>
 
-                <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                    {sidebarItems.map(item => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-primary-50 hover:text-primary-700 transition-colors"
-                        >
-                            <item.icon className="w-5 h-5" />
-                            {item.label}
-                        </Link>
-                    ))}
-                </nav>
+                {/* Sidebar Navigation */}
+                <DashboardNav role={session.role} />
 
                 <div className="p-4 border-t border-slate-100">
                     <div className="flex items-center gap-3 mb-3">
@@ -148,20 +116,8 @@ export default async function DashboardLayout({
 
             {/* Mobile bottom nav — with safe area for Safari */}
             <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/90 backdrop-blur-md border-t border-slate-100 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                <div className="flex items-center justify-around h-16 px-2">
-                    {bottomNavItems.map(item => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-slate-500 hover:text-primary-600 transition-colors"
-                        >
-                            <item.icon className="w-5 h-5" />
-                            <span className="text-[10px] font-medium">{item.label}</span>
-                        </Link>
-                    ))}
-                </div>
+                <DashboardNav role={session.role} isMobile />
             </nav>
         </div>
     )
 }
-

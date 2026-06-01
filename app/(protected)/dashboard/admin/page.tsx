@@ -1,16 +1,18 @@
-import { getAllUsers, getAllClaims, getAllRemindersAdmin } from '@/lib/actions'
+import { getAllUsers, getAllClaims, getAllRemindersAdmin, getAllDisputedAppointments } from '@/lib/actions'
 import { requireRole } from '@/lib/auth'
-import { Shield, Users, BookOpen, Bell } from 'lucide-react'
+import { Shield, Users, BookOpen, Bell, AlertTriangle } from 'lucide-react'
 import { AdminUserList } from './AdminUserList'
 import { AdminClaimsList } from './AdminClaimsList'
 import { AdminRemindersList } from './AdminRemindersList'
+import { AdminDisputesList } from './AdminDisputesList'
 
 export default async function AdminDashboard() {
     await requireRole(['admin'])
-    const [users, claims, reminders] = await Promise.all([
+    const [users, claims, reminders, disputes] = await Promise.all([
         getAllUsers(),
         getAllClaims(),
         getAllRemindersAdmin(),
+        getAllDisputedAppointments(),
     ])
 
    const adminUsers = users.filter((u: any) => u.role !== 'admin')
@@ -58,6 +60,14 @@ export default async function AdminDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Disputes and Claims Validation Section */}
+            <section className="bg-slate-50 border border-slate-200/60 rounded-3xl p-6 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" /> Auditoría de Citas en Disputa (Inasistencias)
+                </h2>
+                <AdminDisputesList initialAppointments={disputes} />
+            </section>
 
             {/* Reminders & Global Alerts Section */}
             <section>

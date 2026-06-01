@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { getProfile, updateProfile } from '@/lib/actions'
 import { User, Mail, Phone, FileText, Save, Loader2, Camera } from 'lucide-react'
 import { toast } from 'sonner'
+import SafeImage from '@/components/ui/SafeImage'
 
 export default function SettingsPage() {
     const [profile, setProfile] = useState<any>(null)
@@ -75,11 +76,12 @@ export default function SettingsPage() {
             <div className="flex items-center gap-6 bg-white border border-slate-100 rounded-3xl p-5 shadow-sm">
                 <div className="relative group">
                     <div className="w-20 h-20 rounded-full bg-primary-50 border-2 border-primary-100 flex items-center justify-center overflow-hidden transition-all group-hover:opacity-90">
-                        {avatarPreview ? (
-                            <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                        ) : (
-                            <User className="w-10 h-10 text-primary-600" />
-                        )}
+                        <SafeImage
+                            src={avatarPreview || ''}
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                            fallback={<User className="w-10 h-10 text-primary-600" />}
+                        />
                     </div>
                     <label className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center cursor-pointer shadow-md transition-all">
                         <Camera className="w-4 h-4" />

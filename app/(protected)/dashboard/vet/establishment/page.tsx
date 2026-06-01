@@ -27,19 +27,26 @@ export default function EstablishmentPage() {
     const [createPhotos, setCreatePhotos] = useState<(string | null)[]>([null, null, null, null])
     const [editPhotosMap, setEditPhotosMap] = useState<Record<string, (string | null)[]>>({})
 
+    // Logo states
+    const [createLogo, setCreateLogo] = useState<string | null>(null)
+    const [editLogosMap, setEditLogosMap] = useState<Record<string, string | null>>({})
+
     useEffect(() => { loadData() }, [])
 
     async function loadData() {
         setLoading(true)
         const data = await getMyEstablishments()
         setEstablishments(data)
-        // Pre-fill editPhotosMap for each establishment
+        // Pre-fill editPhotosMap and editLogosMap for each establishment
         const initialMap: Record<string, (string | null)[]> = {}
+        const initialLogos: Record<string, string | null> = {}
         data.forEach(est => {
             const urls = est.photoUrl ? est.photoUrl.split(',') : []
             initialMap[est.id] = [...urls, null, null, null, null].slice(0, 4)
+            initialLogos[est.id] = est.logoUrl || null
         })
         setEditPhotosMap(initialMap)
+        setEditLogosMap(initialLogos)
         setLoading(false)
     }
 
@@ -105,11 +112,63 @@ export default function EstablishmentPage() {
         })
     }
 
+    const handleCreateLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('El logo no debe superar los 2MB')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setCreateLogo(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const handleRemoveCreateLogo = () => {
+        setCreateLogo(null)
+    }
+
+    const handleEditLogoChange = (estId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('El logo no debe superar los 2MB')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setEditLogosMap(prev => ({
+                ...prev,
+                [estId]: reader.result as string
+            }))
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const handleRemoveEditLogo = (estId: string) => {
+        setEditLogosMap(prev => ({
+            ...prev,
+            [estId]: ''
+        }))
+    }
+
     async function handleSave(formData: FormData) {
         setSaving(true)
         const estId = formData.get('id') as string
         const currentPhotos = editPhotosMap[estId] || []
         formData.set('photosBase64', JSON.stringify(currentPhotos.filter(Boolean)))
+        
+        const currentLogo = editLogosMap[estId]
+        if (currentLogo !== undefined && currentLogo !== null) {
+            formData.set('logoBase64', currentLogo)
+        }
+
         try {
             const result = await updateEstablishment(formData)
             if (result && 'message' in result) {
@@ -133,6 +192,10 @@ export default function EstablishmentPage() {
         formData.set('longitude', createLng)
         formData.set('photosBase64', JSON.stringify(createPhotos.filter(Boolean)))
         
+        if (createLogo) {
+            formData.set('logoBase64', createLogo)
+        }
+        
         try {
             const result = await createEstablishment(formData)
             
@@ -145,6 +208,7 @@ export default function EstablishmentPage() {
                 toast.success('Establecimiento creado correctamente')
                 setShowCreateForm(false)
                 setCreatePhotos([null, null, null, null])
+                setCreateLogo(null)
                 loadData()
             } else {
                 toast.error('Ocurrió un error inesperado al crear el local')
@@ -177,8 +241,9 @@ export default function EstablishmentPage() {
         }
     }
 
-    function copyQr(token: string) {
-        const url = `${window.location.origin}/checkin/${token}`
+    function copyQr(estId: string) {
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://brofy-phi.vercel.app'
+        const url = `${origin}/establishment/${estId}`
         // Safari-safe clipboard
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(url).catch(() => {
@@ -187,7 +252,7 @@ export default function EstablishmentPage() {
         } else {
             fallbackCopy(url)
         }
-        setCopiedQr(token)
+        setCopiedQr(estId)
         setTimeout(() => setCopiedQr(null), 2000)
     }
 
@@ -272,6 +337,48 @@ export default function EstablishmentPage() {
                                     </div>
                                 )
                             })}
+                        </div>
+                    </div>
+
+                    {/* Interactive Logo Upload (Single logo image) */}
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                <Camera className="w-4 h-4 text-primary-500" />
+                                Logo del establecimiento (Opcional)
+                            </label>
+                            <span className="text-[10px] text-slate-400 font-medium">Sube el logo de tu marca</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="relative group w-20 h-20 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden transition-all shadow-sm hover:border-primary-300">
+                                {createLogo ? (
+                                    <>
+                                        <img src={createLogo} alt="Logo" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveCreateLogo}
+                                            className="absolute top-1 right-1 p-1 bg-black/50 hover:bg-black/75 text-white rounded-full transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50/50 transition-colors">
+                                        <Plus className="w-6 h-6 text-slate-300 group-hover:text-primary-500 transition-colors" />
+                                        <span className="text-[9px] text-slate-400 font-bold mt-1">Logo</span>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleCreateLogoChange}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                )}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                                <p>Soporta JPG, PNG de hasta 2MB.</p>
+                                <p>Se mostrará en los perfiles públicos y búsquedas.</p>
+                            </div>
                         </div>
                     </div>
 
@@ -380,7 +487,7 @@ export default function EstablishmentPage() {
                             <div className="flex flex-col md:flex-row items-center gap-6">
                                 <div className="bg-white p-3 rounded-2xl shadow-lg shrink-0">
                                     <QRCodeSVG 
-                                        value={typeof window !== 'undefined' ? `${window.location.origin}/checkin/${est.qrCodeToken}` : ''}
+                                        value={typeof window !== 'undefined' ? `${window.location.origin}/establishment/${est.id}` : `https://brofy-phi.vercel.app/establishment/${est.id}`}
                                         size={120}
                                         level="H"
                                         includeMargin={false}
@@ -388,20 +495,21 @@ export default function EstablishmentPage() {
                                 </div>
                                 <div className="flex-1 w-full text-center md:text-left space-y-3">
                                     <div>
-                                        <h3 className="font-bold text-lg mb-1">QR de Check-in</h3>
+                                        <h3 className="font-bold text-lg mb-1">{est.name}</h3>
+                                        <p className="text-xs opacity-90 mb-1.5">Código Único de Local: <span className="font-bold bg-white/20 px-2 py-0.5 rounded font-mono">{est.dni || 'Pendiente'}</span></p>
                                         <p className="text-sm opacity-80 text-balance">Los clientes deben escanear este código al llegar para iniciar la atención y el pago de comisión.</p>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                                        <button onClick={() => copyQr(est.qrCodeToken)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-lg text-xs hover:bg-white/30 transition-colors">
-                                            {copiedQr === est.qrCodeToken ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                            {copiedQr === est.qrCodeToken ? 'Copiado!' : 'Copiar enlace'}
+                                        <button onClick={() => copyQr(est.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-lg text-xs hover:bg-white/30 transition-colors">
+                                            {copiedQr === est.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                            {copiedQr === est.id ? 'Copiado!' : 'Copiar enlace'}
                                         </button>
                                         <Link href={`/establishment/${est.id}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-lg text-xs hover:bg-white/30 transition-colors">
                                             <ExternalLink className="w-3.5 h-3.5" /> Ver perfil público
                                         </Link>
                                     </div>
                                     <p className="text-xs opacity-70 font-mono truncate bg-black/20 p-2 rounded-lg text-center md:text-left">
-                                        /checkin/{est.qrCodeToken}
+                                        {typeof window !== 'undefined' ? `${window.location.origin}/establishment/${est.id}` : `https://brofy-phi.vercel.app/establishment/${est.id}`}
                                     </p>
                                 </div>
                             </div>
@@ -452,6 +560,48 @@ export default function EstablishmentPage() {
                                             </div>
                                         )
                                     })}
+                                </div>
+                            </div>
+
+                            {/* Interactive Logo Upload (Single logo image) */}
+                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 mb-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                        <Camera className="w-4 h-4 text-primary-500" />
+                                        Logo del establecimiento (Opcional)
+                                    </label>
+                                    <span className="text-[10px] text-slate-400 font-medium">Gestiona el logo de tu local</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="relative group w-20 h-20 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden transition-all shadow-sm hover:border-primary-300">
+                                        {editLogosMap[est.id] !== undefined && editLogosMap[est.id] !== '' && editLogosMap[est.id] !== null ? (
+                                            <>
+                                                <img src={editLogosMap[est.id] || ''} alt="Logo" className="w-full h-full object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveEditLogo(est.id)}
+                                                    className="absolute top-1 right-1 p-1 bg-black/50 hover:bg-black/75 text-white rounded-full transition-colors"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50/50 transition-colors">
+                                                <Plus className="w-6 h-6 text-slate-300 group-hover:text-primary-500 transition-colors" />
+                                                <span className="text-[9px] text-slate-400 font-bold mt-1">Logo</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handleEditLogoChange(est.id, e)}
+                                                    className="hidden"
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-slate-400">
+                                        <p>Soporta JPG, PNG de hasta 2MB.</p>
+                                        <p>Se mostrará en los perfiles públicos y búsquedas.</p>
+                                    </div>
                                 </div>
                             </div>
 

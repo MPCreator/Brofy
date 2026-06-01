@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getMyEstablishments, addService, deleteService } from '@/lib/actions'
+import { getMyEstablishments, addService, deleteService, updateService } from '@/lib/actions'
 import { SERVICE_CATEGORIES } from '@/lib/types'
 import { formatPEN } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
-    Building2, Plus, Trash2, Clock, DollarSign, Save, Loader2, ChevronDown, ChevronUp, Tag
+    Building2, Plus, Trash2, Clock, DollarSign, Save, Loader2, ChevronDown, ChevronUp, Tag, Edit2
 } from 'lucide-react'
 
 export default function ServicesPage() {
@@ -15,6 +15,7 @@ export default function ServicesPage() {
     const [showForm, setShowForm] = useState<string | null>(null) // establishmentId
     const [saving, setSaving] = useState(false)
     const [expandedEst, setExpandedEst] = useState<string | null>(null)
+    const [editingService, setEditingService] = useState<any | null>(null)
 
     useEffect(() => { loadData() }, [])
 
@@ -29,12 +30,34 @@ export default function ServicesPage() {
     async function handleAddService(formData: FormData) {
         setSaving(true)
         try {
-            await addService(formData)
-            toast.success('Servicio agregado exitosamente')
-            setShowForm(null)
-            loadData()
+            const res = await addService(formData)
+            if (res && 'message' in res) {
+                toast.error(res.message)
+            } else {
+                toast.success('Servicio agregado exitosamente')
+                setShowForm(null)
+                loadData()
+            }
         } catch {
             toast.error('Error al agregar servicio')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    async function handleEditService(formData: FormData) {
+        setSaving(true)
+        try {
+            const res = await updateService(formData)
+            if (res && 'message' in res) {
+                toast.error(res.message)
+            } else {
+                toast.success('Servicio actualizado exitosamente')
+                setEditingService(null)
+                loadData()
+            }
+        } catch {
+            toast.error('Error al actualizar servicio')
         } finally {
             setSaving(false)
         }
@@ -93,26 +116,97 @@ export default function ServicesPage() {
                                     <p className="text-sm text-slate-400 text-center py-4">Sin servicios. Agrega uno abajo.</p>
                                 ) : (
                                     est.services.map((svc: any) => (
-                                        <div key={svc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-slate-900">{svc.name}</p>
-                                                <div className="flex items-center gap-3 mt-1">
-                                                    <span className="flex items-center gap-1 text-xs text-slate-500">
-                                                        <DollarSign className="w-3 h-3" /> {formatPEN(svc.price)}
-                                                    </span>
-                                                    <span className="flex items-center gap-1 text-xs text-slate-500">
-                                                        <Clock className="w-3 h-3" /> {svc.duration} min
-                                                    </span>
-                                                    <span className="flex items-center gap-1 text-xs text-slate-400">
-                                                        <Tag className="w-3 h-3" /> {SERVICE_CATEGORIES.find(c => c.value === svc.category)?.label || svc.category}
-                                                    </span>
+                                        editingService?.id === svc.id ? (
+                                            <form key={svc.id} action={handleEditService} className="bg-primary-50 rounded-xl p-4 space-y-3 animate-in border border-primary-200">
+                                                <input type="hidden" name="id" value={svc.id} />
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <input name="name" required defaultValue={svc.name} placeholder="Nombre del servicio" className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                                    <input name="price" type="number" step="0.5" required defaultValue={svc.price} placeholder="Precio (S/)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                                    <input name="duration" type="number" defaultValue={svc.duration} placeholder="Duración (min)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                                    <select name="category" defaultValue={svc.category} className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                                        {SERVICE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                                    </select>
+                                                    <textarea name="description" defaultValue={svc.description || ''} placeholder="Descripción (opcional)" rows={2} className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
                                                 </div>
-                                                {svc.description && <p className="text-xs text-slate-400 mt-1">{svc.description}</p>}
+                                                <div className="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200 space-y-1">
+                                                    <p className="font-semibold">🔔 Aviso de cambio de precio:</p>
+                                                    <p>Al guardar, los clientes con reservas activas recibirán una alerta del cambio de precio. No obstante, **se respetará la tarifa contratada originalmente** para sus reservas actuales.</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button type="button" onClick={() => setEditingService(null)} className="flex-1 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white">Cancelar</button>
+                                                    <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                                                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        ) : (
+                                            <div key={svc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium text-slate-900">{svc.name}</p>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                                                            <DollarSign className="w-3 h-3" /> {formatPEN(svc.price)}
+                                                        </span>
+                                                        <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg">
+                                                            <Clock className="w-3 h-3 text-slate-400" /> {svc.duration} min
+                                                        </span>
+                                                        {(() => {
+                                                            const cat = SERVICE_CATEGORIES.find(c => c.value === svc.category);
+                                                            const label = cat?.label || svc.category;
+                                                            
+                                                            let colorClass = 'bg-slate-50 text-slate-600 border-slate-200';
+                                                            switch (svc.category) {
+                                                                case 'consultation':
+                                                                    colorClass = 'bg-blue-50/70 text-blue-700 border-blue-100';
+                                                                    break;
+                                                                case 'vaccination':
+                                                                    colorClass = 'bg-purple-50/70 text-purple-700 border-purple-100';
+                                                                    break;
+                                                                case 'grooming':
+                                                                    colorClass = 'bg-pink-50/70 text-pink-700 border-pink-100';
+                                                                    break;
+                                                                case 'surgery':
+                                                                    colorClass = 'bg-red-50/70 text-red-700 border-red-100';
+                                                                    break;
+                                                                case 'deworming':
+                                                                    colorClass = 'bg-amber-50/70 text-amber-700 border-amber-100';
+                                                                    break;
+                                                                case 'test':
+                                                                    colorClass = 'bg-teal-50/70 text-teal-700 border-teal-100';
+                                                                    break;
+                                                                case 'walk':
+                                                                    colorClass = 'bg-emerald-50/70 text-emerald-700 border-emerald-100';
+                                                                    break;
+                                                                case 'bath':
+                                                                    colorClass = 'bg-cyan-50/70 text-cyan-700 border-cyan-100';
+                                                                    break;
+                                                            }
+                                                            
+                                                            return (
+                                                                <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${colorClass} uppercase tracking-wider`}>
+                                                                    <Tag className="w-2.5 h-2.5" /> {label}
+                                                                </span>
+                                                            )
+                                                        })()}
+                                                    </div>
+                                                    {svc.description && <p className="text-xs text-slate-400 mt-1">{svc.description}</p>}
+                                                    {svc.tariffUpdatedAt && (
+                                                        <div className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
+                                                            <Clock className="w-2.5 h-2.5" />
+                                                            Tarifa actualizada el: {new Date(svc.tariffUpdatedAt).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <button onClick={() => setEditingService(svc)} className="p-2 text-slate-400 hover:text-primary-600 transition-colors" title="Editar">
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(svc.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button onClick={() => handleDelete(svc.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                        )
                                     ))
                                 )}
 

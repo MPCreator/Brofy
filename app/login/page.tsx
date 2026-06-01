@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { login } from '@/lib/auth'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react'
 
 // Wrap the submit button to use useFormStatus for loading state
@@ -28,11 +29,19 @@ export default function LoginPage() {
         <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-50/30 px-4">
             <div className="w-full max-w-sm space-y-6">
                 {/* Logo */}
-                <div className="text-center">
-                    <Link href="/" className="text-3xl font-bold text-primary-600 tracking-tight">
-                        Brofy
+                <div className="text-center space-y-3 flex flex-col items-center">
+                    <Link href="/" className="inline-flex items-center justify-center">
+                        <Image 
+                            src="/logo.png" 
+                            alt="Brofy Logo" 
+                            width={340} 
+                            height={185} 
+                            className="object-contain w-72 md:w-[320px]" 
+                            style={{ height: 'auto' }}
+                            priority 
+                        />
                     </Link>
-                    <p className="text-sm text-slate-500 mt-2">Inicia sesión en tu cuenta</p>
+                    <p className="text-sm text-slate-500">Inicia sesión en tu cuenta</p>
                 </div>
 
                 {/* Form */}

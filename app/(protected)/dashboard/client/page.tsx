@@ -50,7 +50,7 @@ export default async function ClientDashboard() {
                     <CalendarPlus className="w-7 h-7" />
                 </div>
                 <div>
-                    <p className="font-bold text-base">Solicitar Turno Digital</p>
+                    <p className="font-bold text-base">Descubrir</p>
                     <p className="text-sm opacity-80">Encuentra veterinarias y servicios cercanos</p>
                 </div>
             </Link>

@@ -18,6 +18,7 @@ import {
 import { formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
 import { VetRemindersList } from '@/components/dashboard/vet-reminders'
+import { VetAppointmentCard } from '@/components/dashboard/vet-appointment-card'
 
 export default async function VetDashboard() {
     const session = await requireRole(['vet', 'provider'])
@@ -245,59 +246,11 @@ export default async function VetDashboard() {
                             <Calendar className="w-5 h-5 text-primary-600" />
                             Agenda de Citas
                         </h2>
-                    </div>
-                    <div className="space-y-2">
+                            <div className="space-y-2">
                         {upcomingAppointments.map((apt:any) => (
-                            <div key={apt.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-center gap-4">
-                                <div className="text-center px-3 border-r border-slate-100">
-                                    <div className="text-xs font-bold text-primary-600 uppercase">
-                                        {new Date(apt.scheduledAt!).toLocaleDateString('es-ES', { month: 'short' })}
-                                    </div>
-                                    <div className="text-xl font-black text-slate-900">
-                                        {new Date(apt.scheduledAt!).getDate()}
-                                    </div>
-                                    <div className="text-xs font-medium text-slate-500 mt-1">
-                                        {new Date(apt.scheduledAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <p className="font-semibold text-slate-900">
-                                        {(apt.client as { fullName: string })?.fullName || 'Cliente'} 
-                                        <span className="text-slate-400 font-normal ml-1">con {(apt.pet as { name: string })?.name}</span>
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
-                                            {apt.serviceType}
-                                        </span>
-                                        {apt.notes && (
-                                            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md truncate max-w-[150px]" title={apt.notes}>
-                                                Nota: {apt.notes}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    {apt.status === 'confirmed' || apt.status === 'paid' ? (
-                                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1">
-                                            <CheckCircle2 className="w-3 h-3" /> {apt.status === 'paid' ? 'Pagada / Confirmada' : 'Confirmada'}
-                                        </span>
-                                    ) : (
-                                        <div className="flex flex-col gap-2">
-                                            <form action={async () => {
-                                                'use server'
-                                                const { updateAppointmentStatus } = await import('@/lib/actions')
-                                                await updateAppointmentStatus(apt.id, 'confirmed')
-                                            }}>
-                                                <button type="submit" className="w-full text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
-                                                    Confirmar
-                                                </button>
-                                            </form>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                            <VetAppointmentCard key={apt.id} apt={apt} />
                         ))}
-                    </div>
+                    </div>             </div>
                 </section>
             )}
 
