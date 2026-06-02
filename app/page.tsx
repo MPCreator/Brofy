@@ -24,9 +24,10 @@ export default async function Home() {
                             <Image 
                                 src="/logo.png" 
                                 alt="Brofy Logo" 
-                                width={240} 
-                                height={131} 
-                                className="object-contain h-[56px] md:h-[64px] w-auto" 
+                                width={280} 
+                                height={153} 
+                                className="object-contain h-14 sm:h-[70px]" 
+                                style={{ width: 'auto' }}
                                 priority 
                             />
                         </Link>

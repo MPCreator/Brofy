@@ -46,7 +46,8 @@ export default async function DashboardLayout({
                             alt="Brofy Logo" 
                             width={160} 
                             height={87} 
-                            className="object-contain w-[140px] h-auto" 
+                            className="object-contain w-[140px]" 
+                            style={{ height: 'auto' }}
                             priority 
                         />
                     </Link>
@@ -75,7 +76,8 @@ export default async function DashboardLayout({
                         alt="Brofy Logo" 
                         width={200} 
                         height={109} 
-                        className="object-contain w-[180px] h-auto" 
+                        className="object-contain w-[180px]" 
+                        style={{ height: 'auto' }}
                         priority 
                     />
                 </div>

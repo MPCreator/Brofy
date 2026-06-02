@@ -104,12 +104,7 @@ export default function PhotoCarousel({ photoUrls, establishmentName, fallbackCa
         return <PlaceholderCard fallbackCategory={fallbackCategory} />
     }
 
-    // Filter out individually errored images
-    const displayImages = validPhotos.filter((_, i) => !errorImages[i])
-
-    if (displayImages.length === 0) {
-        return <PlaceholderCard fallbackCategory={fallbackCategory} />
-    }
+    const displayImages = validPhotos
 
     const safeIndex = Math.min(currentIndex, displayImages.length - 1)
 
@@ -140,23 +135,32 @@ export default function PhotoCarousel({ photoUrls, establishmentName, fallbackCa
             >
                 {displayImages.map((src, i) => {
                     const isLoaded = loadedImages[i]
+                    const isErrored = errorImages[i]
+
                     return (
                         <div key={i} className="w-full h-full flex-shrink-0 relative bg-slate-50">
-                            {/* Pulsing skeleton while loading */}
-                            {!isLoaded && (
-                                <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 animate-pulse flex items-center justify-center">
-                                    <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin opacity-60" />
-                                </div>
+                            {isErrored ? (
+                                <PlaceholderCard fallbackCategory={fallbackCategory} />
+                            ) : (
+                                <>
+                                    {/* Pulsing skeleton while loading */}
+                                    {!isLoaded && (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 animate-pulse flex items-center justify-center z-10">
+                                            <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin opacity-60" />
+                                        </div>
+                                    )}
+                                    <img
+                                        ref={el => { imagesRef.current[i] = el }}
+                                        src={src}
+                                        alt={`${establishmentName} - Foto ${i + 1}`}
+                                        className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-700 ${
+                                            isLoaded ? 'opacity-100 relative' : 'opacity-0 absolute inset-0'
+                                        }`}
+                                        onLoad={() => setLoadedImages(prev => ({ ...prev, [i]: true }))}
+                                        onError={() => setErrorImages(prev => ({ ...prev, [i]: true }))}
+                                    />
+                                </>
                             )}
-                            <img
-                                ref={el => { imagesRef.current[i] = el }}
-                                src={src}
-                                alt={`${establishmentName} - Foto ${i + 1}`}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700"
-                                style={{ display: isLoaded ? 'block' : 'none' }}
-                                onLoad={() => setLoadedImages(prev => ({ ...prev, [i]: true }))}
-                                onError={() => setErrorImages(prev => ({ ...prev, [i]: true }))}
-                            />
                         </div>
                     )
                 })}

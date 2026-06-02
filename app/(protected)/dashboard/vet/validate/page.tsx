@@ -19,23 +19,23 @@ export default function ValidarCodigoPage() {
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
 
     useEffect(() => {
+        async function cargarCitas() {
+            setLoadingAppointments(true)
+            try {
+                const data = await getPendingAppointments()
+                setAppointments(data)
+                setAppointmentId(prev => {
+                    if (data.length === 1 && !prev) return data[0].id
+                    return prev
+                })
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setLoadingAppointments(false)
+            }
+        }
         cargarCitas()
     }, [])
-
-    async function cargarCitas() {
-        setLoadingAppointments(true)
-        try {
-            const data = await getPendingAppointments()
-            setAppointments(data)
-            if (data.length === 1 && !appointmentId) {
-                setAppointmentId(data[0].id)
-            }
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setLoadingAppointments(false)
-        }
-    }
 
     async function handleValidar(e: React.FormEvent) {
         e.preventDefault()

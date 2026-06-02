@@ -3,10 +3,8 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-// Cloudinary image resolution helper
-const cloudName = (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'tu_cloud_name')
-    ? process.env.CLOUDINARY_CLOUD_NAME
-    : 'demo';
+// Cloudinary image resolution helper (always use 'demo' for mock/seed assets to guarantee they load)
+const cloudName = 'demo';
 
 const getCloudinaryUrl = (publicId: string) => `https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto/${publicId}`;
 

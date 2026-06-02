@@ -11,9 +11,14 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         statusBarStyle: "default",
+        title: "Brofy",
     },
     icons: {
-        icon: "/brofy1.png",
+        icon: [
+            { url: "/brofy1.png", type: "image/png" },
+            { url: "/favicon.ico", sizes: "any" }
+        ],
+        shortcut: "/favicon.ico",
         apple: "/brofy1.png",
     },
 };

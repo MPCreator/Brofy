@@ -37,23 +37,22 @@ export default function CheckinPage() {
     const [otpCopied, setOtpCopied] = useState(false)
 
     useEffect(() => {
-        loadData()
-    }, [])
-
-    async function loadData() {
-        try {
-            const [est, userPets] = await Promise.all([
-                getEstablishmentByQr(establishmentToken),
-                getUserPets(),
-            ])
-            setEstablishment(est)
-            setPets(userPets)
-            setStep(est ? 'info' : 'loading')
-            if (!est) setError('Establecimiento no encontrado')
-        } catch {
-            setError('Error al cargar datos')
+        async function loadData() {
+            try {
+                const [est, userPets] = await Promise.all([
+                    getEstablishmentByQr(establishmentToken),
+                    getUserPets(),
+                ])
+                setEstablishment(est)
+                setPets(userPets)
+                setStep(est ? 'info' : 'loading')
+                if (!est) setError('Establecimiento no encontrado')
+            } catch {
+                setError('Error al cargar datos')
+            }
         }
-    }
+        loadData()
+    }, [establishmentToken])
 
     async function handleCreateAndPay() {
         if (!selectedPetId || !establishment) return

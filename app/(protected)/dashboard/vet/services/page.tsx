@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getMyEstablishments, addService, deleteService, updateService } from '@/lib/actions'
 import { SERVICE_CATEGORIES } from '@/lib/types'
 import { formatPEN } from '@/lib/utils'
@@ -17,15 +17,18 @@ export default function ServicesPage() {
     const [expandedEst, setExpandedEst] = useState<string | null>(null)
     const [editingService, setEditingService] = useState<any | null>(null)
 
-    useEffect(() => { loadData() }, [])
-
-    async function loadData() {
+    const loadData = useCallback(async () => {
         setLoading(true)
         const data = await getMyEstablishments()
         setEstablishments(data)
-        if (data.length > 0 && !expandedEst) setExpandedEst(data[0].id)
+        setExpandedEst(prev => {
+            if (data.length > 0 && !prev) return data[0].id
+            return prev
+        })
         setLoading(false)
-    }
+    }, [])
+
+    useEffect(() => { loadData() }, [loadData])
 
     async function handleAddService(formData: FormData) {
         setSaving(true)

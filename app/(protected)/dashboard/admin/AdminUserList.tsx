@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { toggleAccountStatus, updateRevisionMessage, deleteAccount, validateVetCmvp } from '@/lib/actions'
-import { ShieldCheck, ShieldAlert, Ban, Trash2, MessageSquare, CheckCircle2 } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, Ban, Trash2, MessageSquare, CheckCircle2, Mail, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function AdminUserList({ users }: { users: any[] }) {
@@ -10,6 +10,10 @@ export function AdminUserList({ users }: { users: any[] }) {
     const [revMsg, setRevMsg] = useState('')
     const [schedulingAudit, setSchedulingAudit] = useState<string | null>(null)
     const [auditDate, setAuditDate] = useState('')
+    const [sendingEmail, setSendingEmail] = useState<string | null>(null)
+    const [emailSubject, setEmailSubject] = useState('')
+    const [emailBody, setEmailBody] = useState('')
+    const [emailing, setEmailing] = useState(false)
 
     async function handleToggleStatus(userId: string, currentStatus: boolean) {
         await toggleAccountStatus(userId, !currentStatus)
@@ -45,6 +49,25 @@ export function AdminUserList({ users }: { users: any[] }) {
             toast.success(`Recordatorio programado para el ${new Date(auditDate).toLocaleDateString('es-PE')}`)
             setSchedulingAudit(null)
             setAuditDate('')
+        }
+    }
+
+    async function handleSendEmail(userId: string) {
+        if (!emailSubject || !emailBody) {
+            toast.error('El asunto y el cuerpo del correo son requeridos.')
+            return
+        }
+        setEmailing(true)
+        const { sendCustomEmailFromAdmin } = await import('@/lib/actions')
+        const res = await sendCustomEmailFromAdmin({ userId, subject: emailSubject, body: emailBody })
+        setEmailing(false)
+        if (res.success) {
+            toast.success('Correo electrónico enviado correctamente.')
+            setSendingEmail(null)
+            setEmailSubject('')
+            setEmailBody('')
+        } else {
+            toast.error(`Error al enviar: ${res.error || 'Inténtalo de nuevo.'}`)
         }
     }
 
@@ -129,7 +152,42 @@ export function AdminUserList({ users }: { users: any[] }) {
                                 )}
                             </td>
                             <td className="px-6 py-4 text-right">
-                                {promptingRev === u.id ? (
+                                {sendingEmail === u.id ? (
+                                    <div className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-xs ml-auto animate-in text-left">
+                                        <div className="text-[11px] font-bold text-slate-700">Enviar correo a {u.fullName}</div>
+                                        <input 
+                                            type="text" 
+                                            value={emailSubject} 
+                                            onChange={e => setEmailSubject(e.target.value)} 
+                                            placeholder="Asunto del correo..."
+                                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white"
+                                        />
+                                        <textarea
+                                            value={emailBody} 
+                                            onChange={e => setEmailBody(e.target.value)} 
+                                            placeholder="Escribe el mensaje..."
+                                            rows={3}
+                                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white resize-none"
+                                        />
+                                        <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                                            <button 
+                                                onClick={() => setSendingEmail(null)} 
+                                                disabled={emailing}
+                                                className="text-[10px] font-medium text-slate-500 hover:text-slate-700 px-2 py-1"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button 
+                                                onClick={() => handleSendEmail(u.id)} 
+                                                disabled={emailing}
+                                                className="text-[10px] font-bold bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-2.5 py-1 rounded flex items-center gap-1 shadow-sm transition-colors"
+                                            >
+                                                {emailing && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                {emailing ? 'Enviando...' : 'Enviar'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : promptingRev === u.id ? (
                                     <div className="flex items-center gap-2 justify-end">
                                         <input 
                                             type="text" 
@@ -144,7 +202,22 @@ export function AdminUserList({ users }: { users: any[] }) {
                                 ) : (
                                     <div className="flex items-center justify-end gap-2">
                                         <button 
-                                            onClick={() => setPromptingRev(u.id)}
+                                            onClick={() => {
+                                                setSendingEmail(u.id)
+                                                setPromptingRev(null)
+                                                setSchedulingAudit(null)
+                                            }}
+                                            className="p-1.5 text-slate-400 hover:text-primary-600 transition-colors"
+                                            title="Enviar correo personalizado"
+                                        >
+                                            <Mail className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                setPromptingRev(u.id)
+                                                setSendingEmail(null)
+                                                setSchedulingAudit(null)
+                                            }}
                                             className="p-1.5 text-slate-400 hover:text-amber-600 transition-colors"
                                             title="Enviar mensaje de revisión"
                                         >

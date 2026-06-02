@@ -638,6 +638,9 @@ export async function validateOtp(appointmentId: string, code: string) {
             id: appointmentId,
             status: 'paid',
             otpValidationCode: code,
+            establishment: {
+                ownerId: session.sub
+            }
         }
     })
 
@@ -1749,7 +1752,44 @@ export async function deleteAccount(userId: string) {
         where: { id: userId }
     })
     revalidatePath('/dashboard/admin')
-    return { success: true }
+}
+
+export async function sendCustomEmailFromAdmin({ userId, subject, body }: { userId: string; subject: string; body: string }) {
+    await requireRole(['admin'])
+    
+    const user = await prisma.profile.findUnique({
+        where: { id: userId }
+    })
+    
+    if (!user) {
+        return { success: false, error: 'Usuario no encontrado.' }
+    }
+
+    const { sendEmail } = await import('./mail')
+    
+    const html = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: #078EAD; margin: 0;">Mensaje de Administración de Brofy</h2>
+            </div>
+            <p>Estimado/a <strong>${user.fullName}</strong>,</p>
+            <p style="white-space: pre-wrap; line-height: 1.6; color: #334155;">${body}</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #64748b; text-align: center;">Este es un mensaje administrativo puntual enviado directamente desde la administración de Brofy.</p>
+        </div>
+    `
+
+    const res = await sendEmail({
+        to: user.email,
+        subject: `Brofy Admin: ${subject}`,
+        html
+    })
+
+    if (res.success) {
+        return { success: true }
+    } else {
+        return { success: false, error: res.error }
+    }
 }
 
 // ============================================================================
