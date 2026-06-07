@@ -31,18 +31,33 @@ export const viewport: Viewport = {
 };
 
 import { EmergencyLauncher } from "@/components/features/emergency/EmergencyLauncher";
+import { I18nProvider } from "../lib/i18n-context";
+import { cookies } from "next/headers";
 
 export default function RootLayout({
     children,
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+    let locale: "es" | "en" = "es";
+    try {
+        const cookieStore = cookies();
+        const nextLocale = cookieStore.get("NEXT_LOCALE")?.value;
+        if (nextLocale === "es" || nextLocale === "en") {
+            locale = nextLocale as "es" | "en";
+        }
+    } catch (e) {
+        // Fallback for static rendering
+    }
+
     return (
-        <html lang="es">
+        <html lang={locale}>
             <body className={`${inter.variable} font-sans antialiased text-slate-900 bg-surface-50`}>
-                {children}
-                <EmergencyLauncher />
-                <Toaster position="top-center" richColors />
+                <I18nProvider initialLocale={locale}>
+                    {children}
+                    <EmergencyLauncher />
+                    <Toaster position="top-center" richColors />
+                </I18nProvider>
             </body>
         </html>
     );

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { resolveDenunciaAdmin } from '@/lib/actions'
 import { AlertOctagon, CheckCircle2, XCircle, ShieldAlert, Sparkles, User, Shield, HelpCircle, Phone, Calendar, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
+import { SPECIES_LABELS } from '@/lib/types'
 
 export function AdminDisputesList({ initialAppointments }: { initialAppointments: any[] }) {
     const [appointments, setAppointments] = useState(initialAppointments)
@@ -96,7 +97,7 @@ export function AdminDisputesList({ initialAppointments }: { initialAppointments
                                             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Mascota Afectada</span>
                                                 <h4 className="text-sm font-bold text-slate-900">{apt.pet?.name}</h4>
-                                                <p className="text-xs text-slate-500 capitalize">{apt.pet?.species === 'dog' ? '🐾 Perro' : apt.pet?.species === 'cat' ? '🐱 Gato' : '🐾 ' + apt.pet?.species}</p>
+                                                <p className="text-xs text-slate-500 capitalize">{apt.pet?.species === 'dog' ? '🐾 Perro' : apt.pet?.species === 'cat' ? '🐱 Gato' : '🐾 ' + (SPECIES_LABELS[apt.pet?.species as keyof typeof SPECIES_LABELS] || apt.pet?.species)}</p>
                                                 <div className="mt-1.5">
                                                     <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded font-mono">
                                                         {apt.pet?.cuh || 'Sin CUH'}

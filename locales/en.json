@@ -1,0 +1,26 @@
+{
+  "nav": {
+    "adminPanel": "Admin Panel",
+    "settings": "Settings",
+    "home": "Home",
+    "startAttention": "Start Attention",
+    "fastEntry": "Fast Entry",
+    "myLocal": "My Local",
+    "servicesAndTariffs": "Services & Rates",
+    "finances": "Finances",
+    "guideAndTraining": "Guide & Training",
+    "helpAndNews": "Help & News",
+    "activeAppointments": "Appointments",
+    "myPets": "My Pets",
+    "searchLocales": "Search Locales",
+    "profile": "Profile",
+    "moreOptions": "More Options",
+    "more": "More",
+    "help": "Help",
+    "search": "Search",
+    "appointments": "Appointments",
+    "attention": "Attention",
+    "services": "Services",
+    "admin": "Admin"
+  }
+}

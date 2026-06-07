@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getUserPets, createAppointment, getProfile, bookWithCredits, updateProfile } from "@/lib/actions";
-import { Clock, CheckCircle, PawPrint, DollarSign, ShieldCheck, AlertCircle, Phone, Check, Loader2 } from "lucide-react";
-import { IzipayMock } from "@/components/ui/izipay-mock";
+import { Clock, CheckCircle, PawPrint, DollarSign, ShieldCheck, AlertCircle, Phone, Check, Loader2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import type { Establishment } from "@/lib/types";
+import { SPECIES_LABELS } from "@/lib/types";
 import { formatPEN } from "@/lib/utils";
 
 interface BookingModalProps {
@@ -103,7 +103,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
         return false;
     };
 
-    const handleBook = async () => {
+    const handleBook = async (paymentMethod?: 'credits' | 'izipay') => {
         if (!selectedPet || !date || !establishment || selectedServices.length === 0) return;
 
         // Si no tiene teléfono en el perfil, exigir guardarlo primero
@@ -128,8 +128,10 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
             if (res.success && res.appointmentId) {
                 const totalCommission = 5.00 * selectedServices.length;
                 const hasCredits = clientProfile && clientProfile.creditBalance >= totalCommission;
+                
+                const useCredits = paymentMethod === 'credits' || (!paymentMethod && hasCredits);
 
-                if (hasCredits) {
+                if (useCredits) {
                     // Procesar canje con créditos/Huellitas
                     const payResult = await bookWithCredits(res.appointmentId);
                     if (payResult.success) {
@@ -139,12 +141,12 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                         toast.error(payResult.message || "Error al procesar el canje de Huellitas");
                     }
                 } else {
-                    // Si no tiene créditos, procesar vía pasarela (IzipayMock)
+                    // Si no tiene créditos, procesar vía pasarela (Izipay)
                     const { processPayment } = await import('@/lib/actions');
                     const payResult = await processPayment(res.appointmentId);
-                    if (payResult.success) {
-                        toast.success("¡Turno confirmado! Tu código de atención ya está disponible en tu panel.");
-                        onClose();
+                    if (payResult.success && payResult.redirectUrl) {
+                        toast.info("Redirigiendo a pasarela de pago segura...");
+                        window.location.href = payResult.redirectUrl;
                     } else {
                         toast.error(payResult.message || "Error al procesar el pago");
                     }
@@ -158,13 +160,139 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
         setIsLoading(false);
     };
 
-    // Build time slots based on total sum of service durations
+    const getAvailabilityWarning = () => {
+        if (!selectedDay || selectedServices.length === 0) return null;
+
+        const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const dayLabels: Record<string, string> = { 
+            mon: 'Lunes', 
+            tue: 'Martes', 
+            wed: 'Miércoles', 
+            thu: 'Jueves', 
+            fri: 'Viernes', 
+            sat: 'Sábado', 
+            sun: 'Domingo' 
+        };
+        
+        // Correct date timezone shifts by appending time part
+        const dateObj = new Date(`${selectedDay}T00:00:00`);
+        const dayOfWeek = dayNames[dateObj.getDay()];
+
+        // Check if date is blocked/holiday for establishment
+        let isHoliday = false;
+        try {
+            const blocked = typeof establishment?.blockedDates === 'string'
+                ? JSON.parse(establishment.blockedDates)
+                : (establishment?.blockedDates || []);
+            if (Array.isArray(blocked) && blocked.includes(selectedDay)) {
+                isHoliday = true;
+            }
+        } catch {}
+
+        for (const svc of selectedServices) {
+            let opDays: string[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+            try {
+                if (svc.operatingDays) {
+                    opDays = JSON.parse(svc.operatingDays);
+                }
+            } catch {}
+
+            const dayNameEsp = dayLabels[dayOfWeek] || dayOfWeek;
+
+            if (!opDays.includes(dayOfWeek)) {
+                return `El servicio "${svc.name}" no se atiende los días ${dayNameEsp}.`;
+            }
+
+            if (isHoliday && !svc.workOnHolidays) {
+                return `El establecimiento estará cerrado por feriado o día festivo esta fecha y el servicio "${svc.name}" no está disponible.`;
+            }
+        }
+
+        // Check if hours overlap
+        let estStart = 0;
+        let estEnd = 24 * 60;
+        try {
+            const estHours = typeof establishment?.operatingHours === 'string'
+                ? JSON.parse(establishment.operatingHours)
+                : establishment?.operatingHours;
+            if (estHours && !estHours.is24h) {
+                const openTime = estHours.openTime || '09:00';
+                const closeTime = estHours.closeTime || '18:00';
+                const [oh, om] = openTime.split(':').map(Number);
+                const [ch, cm] = closeTime.split(':').map(Number);
+                estStart = oh * 60 + om;
+                estEnd = ch * 60 + cm;
+            }
+        } catch {}
+
+        let maxStartMins = estStart;
+        let minEndMins = estEnd;
+
+        for (const svc of selectedServices) {
+            try {
+                const hours = JSON.parse(svc.operatingHours || '{}');
+                const start = hours.start || '08:00';
+                const end = hours.end || '20:00';
+                const [sh, sm] = start.split(':').map(Number);
+                const [eh, em] = end.split(':').map(Number);
+                maxStartMins = Math.max(maxStartMins, sh * 60 + sm);
+                minEndMins = Math.min(minEndMins, eh * 60 + em);
+            } catch {}
+        }
+
+        if (maxStartMins >= minEndMins) {
+            return "No hay rango horario coincidente entre los servicios seleccionados y las horas del local.";
+        }
+
+        const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0) || 30;
+        if (maxStartMins + totalDuration > minEndMins) {
+            return `El rango de horas disponible en este día es insuficiente para la duración total de los servicios (${totalDuration} min).`;
+        }
+
+        return null;
+    };
+
+    // Build time slots based on total sum of service durations and intersected schedules
     const buildSlots = () => {
+        if (selectedServices.length === 0 || !selectedDay) return [];
+        if (getAvailabilityWarning() !== null) return [];
+
+        let estStart = 0;
+        let estEnd = 24 * 60;
+
+        try {
+            const estHours = typeof establishment?.operatingHours === 'string'
+                ? JSON.parse(establishment.operatingHours)
+                : establishment?.operatingHours;
+            if (estHours && !estHours.is24h) {
+                const openTime = estHours.openTime || '09:00';
+                const closeTime = estHours.closeTime || '18:00';
+                const [oh, om] = openTime.split(':').map(Number);
+                const [ch, cm] = closeTime.split(':').map(Number);
+                estStart = oh * 60 + om;
+                estEnd = ch * 60 + cm;
+            }
+        } catch {}
+
+        let maxStartMins = estStart;
+        let minEndMins = estEnd;
+
+        for (const svc of selectedServices) {
+            try {
+                const hours = JSON.parse(svc.operatingHours || '{}');
+                const start = hours.start || '08:00';
+                const end = hours.end || '20:00';
+                const [sh, sm] = start.split(':').map(Number);
+                const [eh, em] = end.split(':').map(Number);
+                maxStartMins = Math.max(maxStartMins, sh * 60 + sm);
+                minEndMins = Math.min(minEndMins, eh * 60 + em);
+            } catch {}
+        }
+
         const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0) || 30;
         const slots: string[] = [];
-        const startMinutes = 9 * 60;   // 09:00
-        const endMinutes = 18 * 60;    // 18:00 — last slot must end by this time
-        for (let mins = startMinutes; mins + totalDuration <= endMinutes; mins += totalDuration) {
+
+        for (let mins = maxStartMins; mins + totalDuration <= minEndMins; mins += totalDuration) {
             const h = Math.floor(mins / 60);
             const m = mins % 60;
             slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
@@ -211,7 +339,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                             <PawPrint className="w-4 h-4 text-slate-400 flex-shrink-0" />
                                             {pet.name}
                                         </div>
-                                        <div className="text-xs text-slate-500 mt-1 capitalize truncate">{pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</div>
+                                        <div className="text-xs text-slate-500 mt-1 capitalize truncate">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</div>
                                     </button>
                                 ))}
                                 {pets.length === 0 && (
@@ -375,20 +503,31 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                         (duración total de {totalDuration} min)
                                     </span>
                                 </label>
-                                <div className="grid grid-cols-4 gap-2">
-                                    {!selectedDay ? (
-                                        <p className="col-span-4 text-sm text-slate-400 text-center py-2">Selecciona una fecha primero</p>
-                                    ) : buildSlots().map(slot => (
-                                        <button
-                                            key={slot}
-                                            type="button"
-                                            onClick={() => setSelectedTime(slot)}
-                                            className={`py-2 text-xs font-bold rounded-xl border transition-all ${selectedTime === slot ? 'bg-primary-600 text-white border-primary-600' : 'bg-white border-slate-200 text-slate-700 hover:border-primary-300'}`}
-                                        >
-                                            {slot}
-                                        </button>
-                                    ))}
-                                </div>
+                                {!selectedDay ? (
+                                    <p className="text-sm text-slate-400 text-center py-2">Selecciona una fecha primero</p>
+                                ) : getAvailabilityWarning() ? (
+                                    <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 animate-in slide-in-from-top-1">
+                                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <p className="text-xs text-amber-950 leading-relaxed font-semibold">
+                                            {getAvailabilityWarning()}
+                                        </p>
+                                    </div>
+                                ) : buildSlots().length === 0 ? (
+                                    <p className="text-sm text-slate-400 text-center py-2">No hay horarios disponibles para esta fecha</p>
+                                ) : (
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {buildSlots().map(slot => (
+                                            <button
+                                                key={slot}
+                                                type="button"
+                                                onClick={() => setSelectedTime(slot)}
+                                                className={`py-2 text-xs font-bold rounded-xl border transition-all ${selectedTime === slot ? 'bg-primary-600 text-white border-primary-600' : 'bg-white border-slate-200 text-slate-700 hover:border-primary-300'}`}
+                                            >
+                                                {slot}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -449,35 +588,61 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
 
                             {/* Payment execution buttons */}
                             {hasEnoughCredits ? (
-                                <div className="space-y-2 pt-2 animate-in zoom-in-95">
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center text-xs text-slate-600 font-medium">
-                                        Se descontarán <strong className="text-emerald-700 font-bold">{formatPEN(totalPlatformFee)}</strong> de tu saldo de créditos.
+                                <div className="space-y-3 pt-2 animate-in zoom-in-95">
+                                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-650 space-y-1.5">
+                                        <p>Tienes saldo suficiente de <strong>Huellitas</strong> para canjear esta reserva gratis, pero también puedes pagar con Izipay si lo deseas:</p>
+                                        <p className="text-[10px] text-slate-400">Se descontarán <strong className="text-emerald-700 font-bold">{formatPEN(totalPlatformFee)}</strong> en Huellitas si canjeas.</p>
                                     </div>
-                                    <button
-                                        onClick={handleBook}
-                                        disabled={isLoading}
-                                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-base transition-all shadow-md"
-                                    >
-                                        {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                        Canjear con Crédito Brofy Gratis
-                                    </button>
+                                    <div className="flex flex-col gap-2.5">
+                                        <button
+                                            onClick={() => handleBook('credits')}
+                                            disabled={isLoading}
+                                            className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <>🐾 Canjear con Huellitas (Gratis)</>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => handleBook('izipay')}
+                                            disabled={isLoading}
+                                            className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold text-sm transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <CreditCard className="w-4.5 h-4.5" />
+                                                    Pagar {formatPEN(totalPlatformFee)} con Izipay
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="space-y-3">
+                                <div className="space-y-3 pt-2 animate-in zoom-in-95">
                                     <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3.5 flex items-start gap-2">
                                         <ShieldCheck className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
                                         <div className="text-xs text-primary-800 leading-relaxed">
-                                            <strong>Acceso a Plataforma (S/ {totalPlatformFee.toFixed(2)}):</strong> Cubre la gestión multiservicios del turno, inmutabilidad de la tarifa frente a variaciones, historial de carnet y validación.
+                                            <strong>Acceso a Plataforma ({formatPEN(totalPlatformFee)}):</strong> Cubre la gestión multiservicios del turno, inmutabilidad de la tarifa y validación digital.
                                         </div>
                                     </div>
-
-                                    {/* Pasarela Izipay lista para conectarse */}
-                                    <IzipayMock
-                                        amount={totalPlatformFee}
-                                        description={`Acceso a Plataforma Brofy — ${selectedServices.length} Servicios`}
-                                        buttonText="Pagar con Izipay"
-                                        onSuccess={handleBook}
-                                    />
+                                    <button
+                                        onClick={() => handleBook('izipay')}
+                                        disabled={isLoading}
+                                        className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold text-base transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                                    >
+                                        {isLoading ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <>
+                                                <CreditCard className="w-5 h-5" />
+                                                Pagar {formatPEN(totalPlatformFee)} con Izipay
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
                             )}
                         </div>

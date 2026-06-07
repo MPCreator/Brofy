@@ -48,6 +48,8 @@ export default function EstablishmentClient({ est, reviews, session }: { est: an
         address: est.address,
         city: est.city,
         services: est.services || [],   // ← fix: pass services to BookingModal
+        operatingHours: est.operatingHours,
+        blockedDates: est.blockedDates,
     }
 
     return (

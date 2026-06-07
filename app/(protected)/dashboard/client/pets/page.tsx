@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getUserPets, addPet, updatePet, deletePet } from '@/lib/actions'
-import { SPECIES_OPTIONS } from '@/lib/types'
+import { SPECIES_OPTIONS, SPECIES_LABELS } from '@/lib/types'
 import Link from 'next/link'
 import {
     PawPrint, Plus, ChevronRight, Calendar, Weight, Pencil, Trash2, X, Save, Loader2, Camera
@@ -219,7 +219,7 @@ export default function PetsPage() {
                                     <Link href={`/dashboard/client/carnet/${pet.id}`} className="flex-1 min-w-0">
                                         <h3 className="font-bold text-slate-900 text-lg group-hover:text-primary-600 transition-colors">{pet.name}</h3>
                                         <p className="text-xs font-semibold text-slate-500 capitalize mt-0.5">
-                                            {pet.species}{pet.breed ? ` · ${pet.breed}` : ''}{pet.sex && pet.sex !== 'unknown' ? ` · ${pet.sex === 'male' ? '♂' : '♀'}` : ''}
+                                            {SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}{pet.breed ? ` · ${pet.breed}` : ''}{pet.sex && pet.sex !== 'unknown' ? ` · ${pet.sex === 'male' ? '♂' : '♀'}` : ''}
                                         </p>
                                         {pet.cuh && (
                                             <span className="block text-[10px] font-mono font-bold text-primary-700 bg-primary-50/70 border border-primary-100 px-2 py-0.5 rounded-md mt-1 w-max">

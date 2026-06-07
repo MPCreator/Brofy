@@ -5,7 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { signup } from '@/lib/auth'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Mail, Lock, User, Phone, FileText, Loader2, AlertCircle, Stethoscope, PawPrint, Store } from 'lucide-react'
+import { Mail, Lock, User, Phone, FileText, Loader2, AlertCircle, Stethoscope, PawPrint, Store, ArrowLeft } from 'lucide-react'
 import type { UserRole } from '@/lib/types'
 
 const roles: Array<{ value: UserRole; label: string; icon: typeof PawPrint; description: string }> = [
@@ -35,7 +35,16 @@ export default function SignupPage() {
     const [phoneDigits, setPhoneDigits] = useState('')
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-50/30 px-4 py-8">
+        <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-50/30 px-4 py-8 relative">
+            {/* Volver al inicio */}
+            <Link 
+                href="/" 
+                className="absolute top-6 left-6 flex items-center gap-2 text-xs md:text-sm font-semibold text-slate-500 hover:text-primary-600 bg-white/80 hover:bg-white border border-slate-100 hover:border-slate-200 px-4 py-2.5 rounded-full shadow-sm hover:shadow transition-all duration-300 backdrop-blur-xs active:scale-95 z-50"
+            >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver al inicio</span>
+            </Link>
+
             <div className="w-full max-w-sm space-y-6">
                 {/* Logo */}
                 <div className="text-center space-y-3 flex flex-col items-center">

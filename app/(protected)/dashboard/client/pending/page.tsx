@@ -4,18 +4,24 @@ import { useState, useEffect } from "react";
 import { getClientAppointments, getProfile, acceptReschedule, fileDenuncia, proposeReschedule, acceptPriceChange, cancelAppointmentWithRefund } from "@/lib/actions";
 import { 
     Clock, Calendar, AlertTriangle, ShieldCheck, 
-    MessageSquare, Check, X, RefreshCw, AlertCircle, Sparkles, Phone, Award
+    MessageSquare, Check, X, RefreshCw, AlertCircle, Sparkles, Phone, Award, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPEN } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ReviewForm } from "@/components/ui/review-form";
+import { APPOINTMENT_STATUS_LABELS } from "@/lib/types";
 
 export default function ClientPendingPage() {
     const router = useRouter();
     const [appointments, setAppointments] = useState<any[]>([]);
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+
+    // Success State
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [successApt, setSuccessApt] = useState<any>(null);
 
     // Denuncia state
     const [denouncingId, setDenouncingId] = useState<string | null>(null);
@@ -27,6 +33,7 @@ export default function ClientPendingPage() {
     const [counterDate, setCounterDate] = useState("");
     const [counterNotes, setCounterNotes] = useState("");
     const [submittingCounter, setSubmittingCounter] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
 
     const handleCounterReschedule = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -63,11 +70,56 @@ export default function ClientPendingPage() {
             ]);
             setAppointments(apts);
             setProfile(prof);
+
+            // Verificar si status === 'success' en la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('status') === 'success') {
+                const latestPaid = apts.find((a: any) => a.status === 'paid');
+                if (latestPaid) {
+                    setSuccessApt(latestPaid);
+                    setShowSuccess(true);
+                }
+            }
         } catch (e) {
             toast.error("Error al cargar citas pendientes");
         } finally {
             setLoading(false);
         }
+    };
+
+    const buildGoogleCalendarUrl = (apt: any) => {
+        if (!apt) return '';
+        const title = encodeURIComponent(`Cita en ${apt.establishment?.name} | Brofy`);
+        const startDate = new Date(apt.scheduledAt);
+        const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // 30 mins
+        const formatDateString = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        const dates = `${formatDateString(startDate)}/${formatDateString(endDate)}`;
+        const details = encodeURIComponent(`Servicio: ${apt.serviceType}\nMascota: ${apt.pet?.name}\nCódigo de Atención: ${apt.otpValidationCode}\nReserva gestionada por Brofy.`);
+        const location = encodeURIComponent(apt.establishment?.address || '');
+        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+    };
+
+    const buildIcsDataUri = (apt: any) => {
+        if (!apt) return '';
+        const startDate = new Date(apt.scheduledAt);
+        const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+        const formatDateString = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        
+        const icsContent = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'BEGIN:VEVENT',
+            `URL:${window.location.origin}`,
+            `DTSTART:${formatDateString(startDate)}`,
+            `DTEND:${formatDateString(endDate)}`,
+            `SUMMARY:Cita en ${apt.establishment?.name} | Brofy`,
+            `DESCRIPTION:Servicio: ${apt.serviceType}\\nMascota: ${apt.pet?.name}\\nCodigo de Atencion: ${apt.otpValidationCode}`,
+            `LOCATION:${apt.establishment?.address || ''}`,
+            'END:VEVENT',
+            'END:VCALENDAR'
+        ].join('\n');
+        
+        return `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`;
     };
 
     const handleAcceptReschedule = async (aptId: string) => {
@@ -144,6 +196,12 @@ export default function ClientPendingPage() {
         (apt.rescheduledAt !== null && apt.status !== "completed" && apt.status !== "cancelled" && apt.status !== "disputed")
     );
 
+    const historyAppointments = appointments.filter(apt =>
+        apt.status === "completed" || 
+        apt.status === "cancelled" || 
+        apt.status === "disputed"
+    );
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
@@ -159,7 +217,7 @@ export default function ClientPendingPage() {
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Clock className="w-6 h-6 text-primary-600" />
-                    Citas y Turnos Pendientes
+                    Mis Citas e Historial
                 </h1>
                 <p className="text-sm text-slate-500 mt-1">
                     Monitorea tus atenciones programadas, reprogramaciones y gestiona denuncias por inasistencia.
@@ -244,6 +302,19 @@ export default function ClientPendingPage() {
                                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
                                             {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin hora"}
                                         </p>
+                                        {apt.establishment?.address && (
+                                            <a 
+                                                href={`https://www.google.com/maps/search/?api=1&query=${apt.establishment.latitude && apt.establishment.longitude ? `${apt.establishment.latitude},${apt.establishment.longitude}` : encodeURIComponent(`${apt.establishment.name}, ${apt.establishment.address}, ${apt.establishment.city || 'Lima'}`)}`}
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-primary-600 hover:text-primary-750 flex items-center gap-1 mt-1.5 font-semibold hover:underline"
+                                            >
+                                                <MapPin className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                                                <span className="truncate max-w-[280px]">
+                                                    {apt.establishment.address} {apt.establishment.district ? `(${apt.establishment.district})` : ''}
+                                                </span>
+                                            </a>
+                                        )}
                                     </div>
                                     <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full ${
                                         isProposed ? "bg-amber-100 text-amber-800" : isPaid ? "bg-primary-100 text-primary-800" : "bg-slate-100 text-slate-650"
@@ -325,30 +396,136 @@ export default function ClientPendingPage() {
                                 )}
 
                                 {/* Claims / Cancel trigger */}
-                                {!isProposed && (
-                                    <div className="flex items-center justify-between border-t border-slate-50 pt-3 mt-1.5">
+                                {!isProposed && (apt.status === "paid" || apt.status === "confirmed") && (
+                                    <div className="flex items-center justify-between border-t border-slate-50 pt-3 mt-1.5 w-full">
                                         {canClaim ? (
-                                            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-start gap-2 w-full justify-between items-center">
+                                            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-center gap-2 w-full justify-between">
                                                 <div className="text-[10px] text-red-800 leading-normal">
-                                                    ⚠️ **Inasistencia del Proveedor:** El horario de la cita ha expirado y no se registró la atención. Puedes iniciar un reclamo para obtener el reembolso.
+                                                    ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario de la cita ha expirado y no se registró la atención. Puedes iniciar un reclamo para obtener el reembolso.
                                                 </div>
                                                 <button
                                                     onClick={() => setDenouncingId(apt.id)}
-                                                    className="px-3 py-1.5 bg-red-650 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] uppercase shrink-0"
+                                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] uppercase shrink-0 transition-colors shadow-sm"
                                                 >
                                                     Denunciar
                                                 </button>
                                             </div>
                                         ) : (
-                                            <p className="text-[10px] text-slate-400">
-                                                * El botón de denuncia se activará 15 minutos después de la hora pactada si el proveedor no inicia la atención.
-                                            </p>
+                                            <div className="flex items-center justify-between w-full gap-2 bg-slate-50 border border-slate-100 rounded-xl p-2.5">
+                                                <p className="text-[10px] text-slate-500 leading-normal">
+                                                    * El botón de denuncia se activará 15 minutos después de la hora pactada si el proveedor no inicia la atención.
+                                                </p>
+                                                <button
+                                                    disabled
+                                                    className="px-3 py-1.5 bg-slate-100 text-slate-400 font-bold rounded-lg text-[10px] uppercase cursor-not-allowed shrink-0 border border-slate-200"
+                                                    title="Se activa 15 minutos después de la hora de la cita"
+                                                >
+                                                    Denunciar
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 )}
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Historial de Citas Pasadas (Collapsible) */}
+            {historyAppointments.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-3xl overflow-hidden shadow-sm">
+                    <button
+                        onClick={() => setShowHistory(!showHistory)}
+                        type="button"
+                        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors select-none text-left"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Clock className="w-5 h-5 text-slate-500" />
+                            <span className="text-sm font-bold text-slate-800">
+                                Ver Historial de Citas Pasadas ({historyAppointments.length})
+                            </span>
+                        </div>
+                        <span className="text-xs text-primary-600 font-bold">
+                            {showHistory ? "Ocultar ▲" : "Mostrar ▼"}
+                        </span>
+                    </button>
+                    
+                    {showHistory && (
+                        <div className="border-t border-slate-100 p-5 space-y-4 bg-slate-50/50 max-h-[500px] overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                            {historyAppointments.map((apt: any) => {
+                                const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS];
+                                return (
+                                    <div
+                                        key={apt.id}
+                                        className="bg-white rounded-2xl border border-slate-150 p-4 shadow-sm space-y-3"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <h4 className="font-extrabold text-slate-900 text-sm truncate">
+                                                    {apt.establishment?.name || 'Establecimiento'}
+                                                </h4>
+                                                <p className="text-xs text-slate-500 mt-0.5 capitalize truncate">
+                                                    🐶 {apt.pet?.name} · {apt.serviceType}
+                                                </p>
+                                                <p className="text-[11px] text-slate-455 mt-1 font-medium">
+                                                    {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sin hora'}
+                                                </p>
+                                            </div>
+                                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusInfo?.color || 'text-slate-650 bg-slate-100'} shrink-0`}>
+                                                {statusInfo?.label || apt.status}
+                                            </span>
+                                        </div>
+
+                                        {/* Expandable Recipe for completed */}
+                                        {apt.status === 'completed' && apt.medicalRecord && (
+                                            <details className="border-t border-slate-100 pt-3 group/rec">
+                                                <summary className="text-[11px] font-bold text-primary-600 hover:text-primary-750 cursor-pointer list-none flex items-center justify-between select-none">
+                                                    <span className="flex items-center gap-1">📋 Ver receta e indicaciones médicas</span>
+                                                    <span className="text-[9px] transition-transform group-open/rec:rotate-180">▼</span>
+                                                </summary>
+                                                <div className="mt-2 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-2.5 text-slate-700">
+                                                    {apt.medicalRecord.diagnosis && (
+                                                        <div>
+                                                            <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Diagnóstico</span>
+                                                            <p className="font-medium text-slate-900 mt-0.5">{apt.medicalRecord.diagnosis}</p>
+                                                        </div>
+                                                    )}
+                                                    {apt.medicalRecord.prescription && (
+                                                        <div>
+                                                            <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Receta / Prescripción</span>
+                                                            <p className="font-medium text-slate-900 bg-white border border-slate-200/65 rounded-lg p-2.5 mt-1 whitespace-pre-line leading-relaxed shadow-sm">
+                                                                {apt.medicalRecord.prescription}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {apt.medicalRecord.treatment && (
+                                                        <div>
+                                                            <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Notas de Tratamiento</span>
+                                                            <p className="font-medium text-slate-850 mt-0.5">{apt.medicalRecord.treatment}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </details>
+                                        )}
+
+                                        {/* Review Form for completed */}
+                                        {apt.status === 'completed' && (
+                                            <div className="border-t border-slate-100 pt-3">
+                                                <ReviewForm
+                                                    appointmentId={apt.id}
+                                                    establishmentId={apt.establishment?.id}
+                                                    establishmentName={apt.establishment?.name || 'Establecimiento'}
+                                                    alreadyReviewed={!!apt.review}
+                                                    existingRating={apt.review?.rating}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -465,6 +642,80 @@ export default function ClientPendingPage() {
                             </button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* Success Booking Modal */}
+            {showSuccess && successApt && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-[2.5rem] p-6 max-w-md w-full space-y-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 text-center">
+                        <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                            <ShieldCheck className="w-9 h-9" />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <h2 className="text-xl font-black text-slate-900">¡Pago Procesado con Éxito!</h2>
+                            <p className="text-sm text-slate-500">Tu turno ha sido confirmado satisfactoriamente</p>
+                        </div>
+
+                        {/* Details */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-left text-xs space-y-2 text-slate-700">
+                            <p>🩺 **Establecimiento:** {successApt.establishment?.name}</p>
+                            <p>🐕 **Mascota:** {successApt.pet?.name}</p>
+                            <p>📅 **Fecha y Hora:** {successApt.scheduledAt ? new Date(successApt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : "Sin hora"}</p>
+                            <p>🏷️ **Servicio:** {successApt.serviceType}</p>
+                        </div>
+
+                        {/* OTP Warning */}
+                        <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 space-y-2">
+                            <p className="text-xs text-primary-800 font-semibold">Código de Atención (OTP):</p>
+                            <span className="font-mono text-3xl font-black tracking-[0.3em] text-primary-700 block">
+                                {successApt.otpValidationCode}
+                            </span>
+                            <p className="text-[10px] text-primary-600 leading-normal">
+                                Este es tu código único de atención. Muéstraselo al veterinario al llegar al establecimiento para iniciar la cita.
+                            </p>
+                        </div>
+
+                        {/* Reminders reminder */}
+                        <div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-2xl p-3.5 text-xs text-left leading-normal">
+                            🔔 **Recordatorios Activos:** Te enviaremos notificaciones de control antes de tu cita. También se ha actualizado tu Carnet Digital de Mascotas.
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                                <a
+                                    href={buildGoogleCalendarUrl(successApt)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-1.5 px-3 py-3 bg-white border border-slate-200 hover:border-slate-350 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                                >
+                                    📅 Google Calendar
+                                </a>
+                                <a
+                                    href={buildIcsDataUri(successApt)}
+                                    download={`cita-brofy-${successApt.id}.ics`}
+                                    className="flex items-center justify-center gap-1.5 px-3 py-3 bg-white border border-slate-200 hover:border-slate-350 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                                >
+                                    📎 Apple / Outlook
+                                </a>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSuccess(false);
+                                    setSuccessApt(null);
+                                    // Clear status query param from URL
+                                    router.replace('/dashboard/client/pending');
+                                }}
+                                className="w-full px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md"
+                            >
+                                Entendido, Ir a Mis Citas
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

@@ -209,16 +209,16 @@ async function main() {
     // --- Servicios ---
     await prisma.service.createMany({
         data: [
-            { establishmentId: clinic.id, name: 'Consulta General', price: 80, duration: 30, category: 'consultation', description: 'Revisión completa del paciente' },
-            { establishmentId: clinic.id, name: 'Vacunación Completa', price: 60, duration: 15, category: 'vaccination', description: 'Incluye vacuna y registro en carnet' },
-            { establishmentId: clinic.id, name: 'Desparasitación Interna', price: 40, duration: 15, category: 'deworming', description: 'Interna y externa' },
-            { establishmentId: clinic.id, name: 'Examen de Sangre', price: 120, duration: 20, category: 'test', description: 'Hemograma completo' },
-            { establishmentId: clinic.id, name: 'Esterilización Especializada', price: 280, duration: 120, category: 'surgery', description: 'Incluye anestesia y seguimiento post-operatorio' },
+            { establishmentId: clinic.id, name: 'Consulta General', price: 80, duration: 30, category: 'consultation', description: 'Revisión completa del paciente', operatingDays: '["mon","tue","wed","thu","fri","sat"]', operatingHours: '{"start":"08:00","end":"20:00"}', workOnHolidays: false },
+            { establishmentId: clinic.id, name: 'Vacunación Completa', price: 60, duration: 15, category: 'vaccination', description: 'Incluye vacuna y registro en carnet', operatingDays: '["mon","tue","wed","thu","fri","sat"]', operatingHours: '{"start":"08:00","end":"20:00"}', workOnHolidays: false },
+            { establishmentId: clinic.id, name: 'Desparasitación Interna', price: 40, duration: 15, category: 'deworming', description: 'Interna y externa', operatingDays: '["mon","tue","wed","thu","fri","sat"]', operatingHours: '{"start":"08:00","end":"20:00"}', workOnHolidays: false },
+            { establishmentId: clinic.id, name: 'Examen de Sangre', price: 120, duration: 20, category: 'test', description: 'Hemograma completo', operatingDays: '["mon","tue","wed","thu","fri"]', operatingHours: '{"start":"08:00","end":"17:00"}', workOnHolidays: false },
+            { establishmentId: clinic.id, name: 'Esterilización Especializada', price: 280, duration: 120, category: 'surgery', description: 'Incluye anestesia y seguimiento post-operatorio', operatingDays: '["mon","wed","fri"]', operatingHours: '{"start":"09:00","end":"13:00"}', workOnHolidays: false },
             
-            { establishmentId: groomerShop.id, name: 'Grooming Completo Canino', price: 70, duration: 60, category: 'grooming', description: 'Baño, corte de pelo estilizado, corte de uñas y limpieza de oídos' },
-            { establishmentId: groomerShop.id, name: 'Baño Medicado Antipulgas', price: 45, duration: 45, category: 'grooming', description: 'Baño profundo con champú antiparasitario' },
-            { establishmentId: groomerShop.id, name: 'Paseo Grupal Dinámico', price: 25, duration: 90, category: 'walk', description: '90 minutos de recreación con paseador profesional' },
-            { establishmentId: groomerShop.id, name: 'Hospedaje Pet Daycare (Día)', price: 90, duration: 480, category: 'general', description: 'Cuidado premium diurno con juegos' },
+            { establishmentId: groomerShop.id, name: 'Grooming Completo Canino', price: 70, duration: 60, category: 'grooming', description: 'Baño, corte de pelo estilizado, corte de uñas y limpieza de oídos', operatingDays: '["mon","tue","wed","thu","fri","sat","sun"]', operatingHours: '{"start":"09:00","end":"18:00"}', workOnHolidays: false },
+            { establishmentId: groomerShop.id, name: 'Baño Medicado Antipulgas', price: 45, duration: 45, category: 'grooming', description: 'Baño profundo con champú antiparasitario', operatingDays: '["mon","tue","wed","thu","fri","sat","sun"]', operatingHours: '{"start":"09:00","end":"18:00"}', workOnHolidays: false },
+            { establishmentId: groomerShop.id, name: 'Paseo Grupal Dinámico', price: 25, duration: 90, category: 'walk', description: '90 minutos de recreación con paseador profesional', operatingDays: '["sat","sun"]', operatingHours: '{"start":"07:00","end":"11:00"}', workOnHolidays: true },
+            { establishmentId: groomerShop.id, name: 'Hospedaje Pet Daycare (Día)', price: 90, duration: 480, category: 'general', description: 'Cuidado premium diurno con juegos', operatingDays: '["mon","tue","wed","thu","fri","sat","sun"]', operatingHours: '{"start":"08:00","end":"18:00"}', workOnHolidays: true },
         ]
     })
 

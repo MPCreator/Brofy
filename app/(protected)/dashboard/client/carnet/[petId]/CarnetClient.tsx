@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
+import { SPECIES_LABELS } from '@/lib/types'
 import type { MedicalHistoryEntry, MedicalEventType } from '@/lib/types'
 import SafeImage from '@/components/ui/SafeImage'
 
@@ -120,7 +121,7 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
                         <span className="text-[10px] uppercase tracking-wider font-extrabold bg-white/20 text-white px-2 py-0.5 rounded-md">Carnet Vital</span>
                         <h2 className="text-2xl font-black mt-1">{pet.name}</h2>
                         <p className="text-sm opacity-90 capitalize font-medium">
-                            {pet.species} {pet.breed ? `· ${pet.breed}` : ''} {pet.sex ? `· ${pet.sex === 'male' ? '♂ Macho' : '♀ Hembra'}` : ''}
+                            {SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species} {pet.breed ? `· ${pet.breed}` : ''} {pet.sex ? `· ${pet.sex === 'male' ? '♂ Macho' : '♀ Hembra'}` : ''}
                         </p>
                         {pet.cuh && (
                             <span className="inline-block text-[10px] font-mono font-extrabold bg-white text-primary-700 px-2.5 py-0.5 rounded-md mt-2 shadow-sm">

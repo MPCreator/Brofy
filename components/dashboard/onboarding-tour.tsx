@@ -39,7 +39,7 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
         {
             title: 'Tu Código de Atención (OTP) 🔑',
             subtitle: 'Tu llave de acceso al llegar al local',
-            description: 'Al reservar, recibirás un código de 4 dígitos en tu panel. Dictáselo al especialista al llegar para verificar tu reserva, iniciar el servicio y guardar tus recetas de forma segura.',
+            description: 'Al reservar, recibirás un código de 6 dígitos en tu panel. Dictáselo al especialista al llegar para verificar tu reserva, iniciar el servicio y guardar tus recetas de forma segura.',
             icon: KeyRound,
             gradient: 'from-amber-500 to-orange-600',
             glowColor: 'bg-white/20 text-white border-white/20'
@@ -67,7 +67,7 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
         {
             title: 'Valida Citas con el Código OTP 🔑',
             subtitle: 'El corazón de la seguridad e historial',
-            description: 'Cuando el cliente llegue, pídele su Código de Atención de 4 dígitos. Ingrésalo en tu panel para desbloquear su historial clínico, iniciar la atención y registrar los detalles en segundos.',
+            description: 'Cuando el cliente llegue, pídele su Código de Atención de 6 dígitos. Ingrésalo en tu panel para desbloquear su historial clínico, iniciar la atención y registrar los detalles en segundos.',
             icon: KeyRound,
             gradient: 'from-amber-500 to-orange-600',
             glowColor: 'bg-white/20 text-white border-white/20'

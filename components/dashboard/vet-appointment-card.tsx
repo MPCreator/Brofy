@@ -40,24 +40,6 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
         setLoading(false);
     };
 
-    const handleConfirm = async () => {
-        setLoading(true);
-        try {
-            const { updateAppointmentStatus } = await import("@/lib/actions");
-            const res = await updateAppointmentStatus(apt.id, "confirmed");
-            if (res.success) {
-                toast.success("Cita confirmada");
-                router.refresh();
-                if (onRefresh) onRefresh();
-            } else {
-                toast.error("Error al confirmar la cita");
-            }
-        } catch (e) {
-            toast.error("Error al confirmar la cita");
-        }
-        setLoading(false);
-    };
-
     // Determinar si la cita fue completada en las últimas 24 horas para permitir edición (Req 13)
     const isCompleted = apt.status === "completed";
     const completedAt = apt.completedAt ? new Date(apt.completedAt) : null;
@@ -98,7 +80,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
                         </span>
                     </p>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-650 font-medium">
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
                             {apt.serviceType}
                         </span>
                         {apt.notes && (
@@ -125,7 +107,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
             {/* Right side: Action triggers */}
             <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
                 {apt.rescheduledAt && (
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-blue-50 text-blue-600 flex items-center gap-1 border border-blue-150">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-blue-50 text-blue-600 flex items-center gap-1 border border-blue-200">
                         <Clock className="w-3 h-3" /> Reprog. Propuesta
                     </span>
                 )}
@@ -139,16 +121,6 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
                     </Link>
                 )}
 
-                {apt.status === "pending" && (
-                    <button
-                        onClick={handleConfirm}
-                        disabled={loading}
-                        className="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-                    >
-                        Confirmar
-                    </button>
-                )}
-
                 {(apt.status === "confirmed" || apt.status === "paid") && (
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1">
                         <Check className="w-3 h-3 stroke-[3]" /> {apt.status === "paid" ? "Pagada / Lista" : "Confirmada"}
@@ -159,7 +131,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
                 {apt.status !== "completed" && apt.status !== "cancelled" && apt.status !== "validated" && !apt.rescheduledAt && (
                     <button
                         onClick={() => setShowModal(true)}
-                        className="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors border border-slate-200/80"
+                        className="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors border border-slate-200/60"
                     >
                         Reprogramar Turno
                     </button>
@@ -169,7 +141,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
             {/* Rescheduling Modal Form */}
             {showModal && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                    <form onSubmit={handleReschedule} className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-xl border border-slate-150 animate-in zoom-in-95">
+                    <form onSubmit={handleReschedule} className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-xl border border-slate-200 animate-in zoom-in-95">
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                             <h3 className="font-black text-slate-900 text-base flex items-center gap-1.5">
                                 <Sparkles className="w-4 h-4 text-primary-500" /> Proponer Reprogramación
@@ -177,7 +149,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
                             <button 
                                 type="button" 
                                 onClick={() => setShowModal(false)}
-                                className="p-1 text-slate-400 hover:text-slate-650 rounded-lg hover:bg-slate-50"
+                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50"
                             >
                                 <X className="w-5 h-5" />
                             </button>

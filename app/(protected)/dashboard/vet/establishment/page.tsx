@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getMyEstablishments, updateEstablishment, createEstablishment } from '@/lib/actions'
+import { getMyEstablishments, updateEstablishment, createEstablishment, getMyRole } from '@/lib/actions'
 import { ESTABLISHMENT_TYPE_LABELS } from '@/lib/types'
 import Link from 'next/link'
 import {
@@ -11,6 +11,44 @@ import {
 import { toast } from 'sonner'
 import { QRCodeSVG } from 'qrcode.react'
 import { OperatingHoursInput } from './OperatingHoursInput'
+
+function compressImage(file: File, maxWidth: number, maxHeight: number, quality: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(file)
+        reader.onload = (event) => {
+            const img = new Image()
+            img.src = event.target?.result as string
+            img.onload = () => {
+                const canvas = document.createElement('canvas')
+                let width = img.width
+                let height = img.height
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width)
+                        width = maxWidth
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height)
+                        height = maxHeight
+                    }
+                }
+
+                canvas.width = width
+                canvas.height = height
+                const ctx = canvas.getContext('2d')
+                ctx?.drawImage(img, 0, 0, width, height)
+                
+                const compressedBase64 = canvas.toDataURL('image/jpeg', quality)
+                resolve(compressedBase64)
+            }
+            img.onerror = (err) => reject(err)
+        }
+        reader.onerror = (err) => reject(err)
+    })
+}
 
 export default function EstablishmentPage() {
     const [establishments, setEstablishments] = useState<any[]>([])
@@ -31,44 +69,132 @@ export default function EstablishmentPage() {
     const [createLogo, setCreateLogo] = useState<string | null>(null)
     const [editLogosMap, setEditLogosMap] = useState<Record<string, string | null>>({})
 
+    // Blocked dates (holidays) state
+    const [blockedDatesMap, setBlockedDatesMap] = useState<Record<string, string[]>>({})
+
+    // Specialists state
+    const [specialistsMap, setSpecialistsMap] = useState<Record<string, { id: string; name: string; cmvpId: string; role: string; isActive: boolean }[]>>({})
+
+    // User role (vet vs provider)
+    const [userRole, setUserRole] = useState<string>('vet')
+
     useEffect(() => { loadData() }, [])
 
     async function loadData() {
         setLoading(true)
-        const data = await getMyEstablishments()
+        const [data, role] = await Promise.all([getMyEstablishments(), getMyRole()])
+        setUserRole(role)
         setEstablishments(data)
-        // Pre-fill editPhotosMap and editLogosMap for each establishment
+        // Pre-fill editPhotosMap, editLogosMap, blockedDatesMap, and specialistsMap for each establishment
         const initialMap: Record<string, (string | null)[]> = {}
         const initialLogos: Record<string, string | null> = {}
+        const initialBlockedDates: Record<string, string[]> = {}
+        const initialSpecialists: Record<string, { id: string; name: string; cmvpId: string; role: string; isActive: boolean }[]> = {}
         data.forEach(est => {
             const urls = est.photoUrl ? est.photoUrl.split(',') : []
             initialMap[est.id] = [...urls, null, null, null, null].slice(0, 4)
             initialLogos[est.id] = est.logoUrl || null
+            try {
+                initialBlockedDates[est.id] = JSON.parse(est.blockedDates || '[]')
+            } catch {
+                initialBlockedDates[est.id] = []
+            }
+            try {
+                initialSpecialists[est.id] = JSON.parse(est.specialists || '[]')
+            } catch {
+                initialSpecialists[est.id] = []
+            }
         })
         setEditPhotosMap(initialMap)
         setEditLogosMap(initialLogos)
+        setBlockedDatesMap(initialBlockedDates)
+        setSpecialistsMap(initialSpecialists)
         setLoading(false)
     }
 
-    const handleCreatePhotoChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const addSpecialist = (estId: string, name: string, cmvpId: string, role: string) => {
+        if (!name.trim()) {
+            toast.error('El nombre es obligatorio')
+            return
+        }
+        const cleanCmvp = cmvpId.trim()
+        const finalCmvp = (!cleanCmvp || cleanCmvp.toLowerCase() === 'no aplica') ? 'No aplica' : cleanCmvp
+        setSpecialistsMap(prev => {
+            const currentList = prev[estId] || []
+            if (finalCmvp !== 'No aplica') {
+                const exists = currentList.some(s => s.cmvpId.toLowerCase().trim() === finalCmvp.toLowerCase().trim())
+                if (exists) {
+                    toast.error('Ya existe un especialista registrado con este CMVP')
+                    return prev
+                }
+            }
+            const newSvc = {
+                id: Math.random().toString(36).substring(2, 11),
+                name: name.trim(),
+                cmvpId: finalCmvp,
+                role: role || 'vet',
+                isActive: true
+            }
+            return { ...prev, [estId]: [...currentList, newSvc] }
+        })
+    }
+
+    const removeSpecialist = (estId: string, id: string) => {
+        setSpecialistsMap(prev => {
+            const currentList = prev[estId] || []
+            const nextList = currentList.filter(s => s.id !== id)
+            return { ...prev, [estId]: nextList }
+        })
+    }
+
+    const toggleSpecialistActive = (estId: string, id: string) => {
+        setSpecialistsMap(prev => {
+            const currentList = prev[estId] || []
+            const nextList = currentList.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s)
+            return { ...prev, [estId]: nextList }
+        })
+    }
+
+    const addBlockedDate = (estId: string, dateString: string) => {
+        if (!dateString) return
+        setBlockedDatesMap(prev => {
+            const currentList = prev[estId] || []
+            if (currentList.includes(dateString)) {
+                toast.error('Esta fecha ya está registrada')
+                return prev
+            }
+            const nextList = [...currentList, dateString].sort()
+            return { ...prev, [estId]: nextList }
+        })
+    }
+
+    const removeBlockedDate = (estId: string, dateString: string) => {
+        setBlockedDatesMap(prev => {
+            const currentList = prev[estId] || []
+            const nextList = currentList.filter(d => d !== dateString)
+            return { ...prev, [estId]: nextList }
+        })
+    }
+
+    const handleCreatePhotoChange = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        if (file.size > 4 * 1024 * 1024) {
-            toast.error('La imagen no debe superar los 4MB')
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('La imagen no debe superar los 10MB')
             return
         }
 
-        const reader = new FileReader()
-        reader.onloadend = () => {
-            const base64String = reader.result as string
+        try {
+            const base64String = await compressImage(file, 1200, 1200, 0.8)
             setCreatePhotos(prev => {
                 const next = [...prev]
                 next[index] = base64String
                 return next
             })
+        } catch {
+            toast.error('Error al procesar la imagen')
         }
-        reader.readAsDataURL(file)
     }
 
     const handleRemoveCreatePhoto = (index: number) => {
@@ -79,18 +205,17 @@ export default function EstablishmentPage() {
         })
     }
 
-    const handleEditPhotoChange = (estId: string, index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleEditPhotoChange = async (estId: string, index: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        if (file.size > 4 * 1024 * 1024) {
-            toast.error('La imagen no debe superar los 4MB')
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('La imagen no debe superar los 10MB')
             return
         }
 
-        const reader = new FileReader()
-        reader.onloadend = () => {
-            const base64String = reader.result as string
+        try {
+            const base64String = await compressImage(file, 1200, 1200, 0.8)
             setEditPhotosMap(prev => {
                 const next = { ...prev }
                 const currentArr = next[estId] ? [...next[estId]] : [null, null, null, null]
@@ -98,8 +223,9 @@ export default function EstablishmentPage() {
                 next[estId] = currentArr
                 return next
             })
+        } catch {
+            toast.error('Error al procesar la imagen')
         }
-        reader.readAsDataURL(file)
     }
 
     const handleRemoveEditPhoto = (estId: string, index: number) => {
@@ -112,43 +238,45 @@ export default function EstablishmentPage() {
         })
     }
 
-    const handleCreateLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleCreateLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        if (file.size > 2 * 1024 * 1024) {
-            toast.error('El logo no debe superar los 2MB')
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('El logo no debe superar los 5MB')
             return
         }
 
-        const reader = new FileReader()
-        reader.onloadend = () => {
-            setCreateLogo(reader.result as string)
+        try {
+            const base64String = await compressImage(file, 600, 600, 0.85)
+            setCreateLogo(base64String)
+        } catch {
+            toast.error('Error al procesar el logo')
         }
-        reader.readAsDataURL(file)
     }
 
     const handleRemoveCreateLogo = () => {
         setCreateLogo(null)
     }
 
-    const handleEditLogoChange = (estId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleEditLogoChange = async (estId: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        if (file.size > 2 * 1024 * 1024) {
-            toast.error('El logo no debe superar los 2MB')
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('El logo no debe superar los 5MB')
             return
         }
 
-        const reader = new FileReader()
-        reader.onloadend = () => {
+        try {
+            const base64String = await compressImage(file, 600, 600, 0.85)
             setEditLogosMap(prev => ({
                 ...prev,
-                [estId]: reader.result as string
+                [estId]: base64String
             }))
+        } catch {
+            toast.error('Error al procesar el logo')
         }
-        reader.readAsDataURL(file)
     }
 
     const handleRemoveEditLogo = (estId: string) => {
@@ -605,12 +733,12 @@ export default function EstablishmentPage() {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Building2 className="w-3.5 h-3.5" /> Nombre</label>
-                                <input name="name" defaultValue={est.name} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="sm:col-span-2">
+                                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Building2 className="w-3.5 h-3.5" /> Nombre</label>
+                                    <input name="name" defaultValue={est.name} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                </div>
 
-                            <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><MapPin className="w-3.5 h-3.5" /> Dirección</label>
                                     <input name="address" defaultValue={est.address} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
@@ -619,34 +747,32 @@ export default function EstablishmentPage() {
                                     <label className="text-xs font-medium text-slate-500 mb-1 block">Distrito</label>
                                     <input name="district" defaultValue={est.district || ''} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Phone className="w-3.5 h-3.5" /> Teléfono</label>
                                     <input name="phone" defaultValue={est.phone || ''} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Tag className="w-3.5 h-3.5" /> Tipo</label>
-                                    <select name="type" defaultValue={est.type} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                        {Object.entries(ESTABLISHMENT_TYPE_LABELS).map(([val, label]) => (
-                                            <option key={val} value={val}>{label}</option>
-                                        ))}
-                                    </select>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Tag className="w-3.5 h-3.5" /> Tipo</label>
+                                        <select name="type" defaultValue={est.type} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                            {Object.entries(ESTABLISHMENT_TYPE_LABELS).map(([val, label]) => (
+                                                <option key={val} value={val}>{label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-slate-500 mb-1 block flex items-center gap-1.5" title="Veterinarios atendiendo al mismo tiempo">
+                                            <Users className="w-3.5 h-3.5" /> Capacidad Simultánea
+                                        </label>
+                                        <input type="number" name="concurrentSlots" min="1" max="20" defaultValue={est.concurrentSlots || 1} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1 block flex items-center gap-1.5" title="Veterinarios atendiendo al mismo tiempo">
-                                        <Users className="w-3.5 h-3.5" /> Capacidad Simultánea
-                                    </label>
-                                    <input type="number" name="concurrentSlots" min="1" max="20" defaultValue={est.concurrentSlots || 1} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                </div>
-                            </div>
-                            </div>
 
-                            <div>
-                                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><FileText className="w-3.5 h-3.5" /> Descripción</label>
-                                <textarea name="description" defaultValue={est.description || ''} rows={2} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                                <div className="sm:col-span-2">
+                                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><FileText className="w-3.5 h-3.5" /> Descripción</label>
+                                    <textarea name="description" defaultValue={est.description || ''} rows={2} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                                </div>
                             </div>
 
                             {/* Services summary */}
@@ -657,7 +783,209 @@ export default function EstablishmentPage() {
                                 </div>
                             </div>
 
+                            {/* Calendario de Feriados y Cierres del Local */}
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 space-y-3">
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                                        📅 Feriados y Días de Cierre del Local
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                        Registra los días festivos o no laborables especiales de tu país/región. Los dueños de mascota no podrán agendar citas generales en estas fechas.
+                                    </p>
+                                </div>
+                                <input type="hidden" name="blockedDates" value={JSON.stringify(blockedDatesMap[est.id] || [])} />
+                                
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="date"
+                                        id={`new-blocked-date-${est.id}`}
+                                        min={new Date().toISOString().split('T')[0]}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                    />
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            const inputEl = document.getElementById(`new-blocked-date-${est.id}`) as HTMLInputElement
+                                            if (inputEl && inputEl.value) {
+                                                addBlockedDate(est.id, inputEl.value)
+                                                inputEl.value = ''
+                                            } else {
+                                                toast.error('Selecciona una fecha válida')
+                                            }
+                                        }}
+                                        className="px-3.5 py-2 bg-slate-200 text-slate-850 rounded-lg text-xs font-bold hover:bg-slate-250 transition-colors shrink-0"
+                                    >
+                                        Agregar Feriado
+                                    </button>
+                                </div>
+
+                                {/* List/Table of blocked dates */}
+                                {(blockedDatesMap[est.id] || []).length === 0 ? (
+                                    <p className="text-[11px] text-slate-405 italic py-1">No hay feriados configurados para este local.</p>
+                                ) : (
+                                    <div className="border border-slate-200/50 rounded-lg bg-white max-h-40 overflow-y-auto overflow-x-auto">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead>
+                                                <tr className="bg-slate-100 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                                                    <th className="px-3 py-1.5">Fecha</th>
+                                                    <th className="px-3 py-1.5 text-right">Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                                                {(blockedDatesMap[est.id] || []).map((dateStr) => {
+                                                    const formatted = new Date(dateStr + 'T00:00:00').toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })
+                                                    return (
+                                                        <tr key={dateStr} className="hover:bg-slate-50/50">
+                                                            <td className="px-3 py-2">{formatted}</td>
+                                                            <td className="px-3 py-2 text-right">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeBlockedDate(est.id, dateStr)}
+                                                                    className="text-red-500 hover:text-red-750 font-bold transition-colors"
+                                                                >
+                                                                    Eliminar
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
                             <OperatingHoursInput defaultHours={est.operatingHours} />
+
+                            {/* Veterinarios y Especialistas de la Sede */}
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 space-y-3">
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                                        🩺 Staff, Veterinarios y Especialistas
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                        Registra a los veterinarios, estilistas (groomers), paseadores o personal adicional. Podrás seleccionarlos al emitir las recetas o fichas de servicio.
+                                    </p>
+                                </div>
+
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-900 space-y-1">
+                                    <span className="font-bold flex items-center gap-1">
+                                        ⚠️ Declaración de Responsabilidad del Local:
+                                    </span>
+                                    <p className="opacity-95 leading-relaxed">
+                                        Al registrar especialistas médicos en esta sede, declaras bajo juramento que cuentan con habilitación profesional (CMVP) vigente y autorizada por ley. Para personal de estética o cuidado (no médicos), declaras bajo juramento que cuentan con la idoneidad y permisos correspondientes. La plataforma Brofy actúa únicamente como soporte de infraestructura tecnológica y exime toda responsabilidad médica, de adiestramiento o estética.
+                                    </p>
+                                </div>
+
+                                <input type="hidden" name="specialists" value={JSON.stringify(specialistsMap[est.id] || [])} />
+                                
+                                <div className="grid grid-cols-1 gap-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input 
+                                            type="text"
+                                            id={`new-specialist-name-${est.id}`}
+                                            placeholder="Nombre completo (Ej: Ana Gómez)"
+                                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 w-full"
+                                        />
+                                        <select
+                                            id={`new-specialist-role-${est.id}`}
+                                            defaultValue={userRole === 'provider' ? 'groomer' : 'vet'}
+                                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 w-full font-medium cursor-pointer"
+                                        >
+                                            {/* Opción médica: solo para cuentas vet */}
+                                            {userRole !== 'provider' && (
+                                                <option value="vet">🩺 Veterinario/a (Médico)</option>
+                                            )}
+                                            <option value="groomer">✂️ Estilista / Groomer</option>
+                                            <option value="bath">🛁 Bañador/a</option>
+                                            <option value="walker">🦮 Paseador/a</option>
+                                            <option value="trainer">🎓 Entrenador/a</option>
+                                            <option value="other">👤 Otro personal</option>
+                                        </select>
+                                    </div>
+                                    {/* Campo CMVP: solo visible para cuentas vet que puedan registrar médicos */}
+                                    {userRole !== 'provider' && (
+                                        <input 
+                                            type="text"
+                                            id={`new-specialist-cmvp-${est.id}`}
+                                            placeholder="CMVP (solo para veterinarios, opcional para otros)"
+                                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 w-full"
+                                        />
+                                    )}
+                                    {/* Campo oculto para CMVP en providers, siempre 'No aplica' */}
+                                    {userRole === 'provider' && (
+                                        <input type="hidden" id={`new-specialist-cmvp-${est.id}`} value="No aplica" />
+                                    )}
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        const nameEl = document.getElementById(`new-specialist-name-${est.id}`) as HTMLInputElement
+                                        const cmvpEl = document.getElementById(`new-specialist-cmvp-${est.id}`) as HTMLInputElement
+                                        const roleEl = document.getElementById(`new-specialist-role-${est.id}`) as HTMLSelectElement
+                                        if (nameEl && nameEl.value.trim()) {
+                                            addSpecialist(est.id, nameEl.value, cmvpEl.value, roleEl.value)
+                                            nameEl.value = ''
+                                            cmvpEl.value = ''
+                                            roleEl.value = userRole === 'provider' ? 'groomer' : 'vet'
+                                        } else {
+                                            toast.error('El nombre del especialista es obligatorio')
+                                        }
+                                    }}
+                                    className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold transition-colors"
+                                >
+                                    ➕ Agregar al Staff de la Sede
+                                </button>
+
+                                {/* List/Table of specialists */}
+                                {(specialistsMap[est.id] || []).length === 0 ? (
+                                    <p className="text-[11px] text-slate-400 italic py-1">No hay especialistas adicionales registrados.</p>
+                                ) : (
+                                    <div className="border border-slate-200/50 rounded-lg bg-white max-h-40 overflow-y-auto overflow-x-auto">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead>
+                                                <tr className="bg-slate-100 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                                                    <th className="px-3 py-1.5">Nombre</th>
+                                                    <th className="px-3 py-1.5">Rol</th>
+                                                    <th className="px-3 py-1.5">CMVP</th>
+                                                    <th className="px-3 py-1.5 text-center">Estado</th>
+                                                    <th className="px-3 py-1.5 text-right">Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                                                {(specialistsMap[est.id] || []).map((spec) => {
+                                                    const roleLabels: Record<string,string> = { vet: '🩺 Veterinario', groomer: '✂️ Groomer', bath: '🛁 Bañador/a', walker: '🦮 Paseador/a', trainer: '🎓 Entrenador/a', other: '👤 Otro' }
+                                                    return (
+                                                        <tr key={spec.id} className="hover:bg-slate-50/50">
+                                                            <td className="px-3 py-2 truncate max-w-[120px] font-semibold">{spec.name}</td>
+                                                            <td className="px-3 py-2 text-[10px]">{roleLabels[spec.role] || '👤 Otro'}</td>
+                                                            <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{spec.cmvpId}</td>
+                                                            <td className="px-3 py-2 text-center">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleSpecialistActive(est.id, spec.id)}
+                                                                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${spec.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}`}
+                                                                >
+                                                                    {spec.isActive ? 'Activo' : 'Inactivo'}
+                                                                </button>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeSpecialist(est.id, spec.id)}
+                                                                    className="text-red-500 hover:text-red-700 font-bold transition-colors"
+                                                                >
+                                                                    Eliminar
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="sm:col-span-2 mt-2">
                                 <button disabled={saving} type="submit" className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg font-medium text-sm hover:bg-primary-700 disabled:opacity-50 shadow-md">

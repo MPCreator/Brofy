@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getEstablishmentByQr, getUserPets, createAppointment, processPayment } from '@/lib/actions'
 import { formatPEN } from '@/lib/utils'
+import { SPECIES_LABELS } from '@/lib/types'
 import {
     MapPin,
     Shield,
@@ -77,17 +78,19 @@ export default function CheckinPage() {
 
             setAppointmentId(aptResult.appointmentId)
 
-            // Step 2: Process payment (mock)
+            // Step 2: Process payment (Izipay Redirection)
             const payResult = await processPayment(aptResult.appointmentId)
 
-            if (!payResult.success || !payResult.otp) {
+            if (!payResult.success) {
                 setError(payResult.message || 'Error en el pago')
                 setLoading(false)
                 return
             }
 
-            setOtp(payResult.otp)
-            setStep('otp-display')
+            if (payResult.redirectUrl) {
+                window.location.href = payResult.redirectUrl
+                return
+            }
         } catch {
             setError('Error de conexión')
         } finally {
@@ -244,7 +247,7 @@ export default function CheckinPage() {
                                     </div>
                                     <div>
                                         <p className="text-sm font-medium text-slate-900">{pet.name}</p>
-                                        <p className="text-xs text-slate-500 capitalize">{pet.species}</p>
+                                        <p className="text-xs text-slate-500 capitalize">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}</p>
                                     </div>
                                     {selectedPetId === pet.id && (
                                         <CheckCircle2 className="w-5 h-5 text-primary-600 ml-auto" />

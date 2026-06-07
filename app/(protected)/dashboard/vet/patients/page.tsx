@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/auth'
 import { getVetAppointments } from '@/lib/actions'
 import Link from 'next/link'
 import { PawPrint, ArrowLeft, FileText, ChevronRight, Search, ClipboardList } from 'lucide-react'
+import { APPOINTMENT_STATUS_LABELS, SPECIES_LABELS } from '@/lib/types'
 
 const SPECIES_EMOJI: Record<string, string> = {
     dog: '🐕', cat: '🐈', bird: '🦜', rabbit: '🐇', hamster: '🐹', fish: '🐟', reptile: '🦎'
@@ -88,7 +89,7 @@ export default async function VetPatientsPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                         <h3 className="font-bold text-slate-900">{pet.name}</h3>
-                                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full capitalize">{pet.species}</span>
+                                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full capitalize">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}</span>
                                         {pet.breed && <span className="text-xs text-slate-400 truncate">{pet.breed}</span>}
                                     </div>
                                     <p className="text-sm text-slate-500 mt-0.5">
@@ -125,7 +126,11 @@ export default async function VetPatientsPage() {
                                                 <p className="text-[10px] text-slate-400">
                                                     {new Date(apt.createdAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                     {' · '}
-                                                    <span className={`capitalize ${apt.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'}`}>{apt.status}</span>
+                                                    <span className={`${
+                                                        apt.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'
+                                                    } font-semibold`}>
+                                                        {APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]?.label || apt.status}
+                                                    </span>
                                                 </p>
                                             </div>
                                             {(apt as any).medicalRecord && (

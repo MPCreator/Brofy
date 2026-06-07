@@ -246,7 +246,7 @@ export function VetRemindersList({
                                         Paciente: {rem.pet.name} (Dueño: {rem.client?.fullName})
                                     </p>
                                 )}
-                                <div className="flex items-center gap-1.5 text-xs text-slate-450">
+                                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                                     <Calendar className="w-3.5 h-3.5" />
                                     <span>Vence: <strong>{formatFriendlyDate(rem.dueDate)}</strong></span>
                                 </div>

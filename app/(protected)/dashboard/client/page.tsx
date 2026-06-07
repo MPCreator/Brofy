@@ -14,8 +14,7 @@ import {
     ShieldCheck,
 } from 'lucide-react'
 import { formatDate, formatPEN } from '@/lib/utils'
-import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
-import { ReviewForm } from '@/components/ui/review-form'
+import { APPOINTMENT_STATUS_LABELS, SPECIES_LABELS } from '@/lib/types'
 import { QuickRescheduleButton } from '@/components/dashboard/quick-reschedule'
 import { ClientRemindersList } from '@/components/dashboard/client-reminders'
 
@@ -27,7 +26,13 @@ export default async function ClientDashboard() {
         getClientReminders(),
     ])
 
-    const recentAppointments = appointments.slice(0, 5)
+    const now = Date.now();
+    const TOLERANCE_MS = 15 * 60 * 1000; // 15 minutos de tolerancia
+
+    // Citas activas o futuras (pagadas, confirmadas, pendientes, en atención)
+    const activeAppointments = appointments.filter((apt: any) => {
+        return apt.status !== 'completed' && apt.status !== 'cancelled' && apt.status !== 'disputed';
+    });
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
@@ -67,7 +72,7 @@ export default async function ClientDashboard() {
                         </Link>
                     </div>
                     <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-                        {pets.slice(0, 4).map((pet:any) => (
+                        {pets.slice(0, 4).map((pet: any) => (
                             <Link
                                 key={pet.id}
                                 href={`/dashboard/client/carnet/${pet.id}`}
@@ -77,7 +82,7 @@ export default async function ClientDashboard() {
                                     {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : '🐾'}
                                 </div>
                                 <p className="font-semibold text-sm text-slate-900 truncate">{pet.name}</p>
-                                <p className="text-xs text-slate-500 capitalize">{pet.species}</p>
+                                <p className="text-xs text-slate-500 capitalize">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}</p>
                             </Link>
                         ))}
                         <Link
@@ -94,149 +99,143 @@ export default async function ClientDashboard() {
             {/* Recordatorios y Controles */}
             <ClientRemindersList initialReminders={reminders} />
 
-            {/* Recent Appointments */}
-            <section>
-                <h2 className="text-lg font-semibold text-slate-900 mb-3">Citas Recientes</h2>
-                {recentAppointments.length === 0 ? (
-                    <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center">
-                        <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                        <p className="text-sm text-slate-500">No tienes citas aún</p>
+            {/* Citas Activas y Próximas */}
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-primary-600" />
+                    Tus Próximas Citas
+                </h2>
+
+                {activeAppointments.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-100 p-8 text-center shadow-sm">
+                        <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-slate-800">No tienes citas programadas</p>
+                        <p className="text-xs text-slate-400 mt-1">Busca y reserva servicios veterinarios para tus mascotas.</p>
                         <Link
                             href="/dashboard/discover"
-                            className="mt-3 inline-block text-sm text-primary-600 font-medium hover:underline"
+                            className="mt-3 inline-flex items-center gap-1 px-4 py-2 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-bold rounded-xl transition-all"
                         >
-                            Buscar servicios cercanos →
+                            Buscar locales cercanos →
                         </Link>
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {recentAppointments.map((apt:any) => {
+                        {activeAppointments.map((apt: any) => {
                             const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]
                             const isPaid = apt.status === 'paid'
+                            const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0
+                            const isStale = (apt.status === 'paid' || apt.status === 'confirmed') && (now - appointmentTime >= TOLERANCE_MS)
+                            const isRescheduleProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null
+
                             return (
                                 <div
                                     key={apt.id}
-                                    className={`rounded-2xl border overflow-hidden ${
-                                        isPaid ? 'border-primary-300 shadow-md shadow-primary-100' : 'bg-white border-slate-100'
+                                    className={`rounded-2xl border overflow-hidden transition-all bg-white hover:shadow-card hover:border-slate-200 ${
+                                        isStale 
+                                            ? 'border-amber-200 bg-amber-50/10 shadow-sm' 
+                                            : isRescheduleProposed
+                                                ? 'border-indigo-200 bg-indigo-50/10'
+                                                : isPaid 
+                                                    ? 'border-primary-100 shadow-sm shadow-primary-50/50' 
+                                                    : 'border-slate-100'
                                     }`}
                                 >
                                     {/* Card header */}
-                                    <div className={`flex items-center gap-3 p-4 ${
-                                        isPaid ? 'bg-gradient-to-r from-primary-50 to-primary-100/50' : ''
-                                    }`}>
+                                    <div className="flex items-center gap-3 p-4">
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                                            isPaid ? 'bg-primary-600' : 'bg-white border border-slate-200'
+                                            isStale
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : isRescheduleProposed
+                                                    ? 'bg-indigo-100 text-indigo-700'
+                                                    : isPaid 
+                                                        ? 'bg-primary-50 text-primary-600' 
+                                                        : 'bg-slate-50 text-slate-500'
                                         }`}>
-                                            {apt.status === 'completed' ? (
-                                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                            {isStale ? (
+                                                <AlertCircle className="w-5 h-5" />
+                                            ) : isRescheduleProposed ? (
+                                                <Clock className="w-5 h-5 text-indigo-600" />
                                             ) : isPaid ? (
-                                                <ShieldCheck className="w-5 h-5 text-white" />
+                                                <ShieldCheck className="w-5 h-5 text-primary-600" />
                                             ) : (
-                                                <Clock className="w-5 h-5 text-amber-500" />
+                                                <Clock className="w-5 h-5 text-slate-400" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className={`text-sm font-semibold truncate ${
-                                                isPaid ? 'text-primary-900' : 'text-slate-900'
-                                            }`}>
+                                            <p className="text-sm font-semibold truncate text-slate-900">
                                                 {(apt.establishment as { name: string })?.name || 'Establecimiento'}
                                             </p>
-                                            <p className={`text-xs ${ isPaid ? 'text-primary-700' : 'text-slate-500'}` }>
+                                            <p className="text-xs text-slate-500 mt-0.5">
                                                 {(apt.pet as { name: string })?.name} · {apt.serviceType}
                                                 {apt.scheduledAt && ` · ${new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
                                             </p>
+                                            {apt.establishment?.address && (
+                                                <a 
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${apt.establishment.latitude && apt.establishment.longitude ? `${apt.establishment.latitude},${apt.establishment.longitude}` : encodeURIComponent(`${apt.establishment.name}, ${apt.establishment.address}, ${apt.establishment.city || 'Lima'}`)}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-[11px] flex items-center gap-1 mt-1 font-semibold text-primary-600 hover:text-primary-750 hover:underline w-fit"
+                                                >
+                                                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                                    <span className="truncate max-w-[280px]">
+                                                        {apt.establishment.address}
+                                                    </span>
+                                                </a>
+                                            )}
                                         </div>
-                                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusInfo?.color || 'text-slate-600 bg-slate-100'}`}>
-                                            {statusInfo?.label || apt.status}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                            {isStale ? (
+                                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                                    Sin Atender
+                                                </span>
+                                            ) : isRescheduleProposed ? (
+                                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                                                    Reprogramada
+                                                </span>
+                                            ) : (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusInfo?.color || 'text-slate-650 bg-slate-100'}`}>
+                                                    {statusInfo?.label || apt.status}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {/* OTP Banner — only for paid */}
-                                    {isPaid && apt.otpValidationCode && (
-                                        <div className="px-4 py-3 bg-primary-600 flex items-center justify-between gap-3">
+                                    {/* Stale/Expired Alert Banner */}
+                                    {isStale && (
+                                        <div className="px-4 py-3 bg-amber-50/70 border-t border-amber-200 text-xs text-amber-850 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 leading-relaxed font-medium">
+                                            <span>La hora de tu cita ya pasó sin atención. Puedes denunciar inasistencia para recuperar tu comisión.</span>
+                                            <Link 
+                                                href="/dashboard/client/pending" 
+                                                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm text-center shrink-0 w-fit"
+                                            >
+                                                Iniciar Reclamo
+                                            </Link>
+                                        </div>
+                                    )}
+
+                                    {/* Reschedule Proposed Banner */}
+                                    {isRescheduleProposed && (
+                                        <div className="px-4 py-3 bg-indigo-50/70 border-t border-indigo-200 text-xs text-indigo-855 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 leading-relaxed font-medium">
+                                            <span>El veterinario propuso reprogramar tu cita. Revisa y aprueba el nuevo horario.</span>
+                                            <Link 
+                                                href="/dashboard/client/pending" 
+                                                className="px-3 py-1 bg-indigo-650 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm text-center shrink-0 w-fit"
+                                            >
+                                                Ver Propuesta
+                                            </Link>
+                                        </div>
+                                    )}
+
+                                    {/* OTP Banner */}
+                                    {isPaid && !isStale && !isRescheduleProposed && apt.otpValidationCode && (
+                                        <div className="px-4 py-3 bg-primary-600 flex items-center justify-between gap-3 text-white">
                                             <div>
                                                 <p className="text-xs text-primary-200 font-medium">Código de atención</p>
                                                 <p className="text-[10px] text-primary-300">Muéstraselo al veterinario al llegar</p>
                                             </div>
-                                            <span className="font-mono text-2xl font-black tracking-[0.3em] text-white bg-white/10 px-4 py-2 rounded-xl border border-white/20">
+                                            <span className="font-mono text-xl font-black tracking-[0.2em] bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
                                                 {apt.otpValidationCode}
                                             </span>
-                                        </div>
-                                    )}
-
-                                    {/* Review — only for completed */}
-                                    {apt.status === 'completed' && (
-                                        <div className="px-4 pb-3 space-y-3">
-                                            {/* Expandable Consultation Details */}
-                                            {apt.medicalRecord && (
-                                                <details className="border-t border-slate-100 pt-3 group">
-                                                    <summary className="text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer list-none flex items-center justify-between focus:outline-none">
-                                                        <span className="flex items-center gap-1">📋 Ver receta e indicaciones médicas</span>
-                                                        <span className="text-[10px] transition-transform duration-200 group-open:rotate-180">▼</span>
-                                                    </summary>
-                                                    <div className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-2.5 text-slate-700 animate-in fade-in slide-in-from-top-1">
-                                                        {apt.medicalRecord.diagnosis && (
-                                                            <div>
-                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Diagnóstico</span>
-                                                                <p className="font-medium text-slate-900 mt-0.5">{apt.medicalRecord.diagnosis}</p>
-                                                            </div>
-                                                        )}
-                                                        {apt.medicalRecord.prescription && (
-                                                            <div>
-                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Receta / Prescripción</span>
-                                                                <p className="font-medium text-slate-900 bg-white border border-slate-200/60 rounded-lg p-2.5 mt-1 whitespace-pre-line leading-relaxed shadow-sm">
-                                                                    {apt.medicalRecord.prescription}
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                        {apt.medicalRecord.treatment && (
-                                                            <div>
-                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Notas de Tratamiento</span>
-                                                                <p className="font-medium text-slate-850 mt-0.5 leading-relaxed">{apt.medicalRecord.treatment}</p>
-                                                            </div>
-                                                        )}
-                                                        {apt.medicalRecord.symptoms && Array.isArray(apt.medicalRecord.symptoms) && apt.medicalRecord.symptoms.length > 0 && (
-                                                            <div>
-                                                                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Síntomas reportados</span>
-                                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                                    {apt.medicalRecord.symptoms.map((s: string) => (
-                                                                        <span key={s} className="px-2 py-0.5 bg-slate-200/60 text-slate-700 rounded-full text-[10px] font-medium">
-                                                                            {s}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {(apt.medicalRecord.weight || apt.medicalRecord.temperature || apt.medicalRecord.heartRate) && (
-                                                            <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-slate-200/60 text-[10px]">
-                                                                {apt.medicalRecord.weight && (
-                                                                    <div>
-                                                                        <span className="text-slate-400">Peso:</span> <strong className="text-slate-700">{apt.medicalRecord.weight} kg</strong>
-                                                                    </div>
-                                                                )}
-                                                                {apt.medicalRecord.temperature && (
-                                                                    <div>
-                                                                        <span className="text-slate-400">Temp:</span> <strong className="text-slate-700">{apt.medicalRecord.temperature} °C</strong>
-                                                                    </div>
-                                                                )}
-                                                                {apt.medicalRecord.heartRate && (
-                                                                    <div>
-                                                                        <span className="text-slate-400">F.C.:</span> <strong className="text-slate-700">{apt.medicalRecord.heartRate} bpm</strong>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </details>
-                                            )}
-                                            
-                                            <ReviewForm
-                                                appointmentId={apt.id}
-                                                establishmentId={(apt.establishment as { id: string })?.id}
-                                                establishmentName={(apt.establishment as { name: string })?.name || 'Establecimiento'}
-                                                alreadyReviewed={!!(apt as any).review}
-                                                existingRating={(apt as any).review?.rating}
-                                            />
                                         </div>
                                     )}
                                 </div>

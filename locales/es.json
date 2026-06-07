@@ -1,0 +1,26 @@
+{
+  "nav": {
+    "adminPanel": "Panel Admin",
+    "settings": "Configuración",
+    "home": "Inicio",
+    "startAttention": "Iniciar Atención",
+    "fastEntry": "Ficha Rápida",
+    "myLocal": "Mi Local",
+    "servicesAndTariffs": "Servicios y Tarifas",
+    "finances": "Finanzas",
+    "guideAndTraining": "Guía y Capacitación",
+    "helpAndNews": "Ayuda y Novedades",
+    "activeAppointments": "Citas",
+    "myPets": "Mis Mascotas",
+    "searchLocales": "Buscar Locales",
+    "profile": "Perfil",
+    "moreOptions": "Más Opciones",
+    "more": "Más",
+    "help": "Ayuda",
+    "search": "Buscar",
+    "appointments": "Citas",
+    "attention": "Atención",
+    "services": "Servicios",
+    "admin": "Admin"
+  }
+}

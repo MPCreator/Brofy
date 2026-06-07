@@ -4,7 +4,7 @@ import { z } from 'zod'
 import prisma from './prisma'
 import { getSession, requireSession, requireRole } from './auth'
 import { revalidatePath } from 'next/cache'
-import { calculateDistanceKm, generateOtp } from './utils'
+import { calculateDistanceKm, generateOtp, checkIfNonClinical } from './utils'
 import { uploadImage } from './cloudinary'
 import type {
     MedicalHistoryEntry,
@@ -576,33 +576,54 @@ export async function processPayment(appointmentId: string): Promise<OtpResult> 
         return { success: false, message: 'Cita no encontrada o ya fue pagada.' }
     }
 
-    // ---- MOCK PAYMENT ----
-    // TODO: Integrar Izipay o MercadoPago aquí
-    // Por ahora simulamos el pago como exitoso
-    const mockPaymentId = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    // ---- FIN MOCK ----
+    const merchantId = process.env.IZIPAY_MERCHANT_ID
+    const apiPassword = process.env.IZIPAY_API_PASSWORD
 
-    // Generar OTP
-    const otp = generateOtp()
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutos
+    // Determinar la URL del simulador o pasarela real
+    let redirectUrl = `/checkout/simulate-payment?appointmentId=${appointmentId}`
 
-    // Actualizar cita: status → 'paid', guardar OTP y su expiración
-    await prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-            status: 'paid',
-            paymentId: mockPaymentId,
-            otpValidationCode: otp,
-            otpExpiresAt: expiresAt,
+    if (merchantId && apiPassword && merchantId !== 'tu_codigo_de_comercio' && apiPassword !== 'tu_clave_de_api_password') {
+        try {
+            const authHeader = 'Basic ' + Buffer.from(`${merchantId}:${apiPassword}`).toString('base64')
+            const apiUrl = process.env.NEXT_PUBLIC_IZIPAY_API_URL || 'https://api.izipay.pe'
+            const amountInCents = Math.round(appointment.commissionAmount * 100)
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+            const response = await fetch(`${apiUrl}/api-payment/v4/Charge/CreatePayment`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': authHeader,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    amount: amountInCents,
+                    currency: appointment.currency || 'PEN',
+                    orderId: appointment.id,
+                    paymentMethodType: "IPG_HOSTED",
+                    customer: {
+                        email: session.email || ''
+                    },
+                    redirectionParameters: {
+                        successUrl: `${appUrl}/dashboard/client/pending?status=success`,
+                        cancelUrl: `${appUrl}/dashboard/client/pending?status=cancel`
+                    }
+                })
+            })
+
+            const data = await response.json()
+            if (data.status === 'SUCCESS' && data.answer?.redirectUrl) {
+                redirectUrl = data.answer.redirectUrl
+            } else {
+                console.error('Error Izipay API response in processPayment action:', data)
+            }
+        } catch (error) {
+            console.error('Connection error with Izipay API in processPayment action:', error)
         }
-    })
-
-    revalidatePath('/dashboard/client')
+    }
 
     return {
         success: true,
-        otp,
-        expiresAt: expiresAt.toISOString(),
+        redirectUrl
     }
 }
 
@@ -614,7 +635,7 @@ export async function getPendingAppointments() {
             establishment: {
                 ownerId: session.sub
             },
-            status: { in: ['pending', 'paid'] },
+            status: 'paid',
         },
         include: {
             pet: {
@@ -676,8 +697,17 @@ export async function createMedicalRecord(data: {
     prescription?: string;
     treatment?: string;
     nextVisit?: string;
+    attendingName?: string;
+    attendingCmvp?: string;
 }) {
     const session = await requireRole(['vet'])
+
+    // Fetch profile for fallback CMVP
+    const profile = await prisma.profile.findUnique({
+        where: { id: session.sub },
+        select: { cmvpId: true }
+    })
+    const fallbackCmvp = profile?.cmvpId || undefined
 
     // Verificar que la cita está validada o completada y pertenece al vet
     const appointment = await prisma.appointment.findFirst({
@@ -724,6 +754,8 @@ export async function createMedicalRecord(data: {
                 prescription: data.prescription || null,
                 treatment: data.treatment || null,
                 nextVisit: data.nextVisit || null,
+                attendingName: data.attendingName !== undefined ? data.attendingName : existingRecord.attendingName,
+                attendingCmvp: data.attendingCmvp !== undefined ? data.attendingCmvp : existingRecord.attendingCmvp,
             }
         })
 
@@ -741,13 +773,16 @@ export async function createMedicalRecord(data: {
             )
         }
 
+        const isNonClinical = checkIfNonClinical(appointment.serviceType)
         const updatedEntry: any = {
             appointmentId: data.appointmentId,
             date: appointmentDate,
-            type: 'consultation',
-            description: data.diagnosis || 'Consulta general',
-            provider: session.fullName,
-            notes: data.prescription || undefined,
+            type: isNonClinical ? 'grooming' : 'consultation',
+            description: isNonClinical ? (appointment.serviceType || 'Servicio de Estética') : (data.diagnosis || 'Consulta general'),
+            provider: data.attendingName || session.fullName,
+            providerCmvp: isNonClinical ? 'No aplica' : (data.attendingCmvp || fallbackCmvp),
+            notes: isNonClinical ? undefined : data.prescription,
+            treatment: data.treatment || undefined
         }
 
         if (matchIndex > -1) {
@@ -774,19 +809,24 @@ export async function createMedicalRecord(data: {
                 prescription: data.prescription || null,
                 treatment: data.treatment || null,
                 nextVisit: data.nextVisit || null,
+                attendingName: data.attendingName || null,
+                attendingCmvp: data.attendingCmvp || null,
             }
         })
 
         // Add to pet's medicalHistory array
         const pet = appointment.pet
         const currentHistory: any[] = JSON.parse(pet.medicalHistory)
+        const isNonClinical = checkIfNonClinical(appointment.serviceType)
         const newEntry: any = {
             appointmentId: data.appointmentId,
             date: new Date().toISOString().split('T')[0],
-            type: 'consultation',
-            description: data.diagnosis || 'Consulta general',
-            provider: session.fullName,
-            notes: data.prescription || undefined,
+            type: isNonClinical ? 'grooming' : 'consultation',
+            description: isNonClinical ? (appointment.serviceType || 'Servicio de Estética') : (data.diagnosis || 'Consulta general'),
+            provider: data.attendingName || session.fullName,
+            providerCmvp: isNonClinical ? 'No aplica' : (data.attendingCmvp || fallbackCmvp),
+            notes: isNonClinical ? undefined : data.prescription,
+            treatment: data.treatment || undefined
         }
         currentHistory.push(newEntry)
 
@@ -849,8 +889,18 @@ export async function createGuestFastEntry(data: {
     diagnosis?: string;
     prescription?: string;
     treatment?: string;
+    attendingName?: string;
+    attendingCmvp?: string;
+    serviceType?: string;
 }) {
     const session = await requireRole(['vet'])
+
+    // Fetch profile for fallback CMVP
+    const profile = await prisma.profile.findUnique({
+        where: { id: session.sub },
+        select: { cmvpId: true }
+    })
+    const fallbackCmvp = profile?.cmvpId || undefined
 
     let est = null
     if (data.establishmentId) {
@@ -863,10 +913,10 @@ export async function createGuestFastEntry(data: {
 
     // 1. Buscar o Crear perfil fantasma
     const email = data.guestEmail?.trim().toLowerCase() || `guest_${Date.now()}@brofy.guest`
-    let profile = await prisma.profile.findUnique({ where: { email } })
+    let clientProfile = await prisma.profile.findUnique({ where: { email } })
     
-    if (!profile) {
-        profile = await prisma.profile.create({
+    if (!clientProfile) {
+        clientProfile = await prisma.profile.create({
             data: {
                 email,
                 password: 'guest-no-login',
@@ -878,13 +928,13 @@ export async function createGuestFastEntry(data: {
 
     // 2. Buscar o Crear mascota fantasma
     let pet = await prisma.pet.findFirst({
-        where: { ownerId: profile.id, name: { equals: data.guestPetName, mode: 'insensitive' } }
+        where: { ownerId: clientProfile.id, name: { equals: data.guestPetName, mode: 'insensitive' } }
     })
     
     if (!pet) {
         pet = await prisma.pet.create({
             data: {
-                ownerId: profile.id,
+                ownerId: clientProfile.id,
                 name: data.guestPetName,
                 species: data.guestPetSpecies
             }
@@ -894,12 +944,12 @@ export async function createGuestFastEntry(data: {
     // 3. Crear cita (completada)
     const appointment = await prisma.appointment.create({
         data: {
-            clientId: profile.id,
+            clientId: clientProfile.id,
             petId: pet.id,
             establishmentId: est.id,
             providerId: session.sub,
             status: 'completed',
-            serviceType: 'consultation',
+            serviceType: data.serviceType || 'consultation',
             commissionType: 'walkin',
             commissionAmount: 6.00,
             paymentId: 'DEBT'
@@ -918,10 +968,32 @@ export async function createGuestFastEntry(data: {
             diagnosis: data.diagnosis || null,
             prescription: data.prescription || null,
             treatment: data.treatment || null,
+            attendingName: data.attendingName || null,
+            attendingCmvp: data.attendingCmvp || null,
         }
     })
 
-    // 5. Cobrar la comisión a las finanzas del Vet
+    // 5. Agregar al historial clínico de la mascota
+    const currentHistory: any[] = JSON.parse(pet.medicalHistory || '[]')
+    const isNonClinical = checkIfNonClinical(data.serviceType)
+    const newEntry: any = {
+        appointmentId: appointment.id,
+        date: new Date().toISOString().split('T')[0],
+        type: isNonClinical ? 'grooming' : 'consultation',
+        description: isNonClinical ? (data.serviceType || 'Servicio de Estética') : (data.diagnosis || 'Consulta general'),
+        provider: data.attendingName || session.fullName,
+        providerCmvp: isNonClinical ? 'No aplica' : (data.attendingCmvp || fallbackCmvp),
+        notes: isNonClinical ? undefined : data.prescription,
+        treatment: data.treatment || undefined
+    }
+    currentHistory.push(newEntry)
+
+    await prisma.pet.update({
+        where: { id: pet.id },
+        data: { medicalHistory: JSON.stringify(currentHistory) }
+    })
+
+    // 6. Cobrar la comisión a las finanzas del Vet
     await prisma.transaction.create({
         data: {
             profileId: session.sub,
@@ -932,7 +1004,6 @@ export async function createGuestFastEntry(data: {
             date: new Date().toISOString().split('T')[0]
         }
     })
-
 
     revalidatePath('/dashboard/vet')
     revalidatePath('/dashboard/vet/finances')
@@ -1045,7 +1116,10 @@ export async function getClientAppointments() {
     if (!session) return []
 
     return prisma.appointment.findMany({
-        where: { clientId: session.sub },
+        where: { 
+            clientId: session.sub,
+            status: { not: 'pending' }
+        },
         include: {
             pet: true,
             establishment: {
@@ -1069,6 +1143,7 @@ export async function getVetAppointments() {
 
     return prisma.appointment.findMany({
         where: {
+            status: { not: 'pending' },
             OR: [
                 { providerId: session.sub },
                 {
@@ -1205,6 +1280,13 @@ export async function getAppointmentForVet(appointmentId: string) {
         include: {
             pet: true,
             client: true,
+            establishment: {
+                select: {
+                    id: true,
+                    name: true,
+                    specialists: true
+                }
+            }
         }
     })
 
@@ -1253,6 +1335,7 @@ export async function getAppointmentForVet(appointmentId: string) {
             notes: appointment.notes,
             pet: appointment.pet,
             client: appointment.client,
+            establishment: appointment.establishment,
         },
         record: record ? {
             ...record,
@@ -1288,18 +1371,19 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
 
 export async function getVetStats() {
     const session = await getSession()
-    if (!session) return { todayCount: 0, monthRevenue: 0, pendingOtp: 0, completedTotal: 0 }
+    if (!session) return { todayCount: 0, monthRevenue: 0, pendingOtp: 0, completedTotal: 0, estStats: [], specStats: [] }
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today.getTime() + 86400000)
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
-    const [todayCount, monthAppointments, pendingOtp, completedTotal] = await Promise.all([
+    const [todayCount, monthAppointments, pendingOtp, completedTotal, establishments, medicalRecords] = await Promise.all([
         prisma.appointment.count({
             where: {
                 providerId: session.sub,
                 scheduledAt: { gte: today, lt: tomorrow },
+                status: { not: 'pending' },
             }
         }),
         prisma.appointment.findMany({
@@ -1321,11 +1405,92 @@ export async function getVetStats() {
                 status: 'completed',
             }
         }),
+        prisma.establishment.findMany({
+            where: { ownerId: session.sub },
+            select: {
+                id: true,
+                name: true,
+                specialists: true,
+                appointments: {
+                    where: { status: { not: 'pending' } },
+                    select: {
+                        status: true,
+                    }
+                }
+            }
+        }),
+        prisma.medicalRecord.findMany({
+            where: { vetId: session.sub },
+            select: {
+                attendingName: true,
+                attendingCmvp: true,
+            }
+        })
     ])
 
     const monthRevenue = monthAppointments.reduce((acc, a) => acc + a.commissionAmount, 0)
 
-    return { todayCount, monthRevenue, pendingOtp, completedTotal }
+    const estStats = establishments.map(est => {
+        const pending = est.appointments.filter(a => a.status === 'paid').length
+        const completed = est.appointments.filter(a => a.status === 'completed' || a.status === 'validated').length
+        const total = est.appointments.length
+        return {
+            id: est.id,
+            name: est.name,
+            pending,
+            completed,
+            total
+        }
+    })
+
+    // Compute specialist stats
+    const specStatsMap = new Map<string, { name: string; cmvpId: string; count: number }>()
+    
+    // Pre-fill registered specialists
+    establishments.forEach(est => {
+        try {
+            const specs = JSON.parse(est.specialists || '[]')
+            if (Array.isArray(specs)) {
+                specs.forEach((s: any) => {
+                    if (s.cmvpId) {
+                        specStatsMap.set(s.cmvpId, {
+                            name: s.name,
+                            cmvpId: s.cmvpId,
+                            count: 0
+                        })
+                    }
+                })
+            }
+        } catch {}
+    })
+
+    // Count medical records
+    let defaultCount = 0
+    medicalRecords.forEach(rec => {
+        if (rec.attendingCmvp && specStatsMap.has(rec.attendingCmvp)) {
+            const spec = specStatsMap.get(rec.attendingCmvp)!
+            spec.count += 1
+        } else {
+            defaultCount += 1
+        }
+    })
+
+    const specStats = Array.from(specStatsMap.values())
+    // Add default veterinarian (owner)
+    specStats.unshift({
+        name: 'Veterinario Principal (Dueño)',
+        cmvpId: 'Principal',
+        count: defaultCount
+    })
+
+    return { 
+        todayCount, 
+        monthRevenue, 
+        pendingOtp, 
+        completedTotal, 
+        estStats, 
+        specStats 
+    }
 }
 
 // ============================================================================
@@ -1425,6 +1590,12 @@ export async function addService(formData: FormData) {
     const duration = parseInt(formData.get('duration') as string) || 30
     const category = formData.get('category') as string || 'general'
 
+    const operatingDays = formData.get('operatingDays') as string || '["mon","tue","wed","thu","fri","sat","sun"]'
+    const startHour = formData.get('startHour') as string || '08:00'
+    const endHour = formData.get('endHour') as string || '20:00'
+    const operatingHours = JSON.stringify({ start: startHour, end: endHour })
+    const workOnHolidays = formData.get('workOnHolidays') === 'true'
+
     if (!name || isNaN(price)) return { message: 'Nombre y precio son requeridos' }
 
     await prisma.service.create({
@@ -1435,6 +1606,9 @@ export async function addService(formData: FormData) {
             price,
             duration,
             category,
+            operatingDays,
+            operatingHours,
+            workOnHolidays,
         }
     })
 
@@ -1488,6 +1662,12 @@ export async function updateService(formData: FormData) {
         }
     }
 
+    const operatingDays = formData.get('operatingDays') as string || '["mon","tue","wed","thu","fri","sat","sun"]'
+    const startHour = formData.get('startHour') as string || '08:00'
+    const endHour = formData.get('endHour') as string || '20:00'
+    const operatingHours = JSON.stringify({ start: startHour, end: endHour })
+    const workOnHolidays = formData.get('workOnHolidays') === 'true'
+
     await prisma.service.update({
         where: { id },
         data: {
@@ -1496,6 +1676,9 @@ export async function updateService(formData: FormData) {
             price: newPrice,
             duration: parseInt(formData.get('duration') as string) || 30,
             category: (formData.get('category') as string) || 'general',
+            operatingDays,
+            operatingHours,
+            workOnHolidays,
             tariffUpdatedAt: new Date()
         }
     })
@@ -1683,6 +1866,9 @@ export async function updateEstablishment(formData: FormData) {
         }
     }
 
+    const blockedDates = formData.get('blockedDates') as string
+    const specialists = formData.get('specialists') as string
+
     await prisma.establishment.update({
         where: { id },
         data: {
@@ -1693,6 +1879,8 @@ export async function updateEstablishment(formData: FormData) {
             description: (formData.get('description') as string) || null,
             type: newType,
             operatingHours,
+            blockedDates: blockedDates !== null && blockedDates !== undefined ? blockedDates : undefined,
+            specialists: specialists !== null && specialists !== undefined ? specialists : undefined,
             concurrentSlots,
             photoUrl: photoUrl !== undefined ? photoUrl : undefined,
             logoUrl: logoUrl !== undefined ? logoUrl : undefined,

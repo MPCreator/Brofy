@@ -86,6 +86,8 @@ export interface Establishment {
   rating: number;
   isActive: boolean;
   operatingHours: Record<string, { open: string; close: string }>;
+  blockedDates: string;
+  specialists: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -129,6 +131,8 @@ export interface MedicalRecord {
   treatment?: string | null;
   nextVisit?: string | null;
   attachments: string[];
+  attendingName?: string | null;
+  attendingCmvp?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   // Joined relations (optional)
@@ -155,6 +159,7 @@ export interface OtpResult {
   otp?: string;
   expiresAt?: string;
   message?: string;
+  redirectUrl?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +233,19 @@ export const APPOINTMENT_STATUS_LABELS = {
   validated: { label: 'En atención', color: 'text-indigo-600 bg-indigo-100' },
   completed: { label: 'Completada', color: 'text-emerald-600 bg-emerald-100' },
   cancelled: { label: 'Cancelada', color: 'text-red-600 bg-red-100' },
+  disputed: { label: 'En disputa / Reclamo', color: 'text-amber-600 bg-amber-100' },
 } as const;
+
+export const SPECIES_LABELS: Record<string, string> = {
+  dog: 'Perro',
+  cat: 'Gato',
+  bird: 'Ave',
+  rabbit: 'Conejo',
+  hamster: 'Hámster',
+  fish: 'Pez',
+  reptile: 'Reptil',
+  other: 'Otro',
+};
 
 // ---------------------------------------------------------------------------
 // Service
@@ -243,6 +260,9 @@ export interface Service {
   duration: number;
   category: string;
   isActive: boolean;
+  operatingDays: string;
+  operatingHours: string;
+  workOnHolidays: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

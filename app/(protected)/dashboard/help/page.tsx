@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { getProfile } from '@/lib/actions'
 import { 
     BookOpen, KeyRound, Tag, DollarSign, Sparkles, Award, Zap, HelpCircle, 
-    ArrowRight, RefreshCw, GraduationCap, Megaphone, CheckCircle2, ChevronDown, ChevronUp
+    ArrowRight, RefreshCw, GraduationCap, Megaphone, CheckCircle2, ChevronDown, ChevronUp, Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -44,7 +44,7 @@ export default function HelpPage() {
             title: '1. Validación de Citas con Código OTP 🔑',
             subtitle: 'El corazón de la atención y la seguridad digital',
             icon: KeyRound,
-            content: `El Código de Atención de 4 dígitos provisto por el cliente al llegar a tu local es fundamental por tres razones:
+            content: `El Código de Atención de 6 dígitos provisto por el cliente al llegar a tu local es fundamental por tres razones:
             
 • Desbloqueo del Historial Médico/Estético: Al ingresar este código en la sección "Atención", el sistema te dará acceso inmediato a la ficha del paciente para consultar antecedentes y registrar la nueva atención.
 • Prevención de Desintermediación: Brofy valida la asistencia al local garantizando que las atenciones se efectúen dentro del marco de la plataforma.
@@ -90,6 +90,28 @@ export default function HelpPage() {
 • En tu iPhone/iPad (Safari): Presiona el botón "Compartir" (el cuadrado con la flecha hacia arriba) y selecciona "Añadir a la pantalla de inicio".
 • En tu Computadora (Chrome/Edge): Haz clic en el ícono de monitor con flecha ("Instalar") a la derecha de la barra de direcciones de tu navegador.
 • Ventaja: Se abrirá en pantalla completa y con un acceso directo en tu escritorio/dock, optimizando el uso diario del local.`
+        },
+        {
+            title: '6. Registro de Especialistas y Responsabilidad de CMVP 🩺',
+            subtitle: 'Cómo agregar personal médico y delegar firmas',
+            icon: Award,
+            content: `Si en tu sede atienden múltiples veterinarios u otros especialistas, puedes gestionarlos en la sección "Mi Local":
+
+• Registro del Staff: Agrega a cada profesional indicando su nombre completo y número de colegiatura (CMVP).
+• Selección en Ficha Médica: Al rellenar una Ficha Rápida o completar una atención, tendrás un selector para indicar qué veterinario realizó la consulta.
+• Firma e Historial Digital: La ficha clínica y carnet de vacunas de la mascota se guardarán de forma inmutable con el nombre y colegiatura del doctor seleccionado, garantizando la trazabilidad.
+• Declaración Legal: El establecimiento asume la total responsabilidad ética y legal de verificar la vigencia de las colegiaturas de su personal, liberando a Brofy de responsabilidad por falsedad de datos.`
+        },
+        {
+            title: '7. Horarios por Servicio y Feriados 📅',
+            subtitle: 'Horarios personalizados y bloqueo de reservas en días festivos',
+            icon: Clock,
+            content: `Brofy te permite un control total del calendario operativo de tu negocio:
+
+• Herencia de Horarios: Por defecto, todos tus servicios heredan las horas de apertura de tu local.
+• Horario Personalizado: Si un servicio tiene horas reducidas (por ejemplo, baño de mascotas solo hasta mediodía), puedes desmarcar el checkbox "Heredar horario" y definir su rango de horas y días operativos individualmente.
+• Feriados y Días de Cierre: En "Mi Local" puedes bloquear fechas específicas de feriados o cierres. Los clientes no podrán agendar citas normales en esos días.
+• Excepción en Servicios: En cada servicio puedes activar la opción "¿Atiende feriados?", permitiendo que ese servicio específico sí reciba reservas en las fechas bloqueadas por el local.`
         }
     ]
 
@@ -110,7 +132,7 @@ export default function HelpPage() {
             icon: KeyRound,
             content: `Tras agendar y realizar el pago digital, se genera un código OTP único en tu panel de "Citas Activas":
 
-• Al llegar al local: Dicta este código de 4 dígitos al especialista. Él lo ingresará para verificar tu identidad y desbloquear el historial clínico o de cuidado de tu mascota.
+• Al llegar al local: Dicta este código de 6 dígitos al especialista. Él lo ingresará para verificar tu identidad y desbloquear el historial clínico o de cuidado de tu mascota.
 • Carnet de Vacunas Digitalizado: La información, diagnósticos o indicaciones médicas registradas por el especialista quedarán guardadas permanentemente en tu cuenta, sin riesgo de pérdida de libretas físicas.`
         },
         {
@@ -143,6 +165,25 @@ export default function HelpPage() {
 • En iOS/iPhone (Safari): Abre Brofy, presiona el botón "Compartir" al centro abajo en tu navegador y selecciona "Añadir a la pantalla de inicio".
 • En Windows/Mac (Chrome/Edge/Brave): Haz clic en el ícono de instalación (icono de computadora con flecha o "+") en la barra de direcciones superior.
 • Beneficio: Accede al instante a tu Billetera de Huellitas, carnet digital e inicio de atención rápido sin escribir la dirección web.`
+        },
+        {
+            title: '6. Gestión de Feriados y Bloqueos de Citas 📅',
+            subtitle: 'Reserva segura en fechas festivas o no laborables',
+            icon: Clock,
+            content: `Para evitar malentendidos e inasistencias por cierres del local, Brofy cuenta con un control de feriados:
+
+• Bloqueo Inteligente: Cuando un local registra un día feriado o de descanso, el calendario de reserva desactiva automáticamente esa fecha para evitar citas.
+• Servicios con Guardia: Algunos servicios especiales (como emergencias 24h u hospedajes) pueden marcarse como disponibles en feriados. Si es el caso, el sistema te permitirá seleccionarlos y agendarlos normalmente en esa fecha.`
+        },
+        {
+            title: '7. Especialista Tratante Registrado 🩺',
+            subtitle: 'Transparencia total sobre quién atiende a tu mascota',
+            icon: Award,
+            content: `Aunque reserves tu cita para la veterinaria o clínica en general, tienes completa seguridad sobre qué profesional atendió a tu mascota:
+
+• Registro Virtual de Firma: Al realizarse la consulta, el veterinario a cargo selecciona al especialista que efectuó la atención.
+• Trazabilidad en el Carnet: El diagnóstico, vacunas y recetas del carnet digital de tu mascota mostrarán permanentemente el nombre y número CMVP del médico tratante responsable.
+• Seguridad y Garantía: Podrás verificar en todo momento el profesional a cargo para tus controles o consultas de seguimiento.`
         }
     ]
 

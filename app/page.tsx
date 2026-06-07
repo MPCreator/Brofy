@@ -15,7 +15,7 @@ export default async function Home() {
     const establishments = await getEstablishments();
 
     return (
-        <main className="min-h-screen flex flex-col bg-slate-50">
+        <main className="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden w-full">
             {/* Header */}
             <header className="fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -130,7 +130,7 @@ export default async function Home() {
                             </div>
                             <h3 className="font-extrabold text-xl md:text-2xl text-slate-900 mb-4 group-hover:text-primary-700 transition-colors duration-300">Código de Atención</h3>
                             <p className="text-sm md:text-base text-slate-500 leading-relaxed font-medium">
-                                Recibe instantáneamente un código único de 4 dígitos en tu panel. Al llegar al local, solo díselo al especialista para validar tu reserva de forma inmediata.
+                                Recibe instantáneamente un código único de 6 dígitos en tu panel. Al llegar al local, solo díselo al especialista para validar tu reserva de forma inmediata.
                             </p>
                         </div>
                         {/* Paso 3 */}
@@ -202,7 +202,7 @@ export default async function Home() {
             </section>
 
             {/* Confianza y Seguridad */}
-            <section className="w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white py-28 px-6 relative border-y border-slate-800/80 group" style={{ isolation: 'isolate' }}>
+            <section className="w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white py-28 px-6 relative overflow-hidden border-y border-slate-800/80 group" style={{ isolation: 'isolate' }}>
                 {/* Background glowing radial orbs — kept inside bounds so they don't clip */}
                 <div className="absolute right-0 bottom-0 w-[32rem] h-[32rem] bg-primary-600/10 rounded-full blur-3xl pointer-events-none translate-x-1/2 translate-y-1/2 group-hover:bg-primary-600/15 transition-all duration-700"></div>
                 <div className="absolute left-0 top-0 w-[32rem] h-[32rem] bg-blue-600/10 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2 group-hover:bg-blue-600/15 transition-all duration-700"></div>

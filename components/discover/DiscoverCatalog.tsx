@@ -181,9 +181,47 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
                 const searchDate = new Date(selectedDate + 'T00:00:00')
                 const dayOfWeek = dayNames[searchDate.getDay()]
                 
-                const hours = est.operatingHours as any
-                if (hours?.is24h) return true
-                return !!hours?.[dayOfWeek]
+                // Check if date is blocked/holiday for establishment
+                let isHoliday = false;
+                if (est.blockedDates) {
+                    try {
+                        const blocked = typeof est.blockedDates === 'string'
+                            ? JSON.parse(est.blockedDates)
+                            : est.blockedDates;
+                        if (Array.isArray(blocked) && blocked.includes(selectedDate)) {
+                            isHoliday = true;
+                        }
+                    } catch {}
+                }
+
+                // The establishment must have at least one active service available on this date
+                const activeServices = est.services?.filter((s: any) => s.isActive !== false) || []
+                if (activeServices.length === 0) return false
+
+                const hasAvailableService = activeServices.some((svc: any) => {
+                    // Check operating days
+                    let opDays: string[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+                    if (svc.operatingDays) {
+                        try {
+                            opDays = typeof svc.operatingDays === 'string'
+                                ? JSON.parse(svc.operatingDays)
+                                : svc.operatingDays
+                        } catch {}
+                    }
+
+                    if (!opDays.includes(dayOfWeek)) {
+                        return false
+                    }
+
+                    // Check holiday work override
+                    if (isHoliday && !svc.workOnHolidays) {
+                        return false
+                    }
+
+                    return true
+                })
+
+                return hasAvailableService
             } catch {
                 return true
             }

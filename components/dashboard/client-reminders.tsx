@@ -18,6 +18,36 @@ function formatFriendlyDate(dateStr: string) {
     return isNaN(dateObj.getTime()) ? dateStr : dateObj.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+function buildGoogleCalendarReminderUrl(rem: any) {
+    const title = encodeURIComponent(`${rem.title} | Brofy`);
+    const dateStr = rem.dueDate.replace(/-/g, '');
+    const dateObj = new Date(rem.dueDate + 'T00:00:00');
+    dateObj.setDate(dateObj.getDate() + 1);
+    const nextDateStr = dateObj.toISOString().split('T')[0].replace(/-/g, '');
+    const dates = `${dateStr}/${nextDateStr}`;
+    const details = encodeURIComponent(`${rem.message || ''}\nMascota: ${rem.pet?.name || 'Todas'}\nRecordatorio de control gestionado por Brofy.`);
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}`;
+}
+
+function buildIcsReminderDataUri(rem: any) {
+    const dateStr = rem.dueDate.replace(/-/g, '');
+    const dateObj = new Date(rem.dueDate + 'T00:00:00');
+    dateObj.setDate(dateObj.getDate() + 1);
+    const nextDateStr = dateObj.toISOString().split('T')[0].replace(/-/g, '');
+    const icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        `DTSTART;VALUE=DATE:${dateStr}`,
+        `DTEND;VALUE=DATE:${nextDateStr}`,
+        `SUMMARY:${rem.title} | Brofy`,
+        `DESCRIPTION:${rem.message || ''} - Mascota: ${rem.pet?.name || 'Todas'}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ].join('\n');
+    return `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`;
+}
+
 export function ClientRemindersList({ initialReminders }: { initialReminders: any[] }) {
     const [reminders, setReminders] = useState(initialReminders)
     const [pushEnabled, setPushEnabled] = useState(false)
@@ -128,6 +158,23 @@ export function ClientRemindersList({ initialReminders }: { initialReminders: an
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                <a
+                                    href={buildGoogleCalendarReminderUrl(rem)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors flex items-center justify-center"
+                                    title="Añadir a Google Calendar"
+                                >
+                                    <Calendar className="w-4.5 h-4.5" />
+                                </a>
+                                <a
+                                    href={buildIcsReminderDataUri(rem)}
+                                    download={`recordatorio-${rem.id}.ics`}
+                                    className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors flex items-center justify-center text-xs font-bold font-mono"
+                                    title="Descargar para iCal / Outlook"
+                                >
+                                    ICS
+                                </a>
                                 <button
                                     onClick={() => handleComplete(rem.id)}
                                     className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition-colors"

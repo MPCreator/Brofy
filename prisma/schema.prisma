@@ -34,8 +34,10 @@ model Profile {
   failedAttempts       Int       @default(0) @map("failed_attempts")
   lockoutUntil         DateTime? @map("lockout_until")
   creditBalance        Float     @default(0.00) @map("credit_balance")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  country              String    @default("PE")
+  licenseType          String    @default("CMVP") @map("license_type")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   // Relations
   pets                   Pet[]
@@ -49,6 +51,7 @@ model Profile {
   remindersCreated        Reminder[] @relation("CreatedReminders")
 
   @@map("profiles")
+  @@index([role, isActive])
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +80,7 @@ model Pet {
   reminders    Reminder[]
 
   @@map("pets")
+  @@index([ownerId, isActive])
 }
 
 // ---------------------------------------------------------------------------
@@ -100,8 +104,13 @@ model Establishment {
   rating         Float    @default(0.0)
   isActive       Boolean  @default(true) @map("is_active")
   operatingHours String   @default("{}") @map("operating_hours") // JSON string
+  blockedDates   String   @default("[]") @map("blocked_dates") // JSON array of YYYY-MM-DD
+  specialists    String   @default("[]") @map("specialists") // JSON string of [{ id, name, cmvpId, isActive }]
   concurrentSlots Int      @default(1) @map("concurrent_slots") // Capacidad de atención simultánea
   dni            String?                                               // DNI / Identificador único de local (memorizable)
+  country        String   @default("PE")
+  currency       String   @default("PEN")
+  currencySymbol String   @default("S/") @map("currency_symbol")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -112,6 +121,8 @@ model Establishment {
   reviews      Review[]
 
   @@map("establishments")
+  @@index([ownerId])
+  @@index([country, city, isActive])
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +137,11 @@ model Service {
   duration        Int      @default(30)              // Duración en minutos
   category        String   @default("general")      // 'consultation', 'vaccination', 'grooming', 'surgery', 'deworming', 'test', 'walk', 'bath'
   isActive        Boolean  @default(true) @map("is_active")
+  operatingDays   String   @default("[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\",\"sun\"]") @map("operating_days")
+  operatingHours  String   @default("{\"start\":\"08:00\",\"end\":\"20:00\"}") @map("operating_hours")
+  workOnHolidays  Boolean  @default(false) @map("work_on_holidays")
   tariffUpdatedAt DateTime @default(now()) @map("tariff_updated_at")
+  currency        String   @default("PEN")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -134,6 +149,7 @@ model Service {
   establishment Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
 
   @@map("services")
+  @@index([establishmentId, category, isActive])
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +177,7 @@ model Appointment {
   rescheduleProposedBy String? @map("reschedule_proposed_by")
   denunciaReason    String?  @map("denuncia_reason")                    // Motivo de la denuncia/disputa por inasistencia
   denunciaStatus    String?  @map("denuncia_status")                    // 'pending' | 'resolved_refunded' | 'resolved_rejected'
+  currency          String   @default("PEN")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -173,6 +190,10 @@ model Appointment {
   review        Review?
 
   @@map("appointments")
+  @@index([clientId])
+  @@index([petId])
+  @@index([establishmentId])
+  @@index([status, scheduledAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +212,8 @@ model MedicalRecord {
   treatment     String?
   nextVisit     String?  @map("next_visit")       // ISO date string
   attachments   String   @default("[]")           // JSON array de URLs
+  attendingName String?  @map("attending_name")
+  attendingCmvp String?  @map("attending_cmvp")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -212,6 +235,7 @@ model Transaction {
   category    String   @default("other")        // 'consultation', 'surgery', 'grooming', 'supplies', 'rent', 'salary', 'other'
   description String?
   date        String                             // ISO date string
+  currency    String   @default("PEN")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -219,6 +243,7 @@ model Transaction {
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@map("transactions")
+  @@index([profileId, date])
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +260,7 @@ model Claim {
   description    String
   request        String
   status         String   @default("pending") // 'pending', 'resolved'
+  country        String   @default("PE")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("claims")
@@ -284,4 +310,5 @@ model Reminder {
   creator Profile  @relation("CreatedReminders", fields: [createdBy], references: [id])
 
   @@map("reminders")
+  @@index([clientId, dueDate, isCompleted])
 }

@@ -98,3 +98,29 @@ export function truncate(str: string, length: number): string {
     if (str.length <= length) return str;
     return str.slice(0, length) + '...';
 }
+
+/**
+ * Determina si un servicio es de naturaleza no clínica (estética, paseo, cuidado, etc.)
+ */
+export function checkIfNonClinical(serviceType?: string): boolean {
+    if (!serviceType) return false;
+    const name = serviceType.toLowerCase();
+    return (
+        name.includes('grooming') ||
+        name.includes('baño') ||
+        name.includes('bañ') ||
+        name.includes('corte') ||
+        name.includes('paseo') ||
+        name.includes('pasear') ||
+        name.includes('hospedaje') ||
+        name.includes('guardería') ||
+        name.includes('peluquería') ||
+        name.includes('esteti') ||
+        name.includes('estéti') ||
+        name.includes('aesthetic') ||
+        name.includes('walk') ||
+        name.includes('bath') ||
+        name.includes('care')
+    );
+}
+

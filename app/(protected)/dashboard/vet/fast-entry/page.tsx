@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createMedicalRecord } from '@/lib/actions'
-import { COMMON_SYMPTOMS, COMMON_DIAGNOSES } from '@/lib/types'
+import { COMMON_SYMPTOMS, COMMON_DIAGNOSES, SPECIES_LABELS } from '@/lib/types'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
     ClipboardList,
@@ -46,10 +46,15 @@ export default function FastEntryPage() {
     const [guestPetSpecies, setGuestPetSpecies] = useState('dog')
     const [guestConsentConfirmed, setGuestConsentConfirmed] = useState(false)
     const [nextVisit, setNextVisit] = useState('')
+    const [selectedSpecialist, setSelectedSpecialist] = useState<string>('default')
+    const [attendingName, setAttendingName] = useState('')
+    const [attendingCmvp, setAttendingCmvp] = useState('')
+    const [attendingRole, setAttendingRole] = useState('vet')
 
     const [establishments, setEstablishments] = useState<any[]>([])
     const [selectedEstId, setSelectedEstId] = useState('')
     const [role, setRole] = useState('vet')
+    const [profile, setProfile] = useState<any>(null)
 
     // Unified states for loaded data
     const [appointmentData, setAppointmentData] = useState<any>(null)
@@ -57,31 +62,56 @@ export default function FastEntryPage() {
     const [isEditable, setIsEditable] = useState(true)
     const [loadingRecord, setLoadingRecord] = useState(false)
 
+    const getActiveSpecialists = () => {
+        let rawSpecialists = '[]'
+        if (appointmentId) {
+            rawSpecialists = appointmentData?.establishment?.specialists || '[]'
+        } else {
+            const currentEst = establishments.find(e => e.id === selectedEstId) || establishments[0]
+            rawSpecialists = currentEst?.specialists || '[]'
+        }
+        try {
+            const list = JSON.parse(rawSpecialists)
+            if (Array.isArray(list)) {
+                return list.filter((s: any) => s.isActive !== false)
+            }
+        } catch {}
+        return []
+    }
+
     useEffect(() => {
         async function loadInitialData() {
-            const { getMyEstablishments, getMyRole } = await import('@/lib/actions')
-            const [list, userRole] = await Promise.all([
+            const { getMyEstablishments, getMyRole, getProfile } = await import('@/lib/actions')
+            const [list, userRole, userProfile] = await Promise.all([
                 getMyEstablishments(),
-                getMyRole()
+                getMyRole(),
+                getProfile()
             ])
             setEstablishments(list)
             if (list.length > 0) {
                 setSelectedEstId(list[0].id)
             }
             setRole(userRole)
+            setProfile(userProfile)
+            setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
         }
 
         async function loadExistingRecord() {
             setLoadingRecord(true)
             try {
-                const { getMyRole, getAppointmentForVet } = await import('@/lib/actions')
-                const userRole = await getMyRole()
+                const { getMyRole, getAppointmentForVet, getProfile } = await import('@/lib/actions')
+                const [userRole, res, userProfile] = await Promise.all([
+                    getMyRole(),
+                    getAppointmentForVet(appointmentId),
+                    getProfile()
+                ])
                 setRole(userRole)
+                setProfile(userProfile)
 
-                const res = await getAppointmentForVet(appointmentId)
                 if (res) {
                     setAppointmentData(res.appointment)
                     setPastHistory(res.history)
+
                     if (res.record) {
                         setWeight(res.record.weight?.toString() || '')
                         setTemperature(res.record.temperature?.toString() || '')
@@ -92,6 +122,25 @@ export default function FastEntryPage() {
                         setTreatment(res.record.treatment || '')
                         setNextVisit(res.record.nextVisit || '')
                         setIsEditable(res.record.isEditable)
+                        setAttendingName(res.record.attendingName || '')
+                        setAttendingCmvp(res.record.attendingCmvp || '')
+
+                        try {
+                            const specList = JSON.parse(res.appointment?.establishment?.specialists || '[]')
+                            const match = specList.find((s: any) => s.cmvpId === res.record?.attendingCmvp)
+                            if (match) {
+                                setSelectedSpecialist(match.id)
+                                setAttendingRole(match.role || 'vet')
+                            } else {
+                                setSelectedSpecialist('default')
+                                setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
+                            }
+                        } catch {
+                            setSelectedSpecialist('default')
+                            setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
+                        }
+                    } else {
+                        setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
                     }
                 }
             } catch (e) {
@@ -136,6 +185,29 @@ export default function FastEntryPage() {
         setLoading(true)
         setError('')
 
+        // Resolve attending specialist name, role, and CMVP
+        const specialistsList = getActiveSpecialists()
+        const selectedSpec = specialistsList.find((s: any) => s.id === selectedSpecialist)
+
+        const finalRole = selectedSpec?.role || (role === 'provider' ? 'provider' : 'vet')
+        const finalCmvp = selectedSpec ? selectedSpec.cmvpId : (profile?.cmvpId || undefined)
+        const finalAttendingName = selectedSpec?.name || profile?.fullName || undefined
+        const finalAttendingCmvp = finalCmvp
+        const finalAttendingRole = finalRole
+        setAttendingRole(finalAttendingRole)
+
+        // Validate: if attending is vet, CMVP must be set
+        const isVetRole = finalAttendingRole === 'vet'
+        if (isVetRole && (!finalCmvp || finalCmvp === 'No aplica' || finalCmvp.trim() === '')) {
+            setError(
+                selectedSpecialist === 'default'
+                    ? 'Tu perfil no tiene un código de colegiatura (CMVP) registrado. Por favor, actualízalo en la configuración para poder guardar la ficha médica.'
+                    : 'El veterinario seleccionado no tiene código de colegiatura (CMVP) registrado. Por favor, actualiza su perfil en la sección de Staff antes de guardar la ficha médica.'
+            )
+            setLoading(false)
+            return
+        }
+
         try {
             let result;
             if (appointmentId) {
@@ -150,6 +222,8 @@ export default function FastEntryPage() {
                     prescription: prescription || undefined,
                     treatment: treatment || undefined,
                     nextVisit: nextVisit || undefined,
+                    attendingName: finalAttendingName,
+                    attendingCmvp: finalAttendingCmvp,
                 })
             } else {
                 if (!guestClientName || !guestPetName) {
@@ -176,11 +250,16 @@ export default function FastEntryPage() {
                     diagnosis: diagnosis || undefined,
                     prescription: prescription || undefined,
                     treatment: treatment || undefined,
+                    attendingName: finalAttendingName,
+                    attendingCmvp: finalAttendingCmvp,
                 })
             }
 
             if (result.success) {
                 setSuccess(true)
+                setAttendingName(finalAttendingName || 'Responsable Principal')
+                setAttendingCmvp(finalAttendingCmvp || 'No Registrado')
+                setAttendingRole(finalAttendingRole)
                 setTimeout(() => router.push('/dashboard/vet'), 2000)
             } else {
                 setError(result.message || 'Error al guardar')
@@ -205,6 +284,23 @@ export default function FastEntryPage() {
         )
     }
 
+    const isClinicalView = role !== 'provider' && attendingRole === 'vet'
+    const isProviderOrNonClinical = role === 'provider' || attendingRole !== 'vet'
+
+    const treatmentNotesLabel = isProviderOrNonClinical
+        ? '📝 Observaciones y Servicios Realizados'
+        : '🩺 Tratamiento / Notas Médicas'
+
+    const treatmentNotesPlaceholder = isProviderOrNonClinical
+        ? 'Ej: Baño completo, corte de uñas, limpieza de oídos...'
+        : 'Procedimientos realizados, observaciones médicas...'
+
+    const submitButtonText = loading
+        ? 'Guardando...'
+        : isProviderOrNonClinical
+        ? '✅ Guardar Ficha de Servicio'
+        : '✅ Guardar Ficha Médica'
+
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
             <div>
@@ -226,8 +322,8 @@ export default function FastEntryPage() {
             </div>
 
             {!isEditable && (
-                <div className="bg-red-50 border border-red-200 text-red-805 rounded-2xl p-4 text-sm font-semibold flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-red-655 shrink-0" />
+                <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4 text-sm font-semibold flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
                     <span>Esta ficha médica fue completada hace más de 24 horas y ya no puede ser modificada.</span>
                 </div>
             )}
@@ -243,7 +339,7 @@ export default function FastEntryPage() {
                                 <p className="text-sm text-blue-800 font-medium mb-2">
                                     👤 Ingreso Manual (Sin código)
                                 </p>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     <div>
                                         <label className="text-xs font-medium text-blue-900 mb-1 block">Nombre Cliente *</label>
                                         <input
@@ -275,7 +371,7 @@ export default function FastEntryPage() {
                                         />
                                     </div>
                                     {establishments.length > 1 && (
-                                        <div className="col-span-2 lg:col-span-3">
+                                        <div className="col-span-1 sm:col-span-2 lg:col-span-3">
                                             <label className="text-xs font-semibold text-blue-900 mb-1 block">Sede de Atención *</label>
                                             <select
                                                 value={selectedEstId}
@@ -309,7 +405,100 @@ export default function FastEntryPage() {
                         )}
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {role !== 'provider' && (
+                        {/* ── Responsable de la Atención (siempre visible) ── */}
+                        {(() => {
+                            const specs = getActiveSpecialists()
+                            const selectedSpec = specs.find((s: any) => s.id === selectedSpecialist)
+                            const currentRole = selectedSpecialist === 'default'
+                                ? (role === 'provider' ? 'provider' : 'vet')
+                                : (selectedSpec?.role || 'vet')
+                            const isVetRole = currentRole === 'vet'
+                            const hasCmvp = selectedSpec?.cmvpId && selectedSpec.cmvpId !== 'No aplica'
+                            const roleLabels: Record<string,string> = { vet: '🩺 Veterinario/a', groomer: '✂️ Estilista / Groomer', bath: '🛁 Bañador/a', walker: '🦮 Paseador/a', trainer: '🎓 Entrenador/a', other: '👤 Personal' }
+
+                            return (
+                                <div className={`rounded-xl border p-3.5 space-y-2 shadow-sm ${
+                                    isVetRole
+                                        ? 'bg-blue-50 border-blue-200'
+                                        : 'bg-emerald-50 border-emerald-200'
+                                }`}>
+                                    <label className={`flex items-center gap-1.5 text-xs font-bold ${
+                                        isVetRole ? 'text-blue-800' : 'text-emerald-800'
+                                    }`}>
+                                        <User className="w-3.5 h-3.5" />
+                                        {isVetRole ? '🩺 Responsable Médico de la Atención' : `${roleLabels[currentRole] || '👤 Personal'} Responsable`}
+                                    </label>
+
+                                    <select
+                                        value={selectedSpecialist}
+                                        onChange={e => {
+                                            setSelectedSpecialist(e.target.value)
+                                            if (e.target.value === 'default') {
+                                                setAttendingRole(role === 'provider' ? 'provider' : 'vet')
+                                            } else {
+                                                const spec = getActiveSpecialists().find((s: any) => s.id === e.target.value)
+                                                setAttendingRole(spec?.role || 'vet')
+                                            }
+                                        }}
+                                        disabled={!isEditable}
+                                        className={`w-full px-3 py-2 border rounded-lg text-xs focus:outline-none focus:ring-1 font-medium cursor-pointer disabled:opacity-60 ${
+                                            isVetRole
+                                                ? 'bg-white border-blue-200 focus:ring-blue-400'
+                                                : 'bg-white border-emerald-200 focus:ring-emerald-400'
+                                        }`}
+                                    >
+                                        <option value="default">
+                                            {role === 'provider'
+                                                ? `👤 ${profile?.fullName || 'Propietario/a'}`
+                                                : `🩺 ${profile?.fullName || 'Veterinario/a Principal'}${profile?.cmvpId ? ` — CMVP ${profile.cmvpId}` : ''}`
+                                            }
+                                        </option>
+                                        {specs.map((spec: any) => {
+                                            const roleEmojis: Record<string,string> = { vet: '🩺', groomer: '✂️', bath: '🛁', walker: '🦮', trainer: '🎓', other: '👤' }
+                                            const emoji = roleEmojis[spec.role] || '👤'
+                                            const specHasCmvp = spec.cmvpId && spec.cmvpId !== 'No aplica'
+                                            return (
+                                                <option key={spec.id} value={spec.id}>
+                                                    {emoji} {spec.name}{specHasCmvp ? ` — CMVP ${spec.cmvpId}` : ' — No médico'}
+                                                </option>
+                                            )
+                                        })}
+                                    </select>
+
+                                    {/* Badge informativo según rol */}
+                                    {isVetRole ? (
+                                        <div className="flex items-start gap-2">
+                                            {selectedSpecialist === 'default' ? (
+                                                profile?.cmvpId ? (
+                                                    <p className="text-[10px] text-blue-700">
+                                                        ✅ Atención médica. La colegiatura CMVP ({profile.cmvpId}) quedará registrada en la ficha.
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-[10px] text-red-600 font-semibold">
+                                                        ⚠️ Tu perfil no tiene CMVP registrado. Agrégalo en la configuración para poder guardar la ficha médica.
+                                                    </p>
+                                                )
+                                            ) : hasCmvp ? (
+                                                <p className="text-[10px] text-blue-700">
+                                                    ✅ Con CMVP ({selectedSpec?.cmvpId}). La colegiatura médica quedará registrada en la ficha.
+                                                </p>
+                                            ) : (
+                                                <p className="text-[10px] text-red-600 font-semibold">
+                                                    ⚠️ Este veterinario no tiene CMVP registrado. Agrégalo en la sección de Staff antes de guardar.
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-emerald-700">
+                                            ✅ Servicio no clínico. No requiere colegiatura médica. Se registrará como servicio de {roleLabels[currentRole]?.replace(/^[^\s]+\s/, '') || 'personal'}.
+                                        </p>
+                                    )}
+                                </div>
+                            )
+                        })()}
+
+                            {/* Clinical-only fields: only show if attending role is vet (medical) */}
+                            {isClinicalView && (
                                 <>
                                     {/* Vital Signs Row */}
                                     <div className="grid grid-cols-3 gap-2">
@@ -451,16 +640,16 @@ export default function FastEntryPage() {
                                 </>
                             )}
 
-                            {/* Treatment */}
+                            {/* Treatment / Notes — always shown, label adapts */}
                             <div>
                                 <label className="text-sm font-medium text-slate-700 mb-1.5 block">
-                                    {role === 'provider' ? 'Observaciones y Servicios Realizados' : 'Tratamiento / Notas'}
+                                    {treatmentNotesLabel}
                                 </label>
                                 <textarea
                                     value={treatment}
                                     onChange={e => setTreatment(e.target.value)}
                                     disabled={!isEditable}
-                                    placeholder="Procedimientos realizados, observaciones..."
+                                    placeholder={treatmentNotesPlaceholder}
                                     rows={2}
                                     className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none disabled:opacity-60 disabled:bg-slate-50"
                                 />
@@ -499,7 +688,7 @@ export default function FastEntryPage() {
                                     ) : (
                                         <CheckCircle2 className="w-5 h-5" />
                                     )}
-                                    {loading ? 'Guardando...' : role === 'provider' ? 'Guardar Ficha de Servicio' : 'Guardar Ficha Médica'}
+                                    {submitButtonText}
                                 </button>
                             )}
                         </form>
@@ -520,7 +709,7 @@ export default function FastEntryPage() {
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-slate-500 font-medium">Especie:</span>
-                                        <span className="text-slate-800 font-semibold capitalize">{appointmentData.pet?.species === 'dog' ? '🐕 Perro' : appointmentData.pet?.species === 'cat' ? '🐈 Gato' : '🐾 ' + appointmentData.pet?.species}</span>
+                                        <span className="text-slate-800 font-semibold capitalize">{appointmentData.pet?.species === 'dog' ? '🐕 Perro' : appointmentData.pet?.species === 'cat' ? '🐈 Gato' : '🐾 ' + (SPECIES_LABELS[appointmentData.pet?.species as keyof typeof SPECIES_LABELS] || appointmentData.pet?.species)}</span>
                                     </div>
                                     {appointmentData.pet?.breed && (
                                         <div className="flex justify-between text-sm">

@@ -25,10 +25,27 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
     }
 
+    // Detect locale preference
+    let locale = 'es'
+    const cookieLocale = request.cookies.get('NEXT_LOCALE')?.value
+    if (cookieLocale === 'es' || cookieLocale === 'en') {
+        locale = cookieLocale
+    } else {
+        const acceptLanguage = request.headers.get('accept-language')
+        if (acceptLanguage) {
+            if (acceptLanguage.startsWith('en') || (acceptLanguage.includes('en') && !acceptLanguage.startsWith('es'))) {
+                locale = 'en'
+            }
+        }
+    }
+
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-locale', locale)
+
     // Inicializar el response base
     let response = NextResponse.next({
         request: {
-            headers: request.headers,
+            headers: requestHeaders,
         },
     })
 
@@ -45,7 +62,7 @@ export async function middleware(request: NextRequest) {
                     cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
                     response = NextResponse.next({
                         request: {
-                            headers: request.headers,
+                            headers: requestHeaders,
                         },
                     })
                     cookiesToSet.forEach(({ name, value, options }) =>
