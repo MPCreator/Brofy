@@ -17,21 +17,26 @@ import { formatDate, formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS, SPECIES_LABELS } from '@/lib/types'
 import { QuickRescheduleButton } from '@/components/dashboard/quick-reschedule'
 import { ClientRemindersList } from '@/components/dashboard/client-reminders'
+import { ClientPetsList } from '@/components/dashboard/ClientPetsList'
 
 export default async function ClientDashboard() {
     const session = await requireRole(['client'])
-    const [pets, appointments, reminders] = await Promise.all([
-        getUserPets(),
-        getClientAppointments(),
-        getClientReminders(),
-    ])
+    const pets = await getUserPets()
+    const appointments = await getClientAppointments()
+    const reminders = await getClientReminders()
 
     const now = Date.now();
-    const TOLERANCE_MS = 15 * 60 * 1000; // 15 minutos de tolerancia
+    const TOLERANCE_MS = 30 * 60 * 1000; // 30 minutos de tolerancia
 
     // Citas activas o futuras (pagadas, confirmadas, pendientes, en atención)
     const activeAppointments = appointments.filter((apt: any) => {
-        return apt.status !== 'completed' && apt.status !== 'cancelled' && apt.status !== 'disputed';
+        if (apt.status === 'completed' || apt.status === 'cancelled' || apt.status === 'disputed') return false;
+        // Excluir citas vencidas sin atender con más de 48 horas
+        if ((apt.status === 'paid' || apt.status === 'confirmed') && apt.scheduledAt) {
+            const diff = Date.now() - new Date(apt.scheduledAt).getTime();
+            if (diff > 48 * 60 * 60 * 1000) return false;
+        }
+        return true;
     });
 
     return (
@@ -71,28 +76,7 @@ export default async function ClientDashboard() {
                             Ver todas <ChevronRight className="w-3 h-3" />
                         </Link>
                     </div>
-                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-                        {pets.slice(0, 4).map((pet: any) => (
-                            <Link
-                                key={pet.id}
-                                href={`/dashboard/client/carnet/${pet.id}`}
-                                className="flex-shrink-0 w-36 bg-white rounded-2xl border border-slate-100 p-4 hover:border-primary-200 hover:shadow-card transition-all"
-                            >
-                                <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center mb-3 text-2xl">
-                                    {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : '🐾'}
-                                </div>
-                                <p className="font-semibold text-sm text-slate-900 truncate">{pet.name}</p>
-                                <p className="text-xs text-slate-500 capitalize">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}</p>
-                            </Link>
-                        ))}
-                        <Link
-                            href="/dashboard/client/pets"
-                            className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 p-4 flex flex-col items-center justify-center text-slate-400 hover:text-primary-600 hover:border-primary-300 transition-colors"
-                        >
-                            <Plus className="w-8 h-8 mb-1" />
-                            <span className="text-xs font-medium">Agregar</span>
-                        </Link>
-                    </div>
+                    <ClientPetsList pets={pets} speciesLabels={SPECIES_LABELS} />
                 </section>
             )}
 
@@ -124,7 +108,8 @@ export default async function ClientDashboard() {
                             const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]
                             const isPaid = apt.status === 'paid'
                             const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0
-                            const isStale = (apt.status === 'paid' || apt.status === 'confirmed') && (now - appointmentTime >= TOLERANCE_MS)
+                            const LIMIT_MS = 48 * 60 * 60 * 1000 // 48 horas de límite
+                            const isStale = (apt.status === 'paid' || apt.status === 'confirmed') && (now - appointmentTime >= TOLERANCE_MS) && (now - appointmentTime <= LIMIT_MS)
                             const isRescheduleProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null
 
                             return (
@@ -141,49 +126,51 @@ export default async function ClientDashboard() {
                                     }`}
                                 >
                                     {/* Card header */}
-                                    <div className="flex items-center gap-3 p-4">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                                            isStale
-                                                ? 'bg-amber-100 text-amber-700'
-                                                : isRescheduleProposed
-                                                    ? 'bg-indigo-100 text-indigo-700'
-                                                    : isPaid 
-                                                        ? 'bg-primary-50 text-primary-600' 
-                                                        : 'bg-slate-50 text-slate-500'
-                                        }`}>
-                                            {isStale ? (
-                                                <AlertCircle className="w-5 h-5" />
-                                            ) : isRescheduleProposed ? (
-                                                <Clock className="w-5 h-5 text-indigo-600" />
-                                            ) : isPaid ? (
-                                                <ShieldCheck className="w-5 h-5 text-primary-600" />
-                                            ) : (
-                                                <Clock className="w-5 h-5 text-slate-400" />
-                                            )}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                                isStale
+                                                    ? 'bg-amber-100 text-amber-700'
+                                                    : isRescheduleProposed
+                                                        ? 'bg-indigo-100 text-indigo-700'
+                                                        : isPaid 
+                                                            ? 'bg-primary-50 text-primary-600' 
+                                                            : 'bg-slate-50 text-slate-500'
+                                            }`}>
+                                                {isStale ? (
+                                                    <AlertCircle className="w-5 h-5" />
+                                                ) : isRescheduleProposed ? (
+                                                    <Clock className="w-5 h-5 text-indigo-600" />
+                                                ) : isPaid ? (
+                                                    <ShieldCheck className="w-5 h-5 text-primary-600" />
+                                                ) : (
+                                                    <Clock className="w-5 h-5 text-slate-400" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold truncate text-slate-900">
+                                                    {(apt.establishment as { name: string })?.name || 'Establecimiento'}
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    {(apt.pet as { name: string })?.name} · {apt.serviceType}
+                                                    {apt.scheduledAt && ` · ${new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                                                </p>
+                                                {apt.establishment?.address && (
+                                                    <a 
+                                                        href={`https://www.google.com/maps/search/?api=1&query=${apt.establishment.latitude && apt.establishment.longitude ? `${apt.establishment.latitude},${apt.establishment.longitude}` : encodeURIComponent(`${apt.establishment.name}, ${apt.establishment.address}, ${apt.establishment.city || 'Lima'}`)}`}
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="text-[11px] flex items-center gap-1 mt-1 font-semibold text-primary-600 hover:text-primary-750 hover:underline w-fit"
+                                                    >
+                                                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                                        <span className="truncate max-w-full sm:max-w-[280px]">
+                                                            {apt.establishment.address}
+                                                        </span>
+                                                    </a>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold truncate text-slate-900">
-                                                {(apt.establishment as { name: string })?.name || 'Establecimiento'}
-                                            </p>
-                                            <p className="text-xs text-slate-500 mt-0.5">
-                                                {(apt.pet as { name: string })?.name} · {apt.serviceType}
-                                                {apt.scheduledAt && ` · ${new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
-                                            </p>
-                                            {apt.establishment?.address && (
-                                                <a 
-                                                    href={`https://www.google.com/maps/search/?api=1&query=${apt.establishment.latitude && apt.establishment.longitude ? `${apt.establishment.latitude},${apt.establishment.longitude}` : encodeURIComponent(`${apt.establishment.name}, ${apt.establishment.address}, ${apt.establishment.city || 'Lima'}`)}`}
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="text-[11px] flex items-center gap-1 mt-1 font-semibold text-primary-600 hover:text-primary-750 hover:underline w-fit"
-                                                >
-                                                    <MapPin className="w-3.5 h-3.5 shrink-0" />
-                                                    <span className="truncate max-w-[280px]">
-                                                        {apt.establishment.address}
-                                                    </span>
-                                                </a>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                        <div className="flex flex-wrap items-center sm:flex-col sm:items-end gap-1.5 shrink-0 w-fit self-start sm:self-auto ml-13 sm:ml-0">
                                             {isStale ? (
                                                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
                                                     Sin Atender
@@ -193,7 +180,7 @@ export default async function ClientDashboard() {
                                                     Reprogramada
                                                 </span>
                                             ) : (
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusInfo?.color || 'text-slate-650 bg-slate-100'}`}>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-fit ${statusInfo?.color || 'text-slate-600 bg-slate-100'}`}>
                                                     {statusInfo?.label || apt.status}
                                                 </span>
                                             )}

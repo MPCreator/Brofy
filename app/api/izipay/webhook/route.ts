@@ -23,14 +23,27 @@ export async function POST(request: Request) {
 
         const hashKey = process.env.IZIPAY_SHA256_KEY
 
-        // Si no está configurada la firma SHA256 en desarrollo, permitir para pruebas locales
-        if (!hashKey || hashKey === 'tu_llave_HMAC_SHA256_para_webhooks') {
-            console.warn('--- WARNING: Webhook received but IZIPAY_SHA256_KEY is not configured. Processing without verification. ---')
-        } else {
+        // En producción se exige de manera obligatoria la firma válida
+        if (process.env.NODE_ENV === 'production') {
+            if (!hashKey || hashKey === 'tu_llave_HMAC_SHA256_para_webhooks') {
+                console.error('CRITICAL: IZIPAY_SHA256_KEY is not configured in production!')
+                return NextResponse.json({ error: 'Configuración de seguridad incompleta en el servidor' }, { status: 500 })
+            }
             const isValid = verifyHash(krAnswer, krHash, hashKey)
             if (!isValid) {
                 console.error('Invalid signature for Izipay Webhook')
                 return NextResponse.json({ error: 'Firma de webhook inválida' }, { status: 401 })
+            }
+        } else {
+            // Permitir bypass solo en desarrollo si no está configurado
+            if (!hashKey || hashKey === 'tu_llave_HMAC_SHA256_para_webhooks') {
+                console.warn('--- WARNING: Webhook received but IZIPAY_SHA256_KEY is not configured. Processing without verification in development. ---')
+            } else {
+                const isValid = verifyHash(krAnswer, krHash, hashKey)
+                if (!isValid) {
+                    console.error('Invalid signature for Izipay Webhook')
+                    return NextResponse.json({ error: 'Firma de webhook inválida' }, { status: 401 })
+                }
             }
         }
 

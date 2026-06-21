@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import SafeImage from '@/components/ui/SafeImage'
+import { LoadingState } from '@/components/ui/loading-state'
 
 type PetForm = {
     id?: string
@@ -20,6 +21,9 @@ type PetForm = {
     sex: string
     photoUrl?: string
     cuh?: string
+    allergies?: string
+    distinctiveFeature?: string
+    behavior?: string
 }
 
 export default function PetsPage() {
@@ -71,6 +75,9 @@ export default function PetsPage() {
             sex: pet.sex || 'unknown',
             photoUrl: pet.photoUrl || undefined,
             cuh: pet.cuh,
+            allergies: pet.allergies || '',
+            distinctiveFeature: pet.distinctiveFeature || '',
+            behavior: pet.behavior || '',
         })
         setPhotoPreview(pet.photoUrl || null)
         setPhotoBase64(null)
@@ -117,7 +124,7 @@ export default function PetsPage() {
         loadPets()
     }
 
-    if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+    if (loading) return <LoadingState message="Cargando tus mascotas..." description="Buscando el historial clínico y carnet digital" />
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
@@ -134,16 +141,22 @@ export default function PetsPage() {
             {showForm && (
                 <form action={handleSubmit} className="bg-white rounded-3xl border border-slate-200 p-5 space-y-4 animate-in">
                     <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-bold text-slate-900 text-lg">
-                            {editingPet?.id ? '✏️ Editar mascota' : '✨ Nueva mascota'}
+                        <h3 className="font-bold text-slate-900 text-lg flex flex-col gap-1">
+                            <span>{editingPet?.id ? '✏️ Editar perfil de mascota' : '✨ Registrar nueva mascota'}</span>
                             {editingPet?.cuh && (
-                                <span className="block text-[10px] font-mono font-extrabold text-primary-700 bg-primary-50/70 border border-primary-100 px-2 py-0.5 rounded-md mt-1 w-max">
+                                <span className="inline-block text-[10px] font-mono font-extrabold text-primary-700 bg-primary-50/70 border border-primary-100 px-2 py-0.5 rounded-md w-max">
                                     🐾 CUH: {editingPet.cuh}
                                 </span>
                             )}
                         </h3>
                         <button type="button" onClick={() => { setShowForm(false); setEditingPet(null) }} className="p-1 text-slate-400 hover:text-slate-650"><X className="w-5 h-5" /></button>
                     </div>
+
+                    {editingPet?.id && (
+                        <p className="text-xs text-slate-500 font-medium -mt-2 bg-primary-50/50 border border-primary-100/30 px-3.5 py-2 rounded-xl w-fit">
+                            Estás editando el perfil de: <strong className="text-primary-700 font-extrabold">{editingPet.name}</strong>
+                        </p>
+                    )}
 
                     {/* Interactive Pet Image Upload */}
                     <div className="flex flex-col items-center gap-2 py-2 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
@@ -179,6 +192,12 @@ export default function PetsPage() {
                         <div className="col-span-2">
                             <label className="block text-xs font-semibold text-slate-500 mb-1">Fecha de nacimiento</label>
                             <input name="dateOfBirth" type="date" defaultValue={editingPet?.dateOfBirth || ''} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
+                        <input name="distinctiveFeature" defaultValue={editingPet?.distinctiveFeature || ''} placeholder="Seña particular (ej: cicatriz, mancha)" className="col-span-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        <input name="behavior" defaultValue={editingPet?.behavior || ''} placeholder="Conducta/Temperamento (ej: miedoso, amigable)" className="col-span-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Alergias o condiciones médicas (Opcional)</label>
+                            <textarea name="allergies" defaultValue={editingPet?.allergies || ''} placeholder="Ej: Piel sensible, alergia a champú de avena..." rows={2} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium resize-none" />
                         </div>
                     </div>
                     <div className="flex gap-2.5 pt-2">
@@ -236,6 +255,25 @@ export default function PetsPage() {
                                                 <Calendar className="w-3.5 h-3.5" /> {pet.medicalHistory?.length || 0} atenciones
                                             </span>
                                         </div>
+                                        {(pet.allergies || pet.distinctiveFeature || pet.behavior) && (
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {pet.allergies && (
+                                                    <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-lg">
+                                                        ⚠️ Alergias
+                                                    </span>
+                                                )}
+                                                {pet.distinctiveFeature && (
+                                                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-lg truncate max-w-[120px]" title={pet.distinctiveFeature}>
+                                                        🔍 Seña: {pet.distinctiveFeature}
+                                                    </span>
+                                                )}
+                                                {pet.behavior && (
+                                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-lg truncate max-w-[120px]" title={pet.behavior}>
+                                                        🧠 {pet.behavior}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </Link>
                                 </div>
                                 <div className="flex items-center justify-between border-t border-slate-50 mt-4 pt-3">

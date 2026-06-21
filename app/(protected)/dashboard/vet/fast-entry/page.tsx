@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createMedicalRecord } from '@/lib/actions'
 import { COMMON_SYMPTOMS, COMMON_DIAGNOSES, SPECIES_LABELS } from '@/lib/types'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -19,11 +19,28 @@ import {
     User,
     Calendar,
     Phone,
-    ShieldAlert
+    ShieldAlert,
+    MessageCircle,
+    Copy,
+    ArrowLeft
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { LoadingState } from '@/components/ui/loading-state'
 
 export default function FastEntryPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3 w-full">
+                <div className="w-10 h-10 border-2 rounded-full border-slate-100 border-t-primary-600 animate-spin" />
+                <p className="text-xs text-slate-400 font-medium animate-pulse">Cargando ficha rápida...</p>
+            </div>
+        }>
+            <FastEntryPageContent />
+        </Suspense>
+    )
+}
+
+function FastEntryPageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const appointmentId = searchParams.get('appointmentId') || ''
@@ -42,6 +59,8 @@ export default function FastEntryPage() {
     const [treatment, setTreatment] = useState('')
     const [guestClientName, setGuestClientName] = useState('')
     const [guestEmail, setGuestEmail] = useState('')
+    const [guestPhone, setGuestPhone] = useState('')
+    const [summaryData, setSummaryData] = useState<any>(null)
     const [guestPetName, setGuestPetName] = useState('')
     const [guestPetSpecies, setGuestPetSpecies] = useState('dog')
     const [guestConsentConfirmed, setGuestConsentConfirmed] = useState(false)
@@ -50,6 +69,7 @@ export default function FastEntryPage() {
     const [attendingName, setAttendingName] = useState('')
     const [attendingCmvp, setAttendingCmvp] = useState('')
     const [attendingRole, setAttendingRole] = useState('vet')
+    const [loadingInitial, setLoadingInitial] = useState(true)
 
     const [establishments, setEstablishments] = useState<any[]>([])
     const [selectedEstId, setSelectedEstId] = useState('')
@@ -61,6 +81,7 @@ export default function FastEntryPage() {
     const [pastHistory, setPastHistory] = useState<any[]>([])
     const [isEditable, setIsEditable] = useState(true)
     const [loadingRecord, setLoadingRecord] = useState(false)
+    const [copied, setCopied] = useState(false)
 
     const getActiveSpecialists = () => {
         let rawSpecialists = '[]'
@@ -81,30 +102,32 @@ export default function FastEntryPage() {
 
     useEffect(() => {
         async function loadInitialData() {
-            const { getMyEstablishments, getMyRole, getProfile } = await import('@/lib/actions')
-            const [list, userRole, userProfile] = await Promise.all([
-                getMyEstablishments(),
-                getMyRole(),
-                getProfile()
-            ])
-            setEstablishments(list)
-            if (list.length > 0) {
-                setSelectedEstId(list[0].id)
+            try {
+                const { getMyEstablishments, getMyRole, getProfile } = await import('@/lib/actions')
+                const list = await getMyEstablishments()
+                const userRole = await getMyRole()
+                const userProfile = await getProfile()
+                setEstablishments(list)
+                if (list.length > 0) {
+                    setSelectedEstId(list[0].id)
+                }
+                setRole(userRole)
+                setProfile(userProfile)
+                setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
+            } catch (e) {
+                console.error("Error loading initial data:", e)
+            } finally {
+                setLoadingInitial(false)
             }
-            setRole(userRole)
-            setProfile(userProfile)
-            setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
         }
 
         async function loadExistingRecord() {
             setLoadingRecord(true)
             try {
                 const { getMyRole, getAppointmentForVet, getProfile } = await import('@/lib/actions')
-                const [userRole, res, userProfile] = await Promise.all([
-                    getMyRole(),
-                    getAppointmentForVet(appointmentId),
-                    getProfile()
-                ])
+                const userRole = await getMyRole()
+                const res = await getAppointmentForVet(appointmentId)
+                const userProfile = await getProfile()
                 setRole(userRole)
                 setProfile(userProfile)
 
@@ -148,6 +171,7 @@ export default function FastEntryPage() {
                 setError("Error al cargar la información de la cita")
             } finally {
                 setLoadingRecord(false)
+                setLoadingInitial(false)
             }
         }
 
@@ -231,6 +255,11 @@ export default function FastEntryPage() {
                     setLoading(false)
                     return
                 }
+                if (!guestPhone) {
+                    setError('Debes ingresar el número de teléfono (WhatsApp) del cliente para poder registrar la ficha.')
+                    setLoading(false)
+                    return
+                }
                 if (!guestConsentConfirmed) {
                     setError('Debes confirmar que el cliente ha dado su consentimiento para registrar sus datos.')
                     setLoading(false)
@@ -239,7 +268,8 @@ export default function FastEntryPage() {
                 const { createGuestFastEntry } = await import('@/lib/actions')
                 result = await createGuestFastEntry({
                     guestClientName,
-                    guestEmail,
+                    guestEmail: guestEmail || undefined,
+                    guestPhone: guestPhone || undefined,
                     guestPetName,
                     guestPetSpecies,
                     establishmentId: selectedEstId || undefined,
@@ -255,12 +285,18 @@ export default function FastEntryPage() {
                 })
             }
 
+            const resultData = result as any
             if (result.success) {
                 setSuccess(true)
-                setAttendingName(finalAttendingName || 'Responsable Principal')
+                setAttendingName(finalAttendingName || profile?.fullName || '')
                 setAttendingCmvp(finalAttendingCmvp || 'No Registrado')
                 setAttendingRole(finalAttendingRole)
-                setTimeout(() => router.push('/dashboard/vet'), 2000)
+                if (resultData.summary) {
+                    setSummaryData(resultData.summary)
+                }
+                if (appointmentId) {
+                    setTimeout(() => router.push('/dashboard/vet'), 2000)
+                }
             } else {
                 setError(result.message || 'Error al guardar')
             }
@@ -271,7 +307,127 @@ export default function FastEntryPage() {
         }
     }
 
+    const getFormattedSummaryText = () => {
+        if (!summaryData) return ''
+        const dateStr = new Date().toLocaleDateString('es-PE')
+        const nextVisitStr = summaryData.nextVisit ? `\n📅 *Próximo control:* ${summaryData.nextVisit}` : ''
+        
+        return `¡Hola ${summaryData.clientName}! 🐾\n\nTe compartimos el resumen de la atención de *${summaryData.petName}* en *${summaryData.establishmentName}* (${dateStr}):\n\n🩺 *Detalle de la Atención:*\n- *Diagnóstico/Servicio:* ${summaryData.diagnosis}\n- *Prescripción:* ${summaryData.prescription}\n- *Tratamiento:* ${summaryData.treatment}${nextVisitStr}\n\n📲 Para ver todo su historial médico digital de forma gratuita, regístrate en Brofy usando este mismo contacto:\nhttps://brofy.app/register`
+    }
+
+    const handleCopy = () => {
+        const text = getFormattedSummaryText()
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(text)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        }
+    }
+
+    const handleWhatsApp = () => {
+        if (!summaryData) return
+        const cleanPhone = summaryData.clientPhone.trim().replace(/\D/g, '')
+        const finalPhone = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone
+        const text = getFormattedSummaryText()
+        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`
+        window.open(whatsappUrl, '_blank')
+    }
+
     if (success) {
+        const isGuestWorkflow = !appointmentId && summaryData
+
+        if (isGuestWorkflow) {
+            return (
+                <div className="max-w-2xl mx-auto space-y-6 pb-20 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-4 shadow-md">
+                        <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto transition-transform duration-500 hover:scale-105">
+                            <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900">¡Atención guardada exitosamente! ✅</h2>
+                        <p className="text-sm text-slate-500">
+                            La mascota <strong>{summaryData.petName}</strong> tiene una nueva ficha en su historial.
+                        </p>
+
+                        <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3 text-xs text-primary-850 inline-block">
+                            📲 Recuerda compartir la receta y el diagnóstico con el propietario usando el botón de WhatsApp abajo.
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm">
+                        <h3 className="font-bold text-slate-800 text-base border-b border-slate-100 pb-2">
+                            🐾 Resumen de la Atención
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <span className="text-slate-400 block text-xs">Mascota</span>
+                                <strong className="text-slate-800">{summaryData.petName}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-xs">Propietario</span>
+                                <strong className="text-slate-800">{summaryData.clientName}</strong>
+                            </div>
+                            <div className="col-span-2">
+                                <span className="text-slate-400 block text-xs">Diagnóstico / Servicio</span>
+                                <strong className="text-slate-800">{summaryData.diagnosis}</strong>
+                            </div>
+                            <div className="col-span-2">
+                                <span className="text-slate-400 block text-xs">Prescripción</span>
+                                <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1 whitespace-pre-wrap text-xs font-mono">
+                                    {summaryData.prescription}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3 shadow-sm">
+                        <h3 className="font-bold text-slate-800 text-base">
+                            📢 Compartir Ficha con el Propietario (Gratis)
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                            Puedes enviar los detalles y la receta al propietario desde tu propio WhatsApp de forma 100% gratuita y directa.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            {summaryData.clientPhone ? (
+                                <button
+                                    onClick={handleWhatsApp}
+                                    className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-semibold text-sm transition-all shadow-sm active:scale-95"
+                                >
+                                    <MessageCircle className="w-4 h-4 fill-white text-emerald-600" />
+                                    Enviar por WhatsApp
+                                </button>
+                            ) : (
+                                <button
+                                    disabled
+                                    className="flex items-center justify-center gap-2 px-5 py-3 bg-slate-100 text-slate-400 rounded-2xl font-semibold text-sm cursor-not-allowed border border-slate-200"
+                                    title="No se registró número de teléfono"
+                                >
+                                    <MessageCircle className="w-4 h-4" />
+                                    Sin teléfono registrado
+                                </button>
+                            )}
+
+                            <button
+                                onClick={handleCopy}
+                                className="flex items-center justify-center gap-2 px-5 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl font-semibold text-sm transition-all border border-slate-200 active:scale-95"
+                            >
+                                <Copy className="w-4 h-4" />
+                                {copied ? '¡Copiado!' : 'Copiar Resumen'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => router.push('/dashboard/vet')}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-semibold transition-all shadow-md active:scale-[0.99]"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Ir al Panel de Control
+                    </button>
+                </div>
+            )
+        }
+
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 animate-in fade-in">
                 <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -298,8 +454,8 @@ export default function FastEntryPage() {
     const submitButtonText = loading
         ? 'Guardando...'
         : isProviderOrNonClinical
-        ? '✅ Guardar Ficha de Servicio'
-        : '✅ Guardar Ficha Médica'
+        ? 'Guardar Ficha de Servicio'
+        : 'Guardar Ficha Médica'
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
@@ -328,8 +484,13 @@ export default function FastEntryPage() {
                 </div>
             )}
 
-            {loadingRecord ? (
-                <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+            {loadingRecord || loadingInitial ? (
+                <LoadingState 
+                    message="Cargando ficha médica..." 
+                    description="Obteniendo historial clínico de la mascota"
+                    minHeight="min-h-[30vh]"
+                    size="md"
+                />
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Form Column */}
@@ -337,7 +498,7 @@ export default function FastEntryPage() {
                         {!appointmentId && (
                             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
                                 <p className="text-sm text-blue-800 font-medium mb-2">
-                                    👤 Ingreso Manual (Sin código)
+                                    👤 Ingreso Manual (Sin código de cita)
                                 </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     <div>
@@ -351,14 +512,28 @@ export default function FastEntryPage() {
                                         />
                                     </div>
                                     <div>
+                                        <label className="text-xs font-medium text-blue-900 mb-1 block">Teléfono (WhatsApp) *</label>
+                                        <input
+                                            type="tel"
+                                            required
+                                            value={guestPhone}
+                                            onChange={e => setGuestPhone(e.target.value)}
+                                            placeholder="Ej: 987654321"
+                                            className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                                        />
+                                    </div>
+                                    <div>
                                         <label className="text-xs font-medium text-blue-900 mb-1 block">Email (Opcional)</label>
                                         <input
                                             type="email"
                                             value={guestEmail}
                                             onChange={e => setGuestEmail(e.target.value)}
-                                            placeholder="Para conectar su cuenta luego"
+                                            placeholder="correo@ejemplo.com"
                                             className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                                         />
+                                    </div>
+                                    <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-[11px] text-blue-800 bg-blue-100/50 border border-blue-200 rounded-xl p-3 leading-relaxed">
+                                        📲 <strong>Notificación por WhatsApp obligatoria:</strong> El número de teléfono se utilizará para enviarle la receta y el resumen por WhatsApp. Si el cliente se registra en Brofy usando este mismo número, heredará de forma automática toda su ficha médica e historial.
                                     </div>
                                     <div>
                                         <label className="text-xs font-medium text-blue-900 mb-1 block">Nombre Mascota *</label>
@@ -370,6 +545,21 @@ export default function FastEntryPage() {
                                             className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                                         />
                                     </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-blue-900 mb-1 block">Especie Mascota *</label>
+                                        <select
+                                            value={guestPetSpecies}
+                                            onChange={e => setGuestPetSpecies(e.target.value)}
+                                            className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium cursor-pointer"
+                                        >
+                                            <option value="dog">🐕 Perro</option>
+                                            <option value="cat">🐈 Gato</option>
+                                            <option value="bird">🦜 Ave</option>
+                                            <option value="rabbit">🐇 Conejo</option>
+                                            <option value="other">🐾 Otro</option>
+                                        </select>
+                                    </div>
+
                                     {establishments.length > 1 && (
                                         <div className="col-span-1 sm:col-span-2 lg:col-span-3">
                                             <label className="text-xs font-semibold text-blue-900 mb-1 block">Sede de Atención *</label>
@@ -405,97 +595,97 @@ export default function FastEntryPage() {
                         )}
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                        {/* ── Responsable de la Atención (siempre visible) ── */}
-                        {(() => {
-                            const specs = getActiveSpecialists()
-                            const selectedSpec = specs.find((s: any) => s.id === selectedSpecialist)
-                            const currentRole = selectedSpecialist === 'default'
-                                ? (role === 'provider' ? 'provider' : 'vet')
-                                : (selectedSpec?.role || 'vet')
-                            const isVetRole = currentRole === 'vet'
-                            const hasCmvp = selectedSpec?.cmvpId && selectedSpec.cmvpId !== 'No aplica'
-                            const roleLabels: Record<string,string> = { vet: '🩺 Veterinario/a', groomer: '✂️ Estilista / Groomer', bath: '🛁 Bañador/a', walker: '🦮 Paseador/a', trainer: '🎓 Entrenador/a', other: '👤 Personal' }
+                            {/* ── Responsable de la Atención (siempre visible) ── */}
+                            {(() => {
+                                const specs = getActiveSpecialists()
+                                const selectedSpec = specs.find((s: any) => s.id === selectedSpecialist)
+                                const currentRole = selectedSpecialist === 'default'
+                                    ? (role === 'provider' ? 'provider' : 'vet')
+                                    : (selectedSpec?.role || 'vet')
+                                const isVetRole = currentRole === 'vet'
+                                const hasCmvp = selectedSpec?.cmvpId && selectedSpec.cmvpId !== 'No aplica'
+                                const roleLabels: Record<string,string> = { vet: '🩺 Veterinario/a', groomer: '✂️ Estilista / Groomer', bath: '🛁 Bañador/a', walker: '🦮 Paseador/a', trainer: '🎓 Entrenador/a', other: '👤 Personal' }
 
-                            return (
-                                <div className={`rounded-xl border p-3.5 space-y-2 shadow-sm ${
-                                    isVetRole
-                                        ? 'bg-blue-50 border-blue-200'
-                                        : 'bg-emerald-50 border-emerald-200'
-                                }`}>
-                                    <label className={`flex items-center gap-1.5 text-xs font-bold ${
-                                        isVetRole ? 'text-blue-800' : 'text-emerald-800'
+                                return (
+                                    <div className={`rounded-xl border p-3.5 space-y-2 shadow-sm ${
+                                        isVetRole
+                                            ? 'bg-blue-50 border-blue-200'
+                                            : 'bg-emerald-50 border-emerald-200'
                                     }`}>
-                                        <User className="w-3.5 h-3.5" />
-                                        {isVetRole ? '🩺 Responsable Médico de la Atención' : `${roleLabels[currentRole] || '👤 Personal'} Responsable`}
-                                    </label>
+                                        <label className={`flex items-center gap-1.5 text-xs font-bold ${
+                                            isVetRole ? 'text-blue-800' : 'text-emerald-800'
+                                        }`}>
+                                            <User className="w-3.5 h-3.5" />
+                                            {isVetRole ? '🩺 Responsable Médico de la Atención' : `${roleLabels[currentRole] || '👤 Personal'} Responsable`}
+                                        </label>
 
-                                    <select
-                                        value={selectedSpecialist}
-                                        onChange={e => {
-                                            setSelectedSpecialist(e.target.value)
-                                            if (e.target.value === 'default') {
-                                                setAttendingRole(role === 'provider' ? 'provider' : 'vet')
-                                            } else {
-                                                const spec = getActiveSpecialists().find((s: any) => s.id === e.target.value)
-                                                setAttendingRole(spec?.role || 'vet')
-                                            }
-                                        }}
-                                        disabled={!isEditable}
-                                        className={`w-full px-3 py-2 border rounded-lg text-xs focus:outline-none focus:ring-1 font-medium cursor-pointer disabled:opacity-60 ${
-                                            isVetRole
-                                                ? 'bg-white border-blue-200 focus:ring-blue-400'
-                                                : 'bg-white border-emerald-200 focus:ring-emerald-400'
-                                        }`}
-                                    >
-                                        <option value="default">
-                                            {role === 'provider'
-                                                ? `👤 ${profile?.fullName || 'Propietario/a'}`
-                                                : `🩺 ${profile?.fullName || 'Veterinario/a Principal'}${profile?.cmvpId ? ` — CMVP ${profile.cmvpId}` : ''}`
-                                            }
-                                        </option>
-                                        {specs.map((spec: any) => {
-                                            const roleEmojis: Record<string,string> = { vet: '🩺', groomer: '✂️', bath: '🛁', walker: '🦮', trainer: '🎓', other: '👤' }
-                                            const emoji = roleEmojis[spec.role] || '👤'
-                                            const specHasCmvp = spec.cmvpId && spec.cmvpId !== 'No aplica'
-                                            return (
-                                                <option key={spec.id} value={spec.id}>
-                                                    {emoji} {spec.name}{specHasCmvp ? ` — CMVP ${spec.cmvpId}` : ' — No médico'}
-                                                </option>
-                                            )
-                                        })}
-                                    </select>
+                                        <select
+                                            value={selectedSpecialist}
+                                            onChange={e => {
+                                                setSelectedSpecialist(e.target.value)
+                                                if (e.target.value === 'default') {
+                                                    setAttendingRole(role === 'provider' ? 'provider' : 'vet')
+                                                } else {
+                                                    const spec = getActiveSpecialists().find((s: any) => s.id === e.target.value)
+                                                    setAttendingRole(spec?.role || 'vet')
+                                                }
+                                            }}
+                                            disabled={!isEditable}
+                                            className={`w-full px-3 py-2 border rounded-lg text-xs focus:outline-none focus:ring-1 font-medium cursor-pointer disabled:opacity-60 ${
+                                                isVetRole
+                                                    ? 'bg-white border-blue-200 focus:ring-blue-400'
+                                                    : 'bg-white border-emerald-200 focus:ring-emerald-400'
+                                            }`}
+                                        >
+                                            <option value="default">
+                                                {role === 'provider'
+                                                    ? `👤 ${profile?.fullName || ''}`
+                                                    : `🩺 ${profile?.fullName || ''}${profile?.cmvpId ? ` — CMVP ${profile.cmvpId}` : ''}`
+                                                }
+                                            </option>
+                                            {specs.map((spec: any) => {
+                                                const roleEmojis: Record<string,string> = { vet: '🩺', groomer: '✂️', bath: '🛁', walker: '🦮', trainer: '🎓', other: '👤' }
+                                                const emoji = roleEmojis[spec.role] || '👤'
+                                                const specHasCmvp = spec.cmvpId && spec.cmvpId !== 'No aplica'
+                                                return (
+                                                    <option key={spec.id} value={spec.id}>
+                                                        {emoji} {spec.name}{specHasCmvp ? ` — CMVP ${spec.cmvpId}` : ' — No médico'}
+                                                    </option>
+                                                )
+                                            })}
+                                        </select>
 
-                                    {/* Badge informativo según rol */}
-                                    {isVetRole ? (
-                                        <div className="flex items-start gap-2">
-                                            {selectedSpecialist === 'default' ? (
-                                                profile?.cmvpId ? (
+                                        {/* Badge informativo según rol */}
+                                        {isVetRole ? (
+                                            <div className="flex items-start gap-2">
+                                                {selectedSpecialist === 'default' ? (
+                                                    profile?.cmvpId ? (
+                                                        <p className="text-[10px] text-blue-700">
+                                                            ✅ Enfoque clínico. La colegiatura CMVP ({profile.cmvpId}) quedará registrada en la ficha.
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[10px] text-red-600 font-semibold">
+                                                            ⚠️ Tu perfil no tiene CMVP registrado. Agrégalo en la configuración para poder guardar la ficha médica.
+                                                        </p>
+                                                    )
+                                                ) : hasCmvp ? (
                                                     <p className="text-[10px] text-blue-700">
-                                                        ✅ Atención médica. La colegiatura CMVP ({profile.cmvpId}) quedará registrada en la ficha.
+                                                        ✅ Con CMVP ({selectedSpec?.cmvpId}). La colegiatura médica quedará registrada en la ficha.
                                                     </p>
                                                 ) : (
                                                     <p className="text-[10px] text-red-600 font-semibold">
-                                                        ⚠️ Tu perfil no tiene CMVP registrado. Agrégalo en la configuración para poder guardar la ficha médica.
+                                                        ⚠️ Este veterinario no tiene CMVP registrado. Agrégalo en la sección de Staff antes de guardar.
                                                     </p>
-                                                )
-                                            ) : hasCmvp ? (
-                                                <p className="text-[10px] text-blue-700">
-                                                    ✅ Con CMVP ({selectedSpec?.cmvpId}). La colegiatura médica quedará registrada en la ficha.
-                                                </p>
-                                            ) : (
-                                                <p className="text-[10px] text-red-600 font-semibold">
-                                                    ⚠️ Este veterinario no tiene CMVP registrado. Agrégalo en la sección de Staff antes de guardar.
-                                                </p>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <p className="text-[10px] text-emerald-700">
-                                            ✅ Servicio no clínico. No requiere colegiatura médica. Se registrará como servicio de {roleLabels[currentRole]?.replace(/^[^\s]+\s/, '') || 'personal'}.
-                                        </p>
-                                    )}
-                                </div>
-                            )
-                        })()}
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[10px] text-emerald-700">
+                                                ✅ Servicio no clínico. No requiere colegiatura médica. Se registrará como servicio de {roleLabels[currentRole]?.replace(/^[^\s]+\s/, '') || 'personal'}.
+                                            </p>
+                                        )}
+                                    </div>
+                                )
+                            })()}
 
                             {/* Clinical-only fields: only show if attending role is vet (medical) */}
                             {isClinicalView && (

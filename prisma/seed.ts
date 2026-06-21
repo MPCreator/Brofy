@@ -22,8 +22,9 @@ async function main() {
     await prisma.pet.deleteMany()
     await prisma.establishment.deleteMany()
     await prisma.profile.deleteMany()
+    await prisma.auditLog.deleteMany()
 
-    console.log('🧹 Cleaned existing database records')
+    console.log('🧹 Cleaned existing database records (including Audit Logs)')
 
     // --- Create Profiles ---
     const hashedPassword = await bcrypt.hash('123456', 10)
@@ -234,7 +235,35 @@ async function main() {
         }
     })
 
-    console.log('✅ Pets created (Firulais, Mishi)')
+    const luna = await prisma.pet.create({
+        data: {
+            ownerId: clientUser.id,
+            name: 'Luna',
+            species: 'dog',
+            breed: 'Labrador Retriever',
+            dateOfBirth: '2023-05-10',
+            weight: 28.0,
+            sex: 'female',
+            photoUrl: getCloudinaryUrl('samples/animals/dog'),
+            medicalHistory: JSON.stringify([]),
+        }
+    })
+
+    const tom = await prisma.pet.create({
+        data: {
+            ownerId: clientUser.id,
+            name: 'Tom',
+            species: 'cat',
+            breed: 'Siamés',
+            dateOfBirth: '2024-01-20',
+            weight: 3.8,
+            sex: 'male',
+            photoUrl: getCloudinaryUrl('samples/animals/cat'),
+            medicalHistory: JSON.stringify([]),
+        }
+    })
+
+    console.log('✅ Pets created (Firulais, Mishi, Luna, Tom)')
 
     // --- Create Services (Tarifario) ---
     await prisma.service.createMany({
@@ -312,6 +341,119 @@ async function main() {
         }
     })
 
+    // Today's scheduled appointment for Luna (pending verification)
+    const todayMorning = new Date();
+    todayMorning.setHours(10, 15, 0, 0);
+    await prisma.appointment.create({
+        data: {
+            clientId: clientUser.id,
+            petId: luna.id,
+            establishmentId: clinic.id,
+            providerId: vetUser.id,
+            status: 'paid',
+            serviceType: 'Consulta General',
+            commissionType: 'booking',
+            commissionAmount: 5.00,
+            otpValidationCode: '445566',
+            paymentId: 'pay_brofy_004_seed',
+            scheduledAt: todayMorning,
+            totalServicePrice: 80.00
+        }
+    })
+
+    // Walk-in appointment for Luna (waiting list) created today (1 hour ago)
+    await prisma.appointment.create({
+        data: {
+            clientId: clientUser.id,
+            petId: luna.id,
+            establishmentId: clinic.id,
+            providerId: vetUser.id,
+            status: 'paid',
+            serviceType: 'Desparasitación Interna',
+            commissionType: 'booking',
+            commissionAmount: 5.00,
+            otpValidationCode: '223344',
+            paymentId: 'pay_brofy_005_seed',
+            scheduledAt: null, // Walk-in / fast entry
+            createdAt: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
+            totalServicePrice: 40.00
+        }
+    })
+
+    // Walk-in appointment for Tom (waiting list) created today (2 hours ago)
+    await prisma.appointment.create({
+        data: {
+            clientId: clientUser.id,
+            petId: tom.id,
+            establishmentId: clinic.id,
+            providerId: vetUser.id,
+            status: 'paid',
+            serviceType: 'Consulta General',
+            commissionType: 'booking',
+            commissionAmount: 5.00,
+            otpValidationCode: '334455',
+            paymentId: 'pay_brofy_006_seed',
+            scheduledAt: null, // Walk-in / fast entry
+            createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+            totalServicePrice: 80.00
+        }
+    })
+
+    // Cita pendiente vencida para Firulais (2 días atrás) - Elegible para cancelar/reportar inasistencia
+    await prisma.appointment.create({
+        data: {
+            clientId: clientUser.id,
+            petId: firulais.id,
+            establishmentId: clinic.id,
+            providerId: vetUser.id,
+            status: 'paid',
+            serviceType: 'Consulta General',
+            commissionType: 'booking',
+            commissionAmount: 5.00,
+            otpValidationCode: '777666',
+            paymentId: 'pay_brofy_008_seed',
+            scheduledAt: new Date(Date.now() - 48 * 60 * 60 * 1000), // 2 days ago
+            totalServicePrice: 80.00
+        }
+    })
+
+    // Cita pendiente vencida para Mishi (ayer) - Elegible para cancelar/reportar inasistencia
+    await prisma.appointment.create({
+        data: {
+            clientId: clientUser.id,
+            petId: mishi.id,
+            establishmentId: clinic.id,
+            providerId: vetUser.id,
+            status: 'paid',
+            serviceType: 'Vacunación Completa',
+            commissionType: 'booking',
+            commissionAmount: 5.00,
+            otpValidationCode: '666555',
+            paymentId: 'pay_brofy_009_seed',
+            scheduledAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+            totalServicePrice: 60.00
+        }
+    })
+
+    // Cancelled appointment (no-show) for Mishi scheduled 2 days ago
+    await prisma.appointment.create({
+        data: {
+            clientId: clientUser.id,
+            petId: mishi.id,
+            establishmentId: clinic.id,
+            providerId: vetUser.id,
+            status: 'cancelled',
+            serviceType: 'Vacunación Completa',
+            commissionType: 'booking',
+            commissionAmount: 5.00,
+            otpValidationCode: '556677',
+            paymentId: 'pay_brofy_007_seed',
+            scheduledAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+            totalServicePrice: 60.00,
+            notes: 'Inasistencia del cliente reportada por el especialista.'
+        }
+    })
+
     // 3. Completed Grooming appointment for Firulais at Spa
     const groomingApt = await prisma.appointment.create({
         data: {
@@ -340,6 +482,17 @@ async function main() {
             establishmentId: groomerShop.id,
             rating: 5,
             comment: 'Excelente servicio. Firulais quedó súper limpio y oliendo delicioso. Lo recomiendo ampliamente!'
+        }
+    })
+
+    // Review for Clínica Veterinaria San Borja
+    await prisma.review.create({
+        data: {
+            appointmentId: completedApt.id,
+            clientId: clientUser.id,
+            establishmentId: clinic.id,
+            rating: 5,
+            comment: 'Excelente atención del Dr. Carlos Mendoza. Muy profesional, paciente con Firulais y resolvió todas mis dudas sobre su alergia.'
         }
     })
 
@@ -375,6 +528,11 @@ async function main() {
 
     // --- Create Transactions (Finances for Vet & Provider) ---
     const todayStr = new Date().toISOString().split('T')[0]
+    const getPastDateStr = (daysAgo: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() - daysAgo);
+        return d.toISOString().split('T')[0];
+    }
     
     // Vet User Finances
     await prisma.transaction.createMany({
@@ -383,6 +541,14 @@ async function main() {
             { profileId: vetUser.id, type: 'income', amount: 150, category: 'consultation', description: 'Consulta Especializada Hospital', date: todayStr },
             { profileId: vetUser.id, type: 'expense', amount: 500, category: 'supplies', description: 'Fármacos y vacunas antirrábicas', date: todayStr },
             { profileId: vetUser.id, type: 'expense', amount: 1200, category: 'rent', description: 'Pago de alquiler clínica', date: todayStr },
+            // Past transactions (richer history)
+            { profileId: vetUser.id, type: 'income', amount: 80, category: 'consultation', description: 'Consulta General Canina', date: getPastDateStr(1) },
+            { profileId: vetUser.id, type: 'income', amount: 60, category: 'vaccination', description: 'Vacuna quíntuple Toby', date: getPastDateStr(1) },
+            { profileId: vetUser.id, type: 'income', amount: 120, category: 'test', description: 'Examen de Sangre - Hemograma', date: getPastDateStr(2) },
+            { profileId: vetUser.id, type: 'income', amount: 280, category: 'surgery', description: 'Esterilización Gata Luna', date: getPastDateStr(3) },
+            { profileId: vetUser.id, type: 'expense', amount: 150, category: 'supplies', description: 'Insumos descartables y jeringas', date: getPastDateStr(2) },
+            { profileId: vetUser.id, type: 'income', amount: 80, category: 'consultation', description: 'Consulta control dermatitis', date: getPastDateStr(4) },
+            { profileId: vetUser.id, type: 'income', amount: 40, category: 'deworming', description: 'Desparasitación interna Mishi', date: getPastDateStr(5) },
         ]
     })
 
@@ -392,12 +558,71 @@ async function main() {
             { profileId: providerUser.id, type: 'income', amount: 70, category: 'grooming', description: 'Grooming Completo Firulais', date: todayStr },
             { profileId: providerUser.id, type: 'income', amount: 45, category: 'grooming', description: 'Baño Medicado Caniche', date: todayStr },
             { profileId: providerUser.id, type: 'expense', amount: 120, category: 'supplies', description: 'Shampoo antiparasitario y toallas', date: todayStr },
+            // Past transactions
+            { profileId: providerUser.id, type: 'income', amount: 70, category: 'grooming', description: 'Corte Schnauzer Max', date: getPastDateStr(1) },
+            { profileId: providerUser.id, type: 'income', amount: 70, category: 'grooming', description: 'Grooming completo Golden Luna', date: getPastDateStr(2) },
+            { profileId: providerUser.id, type: 'income', amount: 25, category: 'walk', description: 'Paseo grupal de fin de semana', date: getPastDateStr(3) },
+            { profileId: providerUser.id, type: 'expense', amount: 80, category: 'supplies', description: 'Correas y accesorios de paseo', date: getPastDateStr(2) },
         ]
     })
 
     console.log('✅ Financial transactions created for specialists')
 
-    console.log('')
+    // --- Create Audit Logs ---
+    await prisma.auditLog.createMany({
+        data: [
+            {
+                actorId: adminUser.id,
+                actorName: 'Administrador Brofy',
+                actorEmail: 'admin@brofy.pe',
+                action: 'VALIDATE_CMVP',
+                targetId: vetUser.id,
+                details: 'Se aprobó la colegiatura CMVP del veterinario Dr. Carlos Mendoza Ríos (vet@brofy.pe)'
+            },
+            {
+                actorId: adminUser.id,
+                actorName: 'Administrador Brofy',
+                actorEmail: 'admin@brofy.pe',
+                action: 'REACTIVATE_USER',
+                targetId: providerUser.id,
+                details: 'Se reactivó la cuenta del usuario Ana Ríos Pet Spa (servicios@brofy.pe)'
+            },
+            {
+                actorId: clientUser.id,
+                actorName: 'María López García',
+                actorEmail: 'cliente@brofy.pe',
+                action: 'CANCEL_APPOINTMENT',
+                targetId: '7cc08d7e-2d24-4b14-b1b3-c06d02ac78d6',
+                details: 'El cliente canceló la cita por motivos personales. Reembolso devuelto a billetera: S/ 5.00'
+            },
+            {
+                actorId: vetUser.id,
+                actorName: 'Dr. Carlos Mendoza Ríos',
+                actorEmail: 'vet@brofy.pe',
+                action: 'REPORT_NO_SHOW',
+                targetId: '8cc08d7e-2d24-4b14-b1b3-c06d02ac78d7',
+                details: 'El veterinario reportó inasistencia (No-Show) del cliente para la cita 8cc08d7e. Cita cancelada.'
+            },
+            {
+                actorId: adminUser.id,
+                actorName: 'Administrador Brofy',
+                actorEmail: 'admin@brofy.pe',
+                action: 'RESOLVE_DISPUTE',
+                targetId: '9cc08d7e-2d24-4b14-b1b3-c06d02ac78d8',
+                details: 'Disputa de cita 9cc08d7e resuelta A FAVOR DEL CLIENTE. Reembolso: S/ 5.00. Sanción al proveedor: SÍ'
+            },
+            {
+                actorId: adminUser.id,
+                actorName: 'Administrador Brofy',
+                actorEmail: 'admin@brofy.pe',
+                action: 'SEND_CUSTOM_EMAIL',
+                targetId: clientUser.id,
+                details: 'Se envió un correo electrónico personalizado a María López García (cliente@brofy.pe). Asunto: "Actualización de Políticas de Reembolso"'
+            }
+        ]
+    })
+
+    console.log('✅ Audit logs created')
     console.log('==================================================')
     console.log('🎉 Seeding successfully completed!')
     console.log('==================================================')

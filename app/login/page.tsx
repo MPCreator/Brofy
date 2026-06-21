@@ -1,10 +1,12 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { login } from '@/lib/auth'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
 
 // Wrap the submit button to use useFormStatus for loading state
 function SubmitButton() {
@@ -24,6 +26,24 @@ function SubmitButton() {
 export default function LoginPage() {
     // login needs to be compatible with useFormState: (prevState, formData) => Promise<State>
     const [state, formAction] = useFormState(login, null)
+    const [isRedirecting, setIsRedirecting] = useState(false)
+
+    useEffect(() => {
+        if (state?.message || state?.errors) {
+            setIsRedirecting(false)
+        }
+    }, [state])
+
+    if (isRedirecting) {
+        return (
+            <LoadingState 
+                message="Iniciando sesión..." 
+                description="Cargando tu panel de Brofy..."
+                minHeight="min-h-screen"
+                size="lg"
+            />
+        )
+    }
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-50/30 px-4 relative">
@@ -54,7 +74,10 @@ export default function LoginPage() {
                 </div>
 
                 {/* Form */}
-                <form action={formAction} className="space-y-4">
+                <form action={(formData) => {
+                    setIsRedirecting(true)
+                    formAction(formData)
+                }} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">
                             Email

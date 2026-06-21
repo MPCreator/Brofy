@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getSession } from '@/lib/auth'
 
 export async function POST(request: Request) {
     try {
+        const session = await getSession()
+        if (!session) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+        }
+
         const { appointmentId } = await request.json()
 
         if (!appointmentId) {
@@ -17,6 +23,10 @@ export async function POST(request: Request) {
 
         if (!appointment) {
             return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 })
+        }
+
+        if (appointment.clientId !== session.sub) {
+            return NextResponse.json({ error: 'No autorizado: Propietario no coincide' }, { status: 403 })
         }
 
         // Verificar si las credenciales de Izipay están configuradas

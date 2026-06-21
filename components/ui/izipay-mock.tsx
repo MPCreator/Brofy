@@ -31,9 +31,9 @@ export function IzipayMock({ amount, description, buttonText = "Pagar", onSucces
             </div>
             
             <div className="p-5 space-y-4">
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex justify-between items-center">
-                    <span className="text-sm text-slate-600">{description}</span>
-                    <span className="font-bold text-lg text-slate-900">{formatPEN(amount)}</span>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex justify-between gap-4 items-start">
+                    <span className="text-sm text-slate-600 break-words max-w-[70%]">{description}</span>
+                    <span className="font-bold text-lg text-slate-900 shrink-0">{formatPEN(amount)}</span>
                 </div>
 
                 <div className="space-y-3">

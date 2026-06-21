@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
+import { getSession } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
+  const session = await getSession()
+  if (!session || session.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
   const searchParams = req.nextUrl.searchParams
   const to = searchParams.get('to') || process.env.SMTP_USER || 'brofy.principal@gmail.com'
 

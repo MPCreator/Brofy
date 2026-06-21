@@ -92,9 +92,11 @@ export async function signup(prevState: any, formData: FormData) {
         console.log("2. Prisma existing user check done. User exists:", !!existingUser)
         
         let ghostIdToMerge: string | null = null
+        let originalGhostEmail: string | null = null
         if (existingUser) {
             if (existingUser.password === 'guest-no-login') {
                 ghostIdToMerge = existingUser.id
+                originalGhostEmail = existingUser.email
                 // Renombrar el email del perfil fantasma temporalmente para evitar choques únicos en la inserción
                 await prisma.profile.update({
                     where: { id: ghostIdToMerge },
@@ -102,6 +104,34 @@ export async function signup(prevState: any, formData: FormData) {
                 })
             } else {
                 return { message: 'El usuario ya existe con este email.' }
+            }
+        } else if (phone && phone.trim() !== '') {
+            // Búsqueda alternativa por teléfono si no se encontró por correo (usando sufijo de los últimos 9 dígitos)
+            const cleanSignUpPhone = phone.trim().replace(/\D/g, '')
+            const signUpPhoneSuffix = cleanSignUpPhone.length >= 9 ? cleanSignUpPhone.slice(-9) : cleanSignUpPhone
+
+            const ghostProfiles = await prisma.profile.findMany({
+                where: {
+                    password: 'guest-no-login',
+                    role: 'client'
+                }
+            })
+
+            const ghostUserByPhone = ghostProfiles.find(gp => {
+                if (!gp.phone) return false
+                const cleanGpPhone = gp.phone.trim().replace(/\D/g, '')
+                const gpPhoneSuffix = cleanGpPhone.length >= 9 ? cleanGpPhone.slice(-9) : cleanGpPhone
+                return gpPhoneSuffix === signUpPhoneSuffix
+            })
+
+            if (ghostUserByPhone) {
+                ghostIdToMerge = ghostUserByPhone.id
+                originalGhostEmail = ghostUserByPhone.email
+                // Renombrar el email para evitar choques únicos en la inserción y marcar para fusión
+                await prisma.profile.update({
+                    where: { id: ghostIdToMerge },
+                    data: { email: `${ghostUserByPhone.email}-ghost-phone-${Date.now()}` }
+                })
             }
         }
 
@@ -133,11 +163,11 @@ export async function signup(prevState: any, formData: FormData) {
 
         if (error) {
             console.error("Supabase signUp error:", error.message)
-            // Si renombramos un perfil fantasma, debemos regresarlo a su estado si falla el registro
-            if (ghostIdToMerge) {
+            // Si renombramos un perfil fantasma, debemos regresarlo a su estado original si falla el registro
+            if (ghostIdToMerge && originalGhostEmail) {
                 await prisma.profile.update({
                     where: { id: ghostIdToMerge },
-                    data: { email }
+                    data: { email: originalGhostEmail }
                 })
             }
             return { message: error.message || 'Error al registrar el usuario en el servidor.' }
@@ -258,7 +288,13 @@ async function mergeGhostProfile(ghostId: string, realId: string) {
             data: { ownerId: realId }
         })
 
-        // 7. Borrar el perfil fantasma
+        // 7. Medical Records (vetId)
+        await prisma.medicalRecord.updateMany({
+            where: { vetId: ghostId },
+            data: { vetId: realId }
+        })
+
+        // 8. Borrar el perfil fantasma
         await prisma.profile.delete({
             where: { id: ghostId }
         })
@@ -367,7 +403,7 @@ export async function login(prevState: any, formData: FormData) {
 export async function logout() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    redirect('/')
+    return { success: true }
 }
 
 export async function getSession() {

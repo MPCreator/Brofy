@@ -1,11 +1,14 @@
-import { getAllUsers, getAllClaims, getAllRemindersAdmin, getAllDisputedAppointments } from '@/lib/actions'
+import { getAllUsers, getAllClaims, getAllRemindersAdmin, getAllDisputedAppointments, getAuditLogs } from '@/lib/actions'
 import { requireRole } from '@/lib/auth'
-import { Shield, Users, BookOpen, Bell, AlertTriangle } from 'lucide-react'
+import { Shield, Users, BookOpen, Bell, AlertTriangle, FileSpreadsheet } from 'lucide-react'
 import { AdminUserList } from './AdminUserList'
 import { AdminClaimsList } from './AdminClaimsList'
+import { AdminArcoList } from './AdminArcoList'
 import { AdminRemindersList } from './AdminRemindersList'
 import { AdminDisputesList } from './AdminDisputesList'
+import { AdminAuditLog } from './AdminAuditLog'
 import Link from 'next/link'
+import { AdminTabs } from '@/components/dashboard/AdminTabs'
 
 export default async function AdminDashboard({
     searchParams
@@ -14,15 +17,18 @@ export default async function AdminDashboard({
 }) {
     const activeTab = searchParams?.tab || 'auditoria'
     await requireRole(['admin'])
-    const [users, claims, reminders, disputes] = await Promise.all([
-        getAllUsers(),
-        getAllClaims(),
-        getAllRemindersAdmin(),
-        getAllDisputedAppointments(),
-    ])
+    const users = await getAllUsers()
+    const claims = await getAllClaims()
+    const reminders = await getAllRemindersAdmin()
+    const disputes = await getAllDisputedAppointments()
+    const auditLogs = await getAuditLogs()
 
-   const adminUsers = users.filter((u: any) => u.role !== 'admin')
+    const adminUsers = users.filter((u: any) => u.role !== 'admin')
     const pendingCmvpVets = adminUsers.filter((u: any) => u.role === 'vet' && u.cmvpId && !u.cmvpValidated)
+    
+    // Separate standard claims from ARCO requests
+    const claimsLibro = claims.filter((c: any) => c.claimType === 'queja' || c.claimType === 'reclamo')
+    const arcoRequests = claims.filter((c: any) => c.claimType.startsWith('arco_'))
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0 max-w-5xl mx-auto">
@@ -38,38 +44,7 @@ export default async function AdminDashboard({
             </div>
 
             {/* Tabs Selector */}
-            <div className="flex gap-2 border-b border-slate-200">
-                <Link
-                    href="?tab=auditoria"
-                    className={`pb-2.5 px-4 text-sm font-bold border-b-2 transition-colors ${
-                        activeTab === 'auditoria'
-                            ? 'border-primary-600 text-primary-700'
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
-                >
-                    Auditorías y Disputas ⚖️
-                </Link>
-                <Link
-                    href="?tab=usuarios"
-                    className={`pb-2.5 px-4 text-sm font-bold border-b-2 transition-colors ${
-                        activeTab === 'usuarios'
-                            ? 'border-primary-600 text-primary-700'
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
-                >
-                    Usuarios y Reclamaciones 👥
-                </Link>
-                <Link
-                    href="?tab=campanas"
-                    className={`pb-2.5 px-4 text-sm font-bold border-b-2 transition-colors ${
-                        activeTab === 'campanas'
-                            ? 'border-primary-600 text-primary-700'
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
-                >
-                    Campañas y Alertas 📢
-                </Link>
-            </div>
+            <AdminTabs activeTab={activeTab} />
 
             {/* TAB CONTENT: AUDITORIAS Y DISPUTAS */}
             {activeTab === 'auditoria' && (
@@ -131,7 +106,15 @@ export default async function AdminDashboard({
                         <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                             <BookOpen className="w-5 h-5 text-slate-500" /> Libro de Sugerencias y Reclamaciones
                         </h2>
-                        <AdminClaimsList claims={claims} />
+                        <AdminClaimsList claims={claimsLibro} />
+                    </section>
+
+                    {/* ARCO Requests Section */}
+                    <section className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+                        <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                            <Shield className="w-5 h-5 text-primary-600" /> Solicitudes de Derechos ARCO (LPDP N.º 29733)
+                        </h2>
+                        <AdminArcoList claims={arcoRequests} />
                     </section>
                 </div>
             )}
@@ -145,6 +128,18 @@ export default async function AdminDashboard({
                             <Bell className="w-5 h-5 text-slate-550" /> Recordatorios y Campañas Globales (Push / Anuncios)
                         </h2>
                         <AdminRemindersList initialReminders={reminders} />
+                    </section>
+                </div>
+            )}
+
+            {/* TAB CONTENT: BITACORA DE AUDITORIA */}
+            {activeTab === 'bitacora' && (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                    <section className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+                        <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                            <FileSpreadsheet className="w-5 h-5 text-slate-550" /> Bitácora de Auditoría y Control de Seguridad
+                        </h2>
+                        <AdminAuditLog logs={auditLogs} />
                     </section>
                 </div>
             )}

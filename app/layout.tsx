@@ -6,8 +6,8 @@ import { Toaster } from "sonner";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-    title: "Brofy | Servicios para Mascotas",
-    description: "Reserva veterinarias, grooming y más en minutos. Atención de emergencias 24/7.",
+    title: "Brofy | Todo lo que tu mascota necesita, en un solo lugar",
+    description: "Desde veterinarias y spas hasta hospedajes y entrenadores. Olvídate de los papeles perdidos y las colas: reserva citas al instante con especialistas reales y lleva el historial médico digital de tu mascota siempre en tu celular.",
     appleWebApp: {
         capable: true,
         statusBarStyle: "default",
@@ -31,7 +31,7 @@ export const viewport: Viewport = {
 };
 
 import { EmergencyLauncher } from "@/components/features/emergency/EmergencyLauncher";
-import { I18nProvider } from "../lib/i18n-context";
+import { I18nProvider } from "@/lib/i18n-context";
 import { cookies } from "next/headers";
 
 export default function RootLayout({

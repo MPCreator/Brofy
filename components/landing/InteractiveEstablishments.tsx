@@ -14,7 +14,9 @@ const CATEGORIES = [
     { value: 'clinic', label: 'Veterinarias', emoji: '🏥' },
     { value: 'groomer', label: 'Spas & Grooming', emoji: '✂️' },
     { value: 'walker', label: 'Paseadores', emoji: '🦮' },
-    { value: 'hospital', label: 'Hospedajes', emoji: '🏨' },
+    { value: 'lodging', label: 'Hospedajes', emoji: '🏨' },
+    { value: 'trainer', label: 'Adiestradores', emoji: '🎓' },
+    { value: 'other', label: 'Otros', emoji: '🐾' },
     { value: 'emergency', label: 'Urgencias 24/7', emoji: '🚨' },
 ]
 
@@ -24,8 +26,9 @@ export default function InteractiveEstablishments({ establishments }: Interactiv
     // Filter establishments dynamically
     const filteredEsts = establishments.filter((est) => {
         if (activeFilter === 'all') return true
-        if (activeFilter === 'emergency') return est.type === 'clinic' || est.type === 'hospital'
-        return est.type === activeFilter
+        const types = est.type ? est.type.split(',').map((t: string) => t.trim()) : []
+        if (activeFilter === 'emergency') return types.includes('clinic') || types.includes('hospital')
+        return types.includes(activeFilter)
     })
 
     // Slice to top 8 featured establishments
@@ -73,7 +76,7 @@ export default function InteractiveEstablishments({ establishments }: Interactiv
                         <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
                             {activeFilter === 'all' 
                                 ? 'Especialistas mejor valorados en Lima' 
-                                : `Filtro activo: ${CATEGORIES.find(c => c.value === activeFilter)?.label}`}
+                                : CATEGORIES.find(c => c.value === activeFilter)?.label}
                         </h2>
                         <p className="text-sm md:text-base text-slate-400 mt-2">
                             Locales recomendados y evaluados para el óptimo cuidado de tu engreído.
@@ -111,12 +114,18 @@ export default function InteractiveEstablishments({ establishments }: Interactiv
                                         <PhotoCarousel 
                                             photoUrls={photos} 
                                             establishmentName={est.name} 
-                                            fallbackCategory={est.type}
+                                            fallbackCategory={est.type ? est.type.split(',')[0].trim() : 'default'}
                                         />
-                                        {(est.type === 'clinic' || est.type === 'hospital') && (
-                                            <span className="absolute top-3.5 left-3.5 bg-primary-600 text-white text-[9px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-md z-20">
-                                                Verificado CMVP
-                                            </span>
+                                        {((est.type || '').split(',').map((t: string) => t.trim()).some((t: string) => t === 'clinic' || t === 'hospital')) && (
+                                            <div className="absolute top-3.5 left-3.5 group/tooltip z-20">
+                                                <span className="bg-emerald-600 text-white text-[8px] sm:text-[9px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1 cursor-help">
+                                                    🩺 Vet. Colegiado (CMVP)
+                                                </span>
+                                                {/* Tooltip Content */}
+                                                <div className="absolute left-0 top-full mt-1.5 hidden group-hover/tooltip:block bg-slate-900/95 text-white text-[10px] font-medium p-2.5 rounded-lg shadow-xl w-60 z-30 leading-normal pointer-events-none transition-all duration-200 backdrop-blur-xs">
+                                                    <strong>Colegiatura Registrada:</strong> El titular de este local ha declarado estar colegiado en el Colegio de Médicos Veterinarios del Perú (CMVP). Brofy muestra este dato con fines informativos; las consultas y tratamientos son responsabilidad exclusiva del profesional.
+                                                </div>
+                                            </div>
                                         )}
                                         <button 
                                             type="button"

@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ReviewForm } from "@/components/ui/review-form";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/types";
+import { LoadingState } from "@/components/ui/loading-state";
 
 export default function ClientPendingPage() {
     const router = useRouter();
@@ -64,10 +65,8 @@ export default function ClientPendingPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [apts, prof] = await Promise.all([
-                getClientAppointments(),
-                getProfile()
-            ]);
+            const apts = await getClientAppointments();
+            const prof = await getProfile();
             setAppointments(apts);
             setProfile(prof);
 
@@ -151,11 +150,11 @@ export default function ClientPendingPage() {
     };
 
     const handleCancelWithRefund = async (aptId: string) => {
-        if (!confirm("¿Seguro que deseas cancelar esta cita con devolución total de tu comisión de reserva a tu Billetera de Huellitas?")) return;
+        if (!confirm("¿Seguro que deseas solicitar la cancelación de esta cita? Se enviará una notificación del motivo de la cancelación a los administradores para fines de auditoría y evaluación de la devolución de comisión.")) return;
         try {
             const res = await cancelAppointmentWithRefund(aptId);
             if (res.success) {
-                toast.success("Cita cancelada. Comisión devuelta a tu Billetera de Huellitas 🐾");
+                toast.success("Cancelación registrada. La notificación del motivo ha sido enviada a los administradores para su revisión.");
                 loadData();
             } else {
                 toast.error(res.message || "Error al cancelar la cita");
@@ -188,27 +187,34 @@ export default function ClientPendingPage() {
     };
 
     // Filter appointments for pending states
-    const activeAppointments = appointments.filter(apt => 
-        apt.status === "pending" || 
-        apt.status === "paid" || 
-        apt.status === "confirmed" ||
-        apt.status === "validated" ||
-        (apt.rescheduledAt !== null && apt.status !== "completed" && apt.status !== "cancelled" && apt.status !== "disputed")
-    );
+    const activeAppointments = appointments.filter(apt => {
+        if (apt.status === "completed" || apt.status === "cancelled" || apt.status === "disputed") return false;
+        // Exclude unattended paid/confirmed appointments older than 48 hours
+        if ((apt.status === "paid" || apt.status === "confirmed") && apt.scheduledAt) {
+            const diff = Date.now() - new Date(apt.scheduledAt).getTime();
+            if (diff > 48 * 60 * 60 * 1000) return false;
+        }
+        return (
+            apt.status === "pending" || 
+            apt.status === "paid" || 
+            apt.status === "confirmed" ||
+            apt.status === "validated" ||
+            (apt.rescheduledAt !== null)
+        );
+    });
 
-    const historyAppointments = appointments.filter(apt =>
-        apt.status === "completed" || 
-        apt.status === "cancelled" || 
-        apt.status === "disputed"
-    );
+    const historyAppointments = appointments.filter(apt => {
+        if (apt.status === "completed" || apt.status === "cancelled" || apt.status === "disputed") return true;
+        // Include unattended paid/confirmed appointments older than 48 hours
+        if ((apt.status === "paid" || apt.status === "confirmed") && apt.scheduledAt) {
+            const diff = Date.now() - new Date(apt.scheduledAt).getTime();
+            if (diff > 48 * 60 * 60 * 1000) return true;
+        }
+        return false;
+    });
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
-                <RefreshCw className="w-8 h-8 animate-spin text-primary-500 mb-2" />
-                <p className="text-xs">Cargando tus citas pendientes...</p>
-            </div>
-        );
+        return <LoadingState message="Cargando tus citas..." description="Recuperando agenda, turnos y puntos acumulados" />;
     }
 
     return (
@@ -224,19 +230,21 @@ export default function ClientPendingPage() {
                 </p>
             </div>
 
-            {/* Credit Wallet Widget (Huellitas loyalty points program) */}
-            <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white rounded-3xl p-5 shadow-lg flex items-center justify-between">
-                <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest opacity-80 flex items-center gap-1.5">
-                        <Award className="w-3.5 h-3.5 stroke-[2.5]" /> Billetera de Huellitas 🐾
-                    </span>
-                    <h2 className="text-2xl font-black">{(profile?.creditBalance ? (profile.creditBalance * 100) : 0).toFixed(0)} Huellitas</h2>
-                    <p className="text-xs opacity-90">Puntos acumulados para recompensas y programa de lealtad</p>
+            {/* Credit Wallet Widget (Huellitas loyalty points program) — Only visible if balance > 0 */}
+            {profile?.creditBalance > 0 && (
+                <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white rounded-3xl p-5 shadow-lg flex items-center justify-between">
+                    <div className="space-y-1">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest opacity-80 flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 stroke-[2.5]" /> Billetera de Huellitas 🐾
+                        </span>
+                        <h2 className="text-2xl font-black">{(profile.creditBalance * 100).toFixed(0)} Huellitas</h2>
+                        <p className="text-xs opacity-90">Puntos acumulados para recompensas y programa de lealtad</p>
+                    </div>
+                    <div className="bg-white/10 rounded-2xl p-3 border border-white/20 text-center font-bold text-xs max-w-[130px] leading-relaxed">
+                        ✨ Programa de Lealtad y Devoluciones
+                    </div>
                 </div>
-                <div className="bg-white/10 rounded-2xl p-3 border border-white/20 text-center font-bold text-xs max-w-[130px] leading-relaxed">
-                    ✨ Programa de Lealtad y Devoluciones
-                </div>
-            </div>
+            )}
 
             {/* List */}
             {activeAppointments.length === 0 ? (
@@ -256,11 +264,13 @@ export default function ClientPendingPage() {
                     {activeAppointments.map((apt: any) => {
                         const isPaid = apt.status === "paid";
                         const isProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null;
+                        const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: "text-slate-600 bg-slate-100" };
                         
-                        // Permitir denuncia si la cita fue confirmada/pagada y ya pasó su horario con una tolerancia de 15 minutos
+                        // Permitir denuncia si la cita fue confirmada/pagada y ya pasó su horario con una tolerancia de 30 minutos, hasta un máximo de 48 horas
                         const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0;
-                        const TOLERANCE_MS = 15 * 60 * 1000; // 15 minutos de tolerancia
-                        const isExpired = appointmentTime > 0 && (Date.now() - appointmentTime) >= TOLERANCE_MS;
+                        const TOLERANCE_MS = 30 * 60 * 1000; // 30 minutos de tolerancia
+                        const LIMIT_MS = 48 * 60 * 60 * 1000; // 48 horas de límite
+                        const isExpired = appointmentTime > 0 && (Date.now() - appointmentTime) >= TOLERANCE_MS && (Date.now() - appointmentTime) <= LIMIT_MS;
                         const canClaim = (apt.status === "paid" || apt.status === "confirmed") && isExpired;
 
                         let bookedSvcs: any[] = [];
@@ -292,10 +302,10 @@ export default function ClientPendingPage() {
                                     isProposed ? "border-amber-200 ring-2 ring-amber-100" : ""
                                 }`}
                             >
-                                <div className="flex items-start justify-between gap-4">
-                                    <div>
+                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
                                         <h3 className="font-extrabold text-slate-900 text-base">{apt.establishment?.name}</h3>
-                                        <p className="text-xs text-slate-500 font-semibold capitalize mt-0.5">
+                                        <p className="text-xs text-slate-500 font-semibold capitalize mt-0.5 truncate max-w-[240px] sm:max-w-[380px]" title={`🐶 ${apt.pet?.name} · ${apt.serviceType}`}>
                                             🐶 {apt.pet?.name} · {apt.serviceType}
                                         </p>
                                         <p className="text-xs text-slate-500 flex items-center gap-1 mt-1 font-medium">
@@ -310,16 +320,16 @@ export default function ClientPendingPage() {
                                                 className="text-xs text-primary-600 hover:text-primary-750 flex items-center gap-1 mt-1.5 font-semibold hover:underline"
                                             >
                                                 <MapPin className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-                                                <span className="truncate max-w-[280px]">
+                                                <span className="truncate max-w-full sm:max-w-[280px]">
                                                     {apt.establishment.address} {apt.establishment.district ? `(${apt.establishment.district})` : ''}
                                                 </span>
                                             </a>
                                         )}
                                     </div>
-                                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full ${
-                                        isProposed ? "bg-amber-100 text-amber-800" : isPaid ? "bg-primary-100 text-primary-800" : "bg-slate-100 text-slate-650"
+                                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full w-fit ${
+                                        isProposed ? "bg-amber-100 text-amber-800" : statusInfo.color
                                     }`}>
-                                        {isProposed ? "Reprogramación propuesta" : isPaid ? "Turno Pagado" : "Pendiente de Pago"}
+                                        {isProposed ? "Reprogramación propuesta" : statusInfo.label}
                                     </span>
                                 </div>
 
@@ -341,7 +351,7 @@ export default function ClientPendingPage() {
                                             </button>
                                             <button
                                                 onClick={() => handleCancelWithRefund(apt.id)}
-                                                className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 text-red-650 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors"
+                                                className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors"
                                             >
                                                 Cancelar con Reembolso
                                             </button>
@@ -385,45 +395,32 @@ export default function ClientPendingPage() {
                                             >
                                                 <Calendar className="w-3.5 h-3.5" /> Proponer otro horario
                                             </button>
-                                            <button
-                                                onClick={() => setDenouncingId(apt.id)}
-                                                className="px-4 py-2.5 bg-white border border-slate-200 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors"
-                                            >
-                                                Denunciar / Reclamar
-                                            </button>
+                                            {(apt.status === "paid" || apt.status === "confirmed") && (
+                                                <button
+                                                    onClick={() => setDenouncingId(apt.id)}
+                                                    className="px-4 py-2.5 bg-white border border-slate-200 text-red-650 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors"
+                                                >
+                                                    Denunciar / Reclamar
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Claims / Cancel trigger */}
-                                {!isProposed && (apt.status === "paid" || apt.status === "confirmed") && (
+                                {!isProposed && (apt.status === "paid" || apt.status === "confirmed") && canClaim && (
                                     <div className="flex items-center justify-between border-t border-slate-50 pt-3 mt-1.5 w-full">
-                                        {canClaim ? (
-                                            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-center gap-2 w-full justify-between">
-                                                <div className="text-[10px] text-red-800 leading-normal">
-                                                    ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario de la cita ha expirado y no se registró la atención. Puedes iniciar un reclamo para obtener el reembolso.
-                                                </div>
-                                                <button
-                                                    onClick={() => setDenouncingId(apt.id)}
-                                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] uppercase shrink-0 transition-colors shadow-sm"
-                                                >
-                                                    Denunciar
-                                                </button>
+                                        <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-center gap-2 w-full justify-between animate-in fade-in duration-200">
+                                            <div className="text-[10px] text-red-800 leading-normal">
+                                                ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario de la cita ha expirado y no se registró la atención. Puedes iniciar un reclamo para obtener el reembolso.
                                             </div>
-                                        ) : (
-                                            <div className="flex items-center justify-between w-full gap-2 bg-slate-50 border border-slate-100 rounded-xl p-2.5">
-                                                <p className="text-[10px] text-slate-500 leading-normal">
-                                                    * El botón de denuncia se activará 15 minutos después de la hora pactada si el proveedor no inicia la atención.
-                                                </p>
-                                                <button
-                                                    disabled
-                                                    className="px-3 py-1.5 bg-slate-100 text-slate-400 font-bold rounded-lg text-[10px] uppercase cursor-not-allowed shrink-0 border border-slate-200"
-                                                    title="Se activa 15 minutos después de la hora de la cita"
-                                                >
-                                                    Denunciar
-                                                </button>
-                                            </div>
-                                        )}
+                                            <button
+                                                onClick={() => setDenouncingId(apt.id)}
+                                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] uppercase shrink-0 transition-colors shadow-sm"
+                                            >
+                                                Denunciar
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -454,13 +451,16 @@ export default function ClientPendingPage() {
                     {showHistory && (
                         <div className="border-t border-slate-100 p-5 space-y-4 bg-slate-50/50 max-h-[500px] overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
                             {historyAppointments.map((apt: any) => {
-                                const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS];
+                                const isNoAtendido = (apt.status === 'paid' || apt.status === 'confirmed') && apt.scheduledAt && (Date.now() - new Date(apt.scheduledAt).getTime() > 48 * 60 * 60 * 1000);
+                                const statusInfo = isNoAtendido
+                                    ? { label: 'No atendido', color: 'text-slate-550 bg-slate-100' }
+                                    : (APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: 'text-slate-650 bg-slate-100' });
                                 return (
                                     <div
                                         key={apt.id}
                                         className="bg-white rounded-2xl border border-slate-150 p-4 shadow-sm space-y-3"
                                     >
-                                        <div className="flex items-start justify-between gap-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                                             <div className="min-w-0">
                                                 <h4 className="font-extrabold text-slate-900 text-sm truncate">
                                                     {apt.establishment?.name || 'Establecimiento'}
@@ -573,7 +573,7 @@ export default function ClientPendingPage() {
                             <button
                                 type="submit"
                                 disabled={submittingDenounce}
-                                className="flex-1 px-4 py-2.5 bg-red-650 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-md"
+                                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {submittingDenounce ? "Enviando..." : "Confirmar Denuncia"}
                             </button>

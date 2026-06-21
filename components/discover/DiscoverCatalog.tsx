@@ -24,15 +24,93 @@ import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import PhotoCarousel from '@/components/landing/PhotoCarousel'
 import { getSession } from '@/lib/auth'
+import { LoadingState } from '@/components/ui/loading-state'
 
 const CATEGORIES = [
     { value: 'all', label: 'Todos', emoji: '🏠' },
     { value: 'clinic', label: 'Veterinarias', emoji: '🏥' },
     { value: 'groomer', label: 'Spas & Grooming', emoji: '✂️' },
     { value: 'walker', label: 'Paseadores', emoji: '🦮' },
-    { value: 'hospital', label: 'Hospedajes', emoji: '🏨' },
+    { value: 'lodging', label: 'Hospedajes', emoji: '🏨' },
+    { value: 'trainer', label: 'Adiestradores', emoji: '🎓' },
+    { value: 'other', label: 'Otros', emoji: '🐾' },
     { value: 'emergency', label: 'Urgencias 24/7', emoji: '🚨' },
 ]
+
+const LIMA_DISTRICTS = [
+    "Miraflores", "San Isidro", "Santiago de Surco", "San Borja", "Barranco",
+    "La Molina", "Jesús María", "Lince", "Magdalena del Mar", "San Miguel",
+    "Pueblo Libre", "Surquillo", "San Luis", "La Victoria", "Cercado de Lima",
+    "Rímac", "Breña", "Chorrillos", "San Juan de Miraflores", "Villa María del Triunfo",
+    "Villa El Salvador", "Ate", "Santa Anita", "El Agustino", "San Juan de Lurigancho",
+    "Comas", "Los Olivos", "San Martín de Porres", "Independencia", "Carabayllo",
+    "Puente Piedra", "Ancón", "Santa Rosa", "Chaclacayo", "Lurigancho-Chosica",
+    "Lurín", "Pachacámac", "San Bartolo", "Punta Hermosa", "Punta Negra",
+    "Santa María del Mar", "Pucusana", "Callao", "Bellavista", "Carmen de la Legua",
+    "La Perla", "La Punta", "Ventanilla", "Mi Perú"
+];
+
+function normalizeString(str: string): string {
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+function getLevenshteinDistance(a: string, b: string): number {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    matrix[i][j - 1] + 1,     // insertion
+                    matrix[i - 1][j] + 1      // deletion
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+function getBestDistrictMatch(query: string): string | null {
+    const normalized = normalizeString(query);
+    if (normalized.length < 3) return null;
+    
+    // 1. Try prefix match
+    for (const dist of LIMA_DISTRICTS) {
+        const normDist = normalizeString(dist);
+        if (normDist.startsWith(normalized)) {
+            return dist;
+        }
+    }
+
+    // 2. Try substring match
+    for (const dist of LIMA_DISTRICTS) {
+        const normDist = normalizeString(dist);
+        if (normDist.includes(normalized)) {
+            return dist;
+        }
+    }
+    
+    // 3. Try Levenshtein match for typos (allowed distance up to 2 for length >= 4)
+    let bestMatch: string | null = null;
+    let minDistance = 999;
+    for (const dist of LIMA_DISTRICTS) {
+        const normDist = normalizeString(dist);
+        const distVal = getLevenshteinDistance(normalized, normDist);
+        if (distVal < minDistance && distVal <= 2) {
+            minDistance = distVal;
+            bestMatch = dist;
+        }
+    }
+    return bestMatch;
+}
 
 function SearchParamsHandler({ 
     setActiveFilter, 
@@ -72,6 +150,7 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
     const [error, setError] = useState('')
     const [activeFilter, setActiveFilter] = useState('all')
     const [districtQuery, setDistrictQuery] = useState('')
+    const [showSuggestions, setShowSuggestions] = useState(false)
     const [selectedDate, setSelectedDate] = useState('')
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'name'>('distance')
@@ -161,16 +240,31 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
     const categoryFiltered = activeFilter === 'all'
         ? sortedEstablishments
         : activeFilter === 'emergency'
-            ? sortedEstablishments.filter(est => est.type === 'clinic' || est.type === 'hospital')
-            : sortedEstablishments.filter(est => est.type === activeFilter)
+            ? sortedEstablishments.filter(est => {
+                const types = est.type ? est.type.split(',').map((t: string) => t.trim()) : []
+                return types.includes('clinic') || types.includes('hospital')
+              })
+            : sortedEstablishments.filter(est => {
+                const types = est.type ? est.type.split(',').map((t: string) => t.trim()) : []
+                return types.includes(activeFilter)
+              })
 
-    // 2. Filter by search district/name/address
+    // 2. Filter by search district/name/address with typo auto-correction support
+    const bestMatch = getBestDistrictMatch(districtQuery);
     const districtFiltered = districtQuery.trim()
-        ? categoryFiltered.filter(est => 
-            est.district?.toLowerCase().includes(districtQuery.toLowerCase()) || 
-            est.address?.toLowerCase().includes(districtQuery.toLowerCase()) ||
-            est.name?.toLowerCase().includes(districtQuery.toLowerCase())
-          )
+        ? categoryFiltered.filter(est => {
+            const queryLower = districtQuery.toLowerCase();
+            const matchesDirect = est.district?.toLowerCase().includes(queryLower) || 
+                                  est.address?.toLowerCase().includes(queryLower) ||
+                                  est.name?.toLowerCase().includes(queryLower);
+            if (matchesDirect) return true;
+            
+            // If typo-correction found a close district match, match establishments in that district
+            if (bestMatch && est.district?.toLowerCase() === bestMatch.toLowerCase()) {
+                return true;
+            }
+            return false;
+          })
         : categoryFiltered
 
     // 3. Filter by date availability
@@ -313,10 +407,55 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
                     <input 
                         type="text"
                         value={districtQuery}
-                        onChange={(e) => setDistrictQuery(e.target.value)}
+                        onChange={(e) => {
+                            setDistrictQuery(e.target.value);
+                            setShowSuggestions(true);
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                         placeholder="Buscar por distrito, dirección o nombre del local..."
                         className="w-full pl-9 pr-3 py-2.5 bg-slate-50 hover:bg-slate-100/75 focus:bg-white border border-transparent focus:border-primary-400 rounded-xl text-xs focus:outline-none transition-all font-medium text-slate-800"
                     />
+                    {showSuggestions && districtQuery.trim().length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto py-1">
+                            {(() => {
+                                const normQuery = normalizeString(districtQuery);
+                                const matches = LIMA_DISTRICTS.filter(dist => {
+                                    const normDist = normalizeString(dist);
+                                    if (normDist.startsWith(normQuery) || normDist.includes(normQuery)) {
+                                        return true;
+                                    }
+                                    const distance = getLevenshteinDistance(normQuery, normDist);
+                                    if (distance <= 2 && normQuery.length >= 4) {
+                                        return true;
+                                    }
+                                    return false;
+                                });
+
+                                if (matches.length === 0) {
+                                    return (
+                                        <div className="px-4 py-2 text-xs text-slate-400 text-center font-medium italic">
+                                            Sin resultados
+                                        </div>
+                                    );
+                                }
+
+                                return matches.map(dist => (
+                                    <button
+                                        key={dist}
+                                        type="button"
+                                        onMouseDown={() => {
+                                            setDistrictQuery(dist);
+                                            setShowSuggestions(false);
+                                        }}
+                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors flex items-center gap-1.5"
+                                    >
+                                        📍 <span>{dist}</span>
+                                    </button>
+                                ));
+                            })()}
+                        </div>
+                    )}
                 </div>
                 
                 <div className="relative flex items-center">
@@ -482,9 +621,12 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
 
             {/* Results Grid */}
             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200/50 shadow-sm">
-                    <Loader2 className="w-9 h-9 text-primary-500 animate-spin mb-3" />
-                    <p className="text-xs font-bold text-slate-500">Cargando especialistas...</p>
+                <div className="bg-white rounded-2xl border border-slate-200/50 shadow-sm py-10">
+                    <LoadingState 
+                        message="Cargando especialistas..." 
+                        description="Buscando veterinarias y servicios cercanos en tu zona" 
+                        minHeight="min-h-[20vh]"
+                    />
                 </div>
             ) : finalFiltered.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/50 p-16 text-center shadow-sm max-w-lg mx-auto">
@@ -512,12 +654,18 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
                                     <PhotoCarousel 
                                         photoUrls={photos} 
                                         establishmentName={est.name} 
-                                        fallbackCategory={est.type}
+                                        fallbackCategory={est.type ? est.type.split(',')[0].trim() : 'default'}
                                     />
-                                    {(est.type === 'clinic' || est.type === 'hospital') && (
-                                        <span className="absolute top-3 left-3 bg-primary-600 text-white text-[8px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-md z-20">
-                                            Verificado CMVP
-                                        </span>
+                                    {((est.type || '').split(',').map((t: string) => t.trim()).some((t: string) => t === 'clinic' || t === 'hospital')) && (
+                                        <div className="absolute top-3 left-3 group/tooltip z-20">
+                                            <span className="bg-emerald-600 text-white text-[8px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1 cursor-help">
+                                                🩺 Vet. Colegiado (CMVP)
+                                            </span>
+                                            {/* Tooltip Content */}
+                                            <div className="absolute left-0 top-full mt-1.5 hidden group-hover/tooltip:block bg-slate-900/95 text-white text-[10px] font-medium p-2.5 rounded-lg shadow-xl w-60 z-30 leading-normal pointer-events-none transition-all duration-200 backdrop-blur-xs">
+                                                <strong>Colegiatura Registrada:</strong> El titular de este local ha declarado estar colegiado en el Colegio de Médicos Veterinarios del Perú (CMVP). Brofy muestra este dato con fines informativos; las consultas y tratamientos son responsabilidad exclusiva del profesional.
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                                 

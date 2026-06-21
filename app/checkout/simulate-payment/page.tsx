@@ -80,12 +80,12 @@ export default async function SimulatePaymentPage({
             {/* Content */}
             <main className="flex-1 flex items-center justify-center p-4 py-8">
                 <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center text-sm">
-                        <div>
-                            <p className="font-semibold text-slate-900">{appointment.establishment.name}</p>
-                            <p className="text-xs text-slate-500">Reserva: {appointment.serviceType}</p>
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between gap-4 items-start text-sm">
+                        <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-slate-900 truncate">{appointment.establishment.name}</p>
+                            <p className="text-xs text-slate-500 break-words mt-0.5">Reserva: {appointment.serviceType}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                             <p className="font-bold text-slate-900 text-lg">{formatPEN(totalFee)}</p>
                             <p className="text-[10px] text-slate-400">Total a Pagar</p>
                         </div>

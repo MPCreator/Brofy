@@ -7,6 +7,7 @@ import {
     ArrowRight, RefreshCw, GraduationCap, Megaphone, CheckCircle2, ChevronDown, ChevronUp, Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { LoadingState } from '@/components/ui/loading-state'
 
 export default function HelpPage() {
     const [profile, setProfile] = useState<any>(null)
@@ -61,14 +62,16 @@ export default function HelpPage() {
 • Alerta y Consentimiento de Tarifas: Si modificas la tarifa, el sistema alertará automáticamente en el panel del cliente que tiene reservas pendientes de ese servicio, permitiéndole aceptar el cambio de precio de forma voluntaria, o cancelar sin costo alguno con devolución del 100% de su reserva a su Billetera de Huellitas.`
         },
         {
-            title: '3. Ficha Rápida para Clientes Presenciales ⚡',
-            subtitle: 'Atención a clientes sin cita previa o sin cuenta digital',
+            title: '3. Ficha Rápida y Agendamiento Manual de Turnos ⚡',
+            subtitle: 'Atención presencial a clientes sin cita previa o sin cuenta digital',
             icon: Zap,
-            content: `Si un cliente acude a tu establecimiento de forma directa (walk-in) y no cuenta con una reserva digital en la Plataforma:
+            content: `Si un cliente acude a tu establecimiento de forma directa (Atención Presencial) y no cuenta con una reserva digital en la Plataforma, dispones de dos herramientas:
 
-• Ficha Rápida: Utiliza el módulo "Ficha Rápida" para registrar su ingreso manual e inmediatamente acceder a su ficha y carnet de vacunas.
-• Comisión Ficha Rápida: Este registro genera una comisión administrativa de S/ 6.00 que se adiciona a tu "Deuda con Brofy".
-• Liquidación Periódica: Podrás liquidar periódicamente tus comisiones acumuladas desde la sección "Finanzas" de forma rápida y segura.`
+• Ficha Rápida Directa: Registra de inmediato la atención clínica o estética junto con el diagnóstico y receta en un solo paso. Al guardar, el historial clínico se crea al instante.
+• Agendar Turno Manual (Crear Turno): Si deseas programar al paciente presencial en tu agenda o colocarlo en tu Sala de Espera para atenderlo más tarde, usa "+ Agendar Turno" al lado de tu agenda. Esto reservará y bloqueará el horario para evitar cruces en tu calendario.
+• Iniciar Atención Directa (Sin OTP): Para citas creadas manualmente con "+ Agendar Turno", al dar clic en "Atender ahora" desde la Sala de Espera, el sistema no te solicitará código OTP. Mostrará un botón para iniciar la atención directamente y abrir la Ficha Rápida pre-completada.
+• Notificaciones Gratuitas de Recetas: Es obligatorio ingresar el teléfono o el correo del cliente. Si ingresas su correo, el sistema le enviará un email gratuito con los detalles médicos e invitación a registrarse. Si ingresas su teléfono, al finalizar podrás compartirle su receta por WhatsApp de forma gratuita mediante un enlace automático.
+• Comisión por Ingreso Manual: El registro de atenciones presenciales sin cuenta digital (Caso B) genera una comisión administrativa de S/ 6.00 que se adiciona a tu "Deuda con Brofy" al completarse la atención. Puedes liquidar este saldo periódicamente en la sección "Finanzas".`
         },
         {
             title: '4. Finanzas e Historial de Ingresos 📈',
@@ -223,12 +226,7 @@ export default function HelpPage() {
     const activeGuides = isVet ? providerGuides : clientGuides
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
-                <RefreshCw className="w-8 h-8 animate-spin text-primary-500 mb-2" />
-                <p className="text-xs">Cargando centro de capacitación...</p>
-            </div>
-        )
+        return <LoadingState message="Cargando centro de ayuda..." description="Obteniendo guías de aprendizaje y novedades" />;
     }
 
     return (

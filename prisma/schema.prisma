@@ -71,6 +71,9 @@ model Pet {
   medicalHistory String   @default("[]") @map("medical_history") // JSON string (JSONB en PG)
   isActive       Boolean  @default(true) @map("is_active")
   cuh            String?  @unique                                      // CUH: Código Único de Huella (memorizable)
+  allergies      String?
+  distinctiveFeature String?  @map("distinctive_feature")
+  behavior       String?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -140,6 +143,14 @@ model Service {
   operatingDays   String   @default("[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\",\"sun\"]") @map("operating_days")
   operatingHours  String   @default("{\"start\":\"08:00\",\"end\":\"20:00\"}") @map("operating_hours")
   workOnHolidays  Boolean  @default(false) @map("work_on_holidays")
+  isSpecific      Boolean  @default(false) @map("is_specific")
+  minWeight       Float?   @map("min_weight")
+  maxWeight       Float?   @map("max_weight")
+  specieRestriction String? @map("specie_restriction")
+  breedRestriction  String? @map("breed_restriction")
+  ageRestriction    String? @map("age_restriction")
+  minAge          Float?   @map("min_age")
+  maxAge          Float?   @map("max_age")
   tariffUpdatedAt DateTime @default(now()) @map("tariff_updated_at")
   currency        String   @default("PEN")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -311,4 +322,20 @@ model Reminder {
 
   @@map("reminders")
   @@index([clientId, dueDate, isCompleted])
+}
+
+// ---------------------------------------------------------------------------
+// AUDIT_LOGS — Registro de auditoría para control de administradores
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String   @map("actor_id")
+  actorName  String   @map("actor_name")
+  actorEmail String   @map("actor_email")
+  action     String   // 'SUSPEND_USER' | 'REACTIVATE_USER' | 'VALIDATE_CMVP' | 'REVOKE_CMVP' | 'DELETE_USER' | 'CANCEL_APPOINTMENT' | 'RESOLVE_DISPUTE' | 'SEND_CUSTOM_EMAIL' | 'REPORT_NO_SHOW'
+  targetId   String?  @map("target_id")
+  details    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
 }

@@ -9,7 +9,7 @@
 
 export type UserRole = 'vet' | 'client' | 'provider' | 'admin';
 
-export type EstablishmentType = 'clinic' | 'groomer' | 'walker' | 'hospital' | 'pet_shop';
+export type EstablishmentType = 'clinic' | 'hospital' | 'groomer' | 'walker' | 'lodging' | 'trainer' | 'other';
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'paid' | 'validated' | 'completed' | 'cancelled';
 
@@ -220,16 +220,18 @@ export const SPECIES_OPTIONS = [
 
 export const ESTABLISHMENT_TYPE_LABELS: Record<EstablishmentType, string> = {
   clinic: 'Clínica Veterinaria',
-  groomer: 'Grooming / Estética',
-  walker: 'Paseador',
   hospital: 'Hospital Veterinario',
-  pet_shop: 'Pet Shop',
+  groomer: 'Grooming / Estética / Spa',
+  walker: 'Paseo / Acompañamiento',
+  lodging: 'Hospedaje / Hotel',
+  trainer: 'Adiestramiento / Escuela',
+  other: 'Otros servicios',
 };
 
 export const APPOINTMENT_STATUS_LABELS = {
   pending: { label: 'Pendiente de pago', color: 'text-slate-600 bg-slate-100' },
   confirmed: { label: 'Confirmada', color: 'text-emerald-600 bg-emerald-50' },
-  paid: { label: 'Pagada — Código activo', color: 'text-blue-600 bg-blue-100' },
+  paid: { label: 'Turno Pagado', color: 'text-primary-800 bg-primary-100' },
   validated: { label: 'En atención', color: 'text-indigo-600 bg-indigo-100' },
   completed: { label: 'Completada', color: 'text-emerald-600 bg-emerald-100' },
   cancelled: { label: 'Cancelada', color: 'text-red-600 bg-red-100' },

@@ -27,7 +27,7 @@ export default function PrivacidadPage() {
                         </div>
                         <h1 className="text-3xl font-extrabold text-slate-900">Política de Privacidad</h1>
                         <p className="text-slate-500 mt-2 text-sm">
-                            Última actualización: 15 de mayo de 2026 · Versión 1.0
+                            Última actualización: 11 de junio de 2026 · Versión 1.1
                         </p>
                         <p className="text-sm text-slate-600 mt-3">
                             En cumplimiento de la <strong>Ley N.º 29733</strong>, Ley de Protección de Datos Personales, y su Reglamento aprobado por Decreto Supremo N.º 003-2013-JUS, <strong>Brofy S.A.C.</strong> informa sobre el tratamiento de los datos personales de sus usuarios.
@@ -136,7 +136,7 @@ export default function PrivacidadPage() {
                                         ['Proveer los servicios digitales de intermediación', 'Ejecución del contrato'],
                                         ['Registrar y almacenar el historial médico digital', 'Consentimiento expreso del usuario'],
                                         ['Procesar pagos del Cargo por Infraestructura', 'Ejecución del contrato + obligación legal tributaria'],
-                                        ['Verificar habilitación profesional CMVP', 'Interés legítimo de Brofy y protección del usuario'],
+                                        ['Verificar preliminarmente la colegiatura profesional CMVP al registrar la cuenta del titular', 'Interés legítimo de Brofy en la seguridad y ordenamiento de la Plataforma'],
                                         ['Mostrar valoraciones públicas del establecimiento', 'Consentimiento del usuario al publicar la valoración'],
                                         ['Comunicaciones sobre el servicio (transaccionales)', 'Ejecución del contrato'],
                                         ['Cumplir obligaciones legales (SUNAT, INDECOPI)', 'Obligación legal'],
@@ -161,7 +161,7 @@ export default function PrivacidadPage() {
                         </h2>
                         <div className="text-sm text-slate-700 leading-relaxed space-y-2">
                             <p>Los datos de cuenta se conservan durante la vigencia de la relación contractual y hasta <strong>5 años</strong> después de la cancelación de la cuenta, por obligaciones tributarias y legales.</p>
-                            <p>Los historiales médicos de mascotas se conservan indefinidamente mientras el usuario no solicite su eliminación, dado su carácter de registro clínico de interés del titular.</p>
+                            <p>Los historiales y atenciones clínicas de las mascotas se almacenan en la nube para consulta y portabilidad del usuario, pero su conservación definitiva e ininterrumpida recae sobre el Profesional o clínica veterinaria que prestó el servicio, conforme a las leyes sanitarias. Las solicitudes de supresión de estos registros estarán limitadas por la obligación legal de retención regulatoria de historiales médicos que afecte a dichos profesionales.</p>
                             <p>Los registros de transacciones se conservan <strong>7 años</strong> de conformidad con la normativa tributaria peruana.</p>
                         </div>
                     </section>
@@ -209,7 +209,17 @@ export default function PrivacidadPage() {
                                     </div>
                                 ))}
                             </div>
-                            <p>Para ejercer estos derechos, escríbenos a <strong>privacidad@brofy.pe</strong> indicando tu nombre, email de cuenta y el derecho que deseas ejercer. Responderemos en un plazo máximo de <strong>20 días hábiles</strong>.</p>
+                            <p>
+                                Para ejercer estos derechos, puedes enviar tu solicitud directamente a través de la Plataforma ingresando a tu panel de <strong>Configuración</strong> en la sección <strong>&quot;Derechos de Privacidad ARCO (Ley N.º 29733)&quot;</strong>. 
+                                Alternativamente, puedes escribirnos al correo electrónico <strong>privacidad@brofy.pe</strong> indicando tu nombre, correo asociado a tu cuenta, documento de identidad, y detallando el derecho específico que deseas ejercer.
+                            </p>
+                            <p>
+                                De conformidad con la ley peruana, los plazos de respuesta son:
+                            </p>
+                            <ul className="list-disc list-inside pl-4 text-xs text-slate-650 space-y-1">
+                                <li><strong>Derecho de Acceso:</strong> Plazo máximo de <strong>20 días hábiles</strong>.</li>
+                                <li><strong>Derechos de Rectificación, Cancelación u Oposición:</strong> Plazo máximo de <strong>10 días hábiles</strong>.</li>
+                            </ul>
                             <p>Si consideras que el tratamiento de tus datos no es conforme a la ley, puedes presentar una reclamación ante la <strong>Autoridad Nacional de Protección de Datos Personales (ANPD)</strong> del Ministerio de Justicia y Derechos Humanos.</p>
                         </div>
                     </section>

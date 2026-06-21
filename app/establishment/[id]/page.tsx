@@ -8,11 +8,9 @@ export default async function EstablishmentPublicPage({
 }: {
     params: { id: string }
 }) {
-    const [est, reviews, session] = await Promise.all([
-        getEstablishmentPublic(params.id),
-        getEstablishmentReviews(params.id),
-        getSession(),
-    ])
+    const est = await getEstablishmentPublic(params.id)
+    const reviews = await getEstablishmentReviews(params.id)
+    const session = await getSession()
     if (!est) notFound()
 
     return <EstablishmentClient est={est} reviews={reviews} session={session} />

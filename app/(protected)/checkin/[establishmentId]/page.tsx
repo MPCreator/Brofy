@@ -17,6 +17,7 @@ import {
     Copy,
     Check,
 } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
 
 type Step = 'loading' | 'info' | 'select-pet' | 'payment' | 'otp-display'
 
@@ -40,10 +41,8 @@ export default function CheckinPage() {
     useEffect(() => {
         async function loadData() {
             try {
-                const [est, userPets] = await Promise.all([
-                    getEstablishmentByQr(establishmentToken),
-                    getUserPets(),
-                ])
+                const est = await getEstablishmentByQr(establishmentToken)
+                const userPets = await getUserPets()
                 setEstablishment(est)
                 setPets(userPets)
                 setStep(est ? 'info' : 'loading')
@@ -107,10 +106,12 @@ export default function CheckinPage() {
     // --- LOADING ---
     if (step === 'loading' && !error) {
         return (
-            <div className="min-h-[60vh] flex flex-col items-center justify-center">
-                <Loader2 className="w-10 h-10 text-primary-500 animate-spin mb-3" />
-                <p className="text-sm text-slate-500">Verificando establecimiento...</p>
-            </div>
+            <LoadingState 
+                message="Verificando establecimiento..." 
+                description="Por favor espera un momento mientras validamos el código QR"
+                minHeight="min-h-[60vh]"
+                size="lg"
+            />
         )
     }
 
@@ -140,8 +141,8 @@ export default function CheckinPage() {
                 </div>
 
                 <div>
-                    <h2 className="text-xl font-bold text-slate-900">¡Pago confirmado!</h2>
-                    <p className="text-sm text-slate-500 mt-1">Muestra este código al veterinario</p>
+                    <h2 className="text-xl font-bold text-slate-900">¡Tu turno está confirmado en Brofy! 🐾</h2>
+                    <p className="text-sm text-slate-500 mt-1">Presenta este código al especialista de <strong>{establishment?.name}</strong> para iniciar tu atención.</p>
                 </div>
 
                 {/* OTP Code */}
@@ -180,7 +181,16 @@ export default function CheckinPage() {
             {/* Check-in Header */}
             <div className="text-center">
                 <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-3 text-3xl">
-                    {establishment.type === 'clinic' ? '🏥' : establishment.type === 'groomer' ? '✂️' : '🏠'}
+                    {establishment.type ? establishment.type.split(',').map((t: string) => {
+                        const c = t.trim();
+                        if (c === 'clinic' || c === 'hospital') return '🏥';
+                        if (c === 'groomer') return '✂️';
+                        if (c === 'walker') return '🦮';
+                        if (c === 'lodging') return '🏨';
+                        if (c === 'trainer') return '🎓';
+                        if (c === 'other') return '🐾';
+                        return '🏠';
+                    })[0] : '🏠'}
                 </div>
                 <h1 className="text-xl font-bold text-slate-900">Check-in</h1>
                 <p className="text-sm text-slate-500 mt-1">{establishment.name}</p>
@@ -297,17 +307,17 @@ export default function CheckinPage() {
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-600">Comisión de plataforma</span>
                             <span className="font-bold text-slate-900">
-                                {formatPEN(6.00)}
+                                {formatPEN(5.00)}
                             </span>
                         </div>
                         <div className="flex justify-between text-xs text-slate-500">
                             <span>Tipo</span>
-                            <span>Presencial (walk-in)</span>
+                            <span>Atención Presencial (En establecimiento)</span>
                         </div>
                         <hr className="border-slate-100" />
                         <div className="flex justify-between font-semibold">
                             <span className="text-slate-900">Total</span>
-                            <span className="text-primary-600 text-lg">{formatPEN(6.00)}</span>
+                            <span className="text-primary-600 text-lg">{formatPEN(5.00)}</span>
                         </div>
                     </div>
 
@@ -349,7 +359,7 @@ export default function CheckinPage() {
                                 ) : (
                                     <Shield className="w-5 h-5" />
                                 )}
-                                {loading ? 'Procesando con Izipay...' : `Pagar ${formatPEN(6.00)}`}
+                                {loading ? 'Procesando con Izipay...' : `Pagar ${formatPEN(5.00)}`}
                             </button>
                         </div>
                     </div>

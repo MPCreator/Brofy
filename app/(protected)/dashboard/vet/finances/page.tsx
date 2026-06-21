@@ -8,6 +8,7 @@ import {
     TrendingUp, TrendingDown, DollarSign, Plus, Trash2, Loader2, ArrowUpCircle, ArrowDownCircle, BarChart3
 } from 'lucide-react'
 import { IzipayMock } from '@/components/ui/izipay-mock'
+import { LoadingState } from '@/components/ui/loading-state'
 
 export default function FinancesPage() {
     const [transactions, setTransactions] = useState<any[]>([])
@@ -24,7 +25,9 @@ export default function FinancesPage() {
     async function loadData() {
         setLoading(true)
         const { getVetDebt } = await import('@/lib/actions')
-        const [txns, sum, vetDebt] = await Promise.all([getTransactions(), getFinanceSummary(), getVetDebt()])
+        const txns = await getTransactions()
+        const sum = await getFinanceSummary()
+        const vetDebt = await getVetDebt()
         setTransactions(txns)
         setSummary(sum)
         setDebt(vetDebt)
@@ -65,7 +68,7 @@ export default function FinancesPage() {
         loadData()
     }
 
-    if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+    if (loading) return <LoadingState message="Cargando finanzas..." description="Calculando balances, ingresos y egresos" />
 
     const categories = formType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
 

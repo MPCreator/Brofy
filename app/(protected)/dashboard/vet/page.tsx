@@ -15,11 +15,15 @@ import {
     PawPrint,
     FileWarning,
     Building2,
+    X,
+    Plus,
 } from 'lucide-react'
 import { formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
 import { VetRemindersList } from '@/components/dashboard/vet-reminders'
 import { VetAppointmentCard } from '@/components/dashboard/vet-appointment-card'
+import SafeImage from '@/components/ui/SafeImage'
+import { VetTabs } from '@/components/dashboard/VetTabs'
 
 export default async function VetDashboard({
     searchParams
@@ -28,14 +32,31 @@ export default async function VetDashboard({
 }) {
     const activeTab = searchParams?.tab || 'agenda'
     const session = await requireRole(['vet', 'provider'])
-    const [stats, appointments, openFichas, reminders] = await Promise.all([
-        getVetStats(),
-        getVetAppointments(),
-        getOpenFichas(),
-        getVetReminders(),
-    ])
+    const stats = await getVetStats()
+    const appointments = await getVetAppointments()
+    const openFichas = await getOpenFichas()
+    const reminders = await getVetReminders()
 
-    const pendingValidation = appointments.filter((a:any) => a.status === 'paid')
+    const endOfToday = new Date()
+    endOfToday.setHours(23, 59, 59, 999)
+
+    const pendingValidation = appointments
+        .filter((a:any) => {
+            if (a.status !== 'paid') return false
+
+            // Age filter: must be <= 48 hours to match validation page
+            const aptTime = a.scheduledAt ? new Date(a.scheduledAt).getTime() : new Date(a.createdAt).getTime()
+            const ageMs = Date.now() - aptTime
+            if (ageMs > 48 * 60 * 60 * 1000) return false
+
+            if (!a.scheduledAt) return true // walk-in
+            return (new Date(a.scheduledAt).getTime() - Date.now()) <= 15 * 60 * 1000
+        })
+        .sort((a: any, b: any) => {
+            const timeA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : new Date(a.createdAt).getTime();
+            const timeB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : new Date(b.createdAt).getTime();
+            return timeA - timeB;
+        })
 
     // Build unique patients list for the notification dropdown
     const patientsMap = new Map<string, { petId: string; petName: string; clientId: string; clientName: string }>()
@@ -85,28 +106,7 @@ export default async function VetDashboard({
             </div>
 
             {/* Tabs Navigation Selector */}
-            <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1.5 w-fit">
-                <Link
-                    href="?tab=agenda"
-                    className={`px-4 py-2.5 text-xs font-extrabold rounded-xl transition-all ${
-                        activeTab === 'agenda'
-                            ? 'bg-white text-primary-700 shadow-sm border border-slate-200/30'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
-                >
-                    Agenda y Atención 🩺
-                </Link>
-                <Link
-                    href="?tab=stats"
-                    className={`px-4 py-2.5 text-xs font-extrabold rounded-xl transition-all ${
-                        activeTab === 'stats'
-                            ? 'bg-white text-primary-700 shadow-sm border border-slate-200/30'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
-                >
-                    Estadísticas y Operaciones 📊
-                </Link>
-            </div>
+            <VetTabs activeTab={activeTab} />
 
             {/* TAB CONTENT: AGENDA Y ATENCION */}
             {activeTab === 'agenda' && (
@@ -127,7 +127,7 @@ export default async function VetDashboard({
                                 <Zap className="w-4 h-4 text-amber-500" />
                                 <span className="text-xs font-semibold text-slate-500">Esperando</span>
                             </div>
-                            <p className="text-2xl font-black text-slate-900">{stats.pendingOtp}</p>
+                            <p className="text-2xl font-black text-slate-900">{pendingValidation.length}</p>
                             <p className="text-xs text-slate-400 mt-0.5 font-medium">clientes con código activo</p>
                         </div>
                     </div>
@@ -167,37 +167,119 @@ export default async function VetDashboard({
                     {/* Pending OTP Validation Alerts */}
                     {pendingValidation.length > 0 && (
                         <section className="space-y-2">
-                            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4 text-amber-600" />
-                                Clientes esperando atención ({pendingValidation.length})
+                            <h2 className="text-sm font-bold text-slate-900 flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                                    Clientes esperando atención ({pendingValidation.length})
+                                </span>
+                                <Link href="/dashboard/vet/validate" className="text-xs text-primary-600 hover:text-primary-700 font-bold transition-colors">
+                                    Ver todos (sala de espera) →
+                                </Link>
                             </h2>
                             <div className="space-y-2">
-                                {pendingValidation.map((apt: any) => (
-                                    <Link
-                                        key={apt.id}
-                                        href={`/dashboard/vet/validate?appointmentId=${apt.id}`}
-                                        className="block bg-white border border-slate-100 hover:border-amber-250 rounded-2xl p-4 transition-all shadow-sm"
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
-                                                    <Zap className="w-5 h-5" />
+                                {pendingValidation.map((apt: any, index: number) => {
+                                    const timeToCompare = apt.scheduledAt ? new Date(apt.scheduledAt) : new Date(apt.createdAt);
+                                    const diffMs = Date.now() - timeToCompare.getTime();
+                                    const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+                                    const isOverdue = (() => {
+                                        if (diffMins > 30) return true
+                                        if (apt.scheduledAt) {
+                                            const scheduledTime = new Date(apt.scheduledAt).getTime()
+                                            if (Date.now() - scheduledTime > 15 * 60 * 1000) {
+                                                return true
+                                            }
+                                        }
+                                        return false
+                                    })()
+
+                                    const isNoShowWindow = (() => {
+                                        if (!apt.scheduledAt) return false;
+                                        const scheduledTime = new Date(apt.scheduledAt).getTime();
+                                        const diff = Date.now() - scheduledTime;
+                                        return diff >= 24 * 60 * 60 * 1000 && diff <= 48 * 60 * 60 * 1000;
+                                    })();
+
+                                    const waitText = diffMins < 60 ? `${diffMins} min` : `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
+                                    
+                                    const scheduledText = apt.scheduledAt 
+                                        ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+                                        : "—";
+
+                                    return (
+                                        <Link
+                                            key={apt.id}
+                                            href={isNoShowWindow
+                                                ? `/dashboard/vet/validate?appointmentId=${apt.id}&action=report`
+                                                : `/dashboard/vet/validate?appointmentId=${apt.id}`
+                                            }
+                                            className={`block bg-white border rounded-2xl p-4 transition-all shadow-sm ${
+                                                isOverdue 
+                                                    ? 'border-red-100 hover:border-red-250 bg-red-50/10'
+                                                    : 'border-slate-100 hover:border-amber-250'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    {/* Turno index badge */}
+                                                    <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${
+                                                        isOverdue 
+                                                            ? 'bg-red-50 text-red-650 animate-pulse'
+                                                            : 'bg-amber-50 text-amber-600'
+                                                    }`}>
+                                                        <span className={`text-[9px] font-extrabold uppercase leading-none ${isOverdue ? 'text-red-500' : 'text-amber-500'}`}>Turno</span>
+                                                        <span className="text-sm font-black leading-none mt-0.5">#{index + 1}</span>
+                                                    </div>
+                                                    
+                                                    {/* Pet Avatar */}
+                                                    <div className="relative w-10 h-10 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-center text-xl overflow-hidden shrink-0">
+                                                        <SafeImage
+                                                            src={apt.pet?.photoUrl || ''}
+                                                            alt={apt.pet?.name || 'Mascota'}
+                                                            className="w-full h-full object-cover"
+                                                            fallback={
+                                                                <span>
+                                                                    {apt.pet?.species === 'dog' ? '🐕' : apt.pet?.species === 'cat' ? '🐈' : '🐾'}
+                                                                </span>
+                                                            }
+                                                        />
+                                                    </div>
+
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-slate-900 truncate">
+                                                            {(apt.client as { fullName: string })?.fullName || 'Cliente'}
+                                                        </p>
+                                                        <p className="text-xs text-slate-555 mt-0.5 font-medium flex flex-wrap items-center gap-1.5 truncate">
+                                                            <span className="font-bold text-slate-700">{apt.pet?.name}</span>
+                                                            <span className="text-slate-355 font-normal">·</span>
+                                                            <span 
+                                                                className="text-primary-650 bg-primary-50 px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[120px] sm:max-w-[200px] inline-block align-bottom"
+                                                                title={apt.serviceType}
+                                                            >
+                                                                {apt.serviceType}
+                                                            </span>
+                                                        </p>
+                                                        <p className="text-[11px] text-slate-400 mt-1 font-medium flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                            <span className={`font-bold flex items-center gap-0.5 ${isOverdue ? 'text-red-600 animate-pulse' : 'text-amber-600'}`}>
+                                                                <Clock className="w-3 h-3" /> Espera: {waitText} {isOverdue && '⚠️'}
+                                                            </span>
+                                                            <span className="text-slate-300 font-normal">•</span>
+                                                            <span className={isOverdue ? 'text-red-700 font-bold' : ''}>Pactado: {scheduledText}</span>
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-slate-900">
-                                                        {(apt.client as { fullName: string })?.fullName || 'Cliente'}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                                                        🐶 {(apt.pet as { name: string })?.name} · {apt.serviceType}
-                                                    </p>
-                                                </div>
+                                                <span className={`text-[10px] font-bold text-white px-3.5 py-1.5 rounded-xl uppercase tracking-wider shrink-0 transition-colors shadow-sm ${
+                                                    isNoShowWindow
+                                                        ? 'bg-red-600 hover:bg-red-700'
+                                                        : isOverdue
+                                                            ? 'bg-red-600 hover:bg-red-700'
+                                                            : 'bg-amber-600 hover:bg-amber-700'
+                                                }`}>
+                                                    {isNoShowWindow ? 'Reportar inasistencia →' : 'Atender ahora →'}
+                                                </span>
                                             </div>
-                                            <span className="text-[10px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-1.5 rounded-xl uppercase tracking-wider shrink-0 transition-colors shadow-sm">
-                                                Atender ahora →
-                                            </span>
-                                        </div>
-                                    </Link>
-                                ))}
+                                        </Link>
+                                    );
+                                })}
                             </div>
                         </section>
                     )}
@@ -225,7 +307,7 @@ export default async function VetDashboard({
                                                     <p className="text-sm font-bold text-slate-900">
                                                         {(apt.client as { fullName: string })?.fullName || 'Cliente'}
                                                     </p>
-                                                    <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                                                    <p className="text-xs text-slate-500 mt-0.5 font-medium truncate max-w-[180px] sm:max-w-[280px]" title={`🐶 ${(apt.pet as { name: string })?.name} · ${apt.serviceType}`}>
                                                         🐶 {(apt.pet as { name: string })?.name} · {apt.serviceType}
                                                     </p>
                                                 </div>
@@ -242,10 +324,19 @@ export default async function VetDashboard({
 
                     {/* Agenda de Citas Programadas */}
                     <section className="space-y-3">
-                        <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                            <Calendar className="w-5 h-5 text-primary-650" />
-                            Agenda de Citas Programadas
-                        </h2>
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-primary-650" />
+                                Agenda de Citas Programadas
+                            </h2>
+                            <Link
+                                href="/dashboard/vet/create-turn"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-[0.98]"
+                            >
+                                <Plus className="w-3.5 h-3.5 text-primary-600" />
+                                Agendar Turno
+                            </Link>
+                        </div>
                         {upcomingAppointments.length === 0 ? (
                             <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center shadow-sm">
                                 <Calendar className="w-10 h-10 text-slate-200 mx-auto mb-2" />
@@ -297,7 +388,7 @@ export default async function VetDashboard({
                         >
                             <Building2 className="w-6 h-6 text-amber-600 mb-1" />
                             <span className="font-bold text-xs text-slate-800">Mi Local</span>
-                            <span className="text-[10px] text-slate-500 mt-0.5">Sedes y Horarios</span>
+                            <span className="text-[10px] text-slate-500 mt-0.5">Local y Horarios</span>
                         </Link>
                         <Link
                             href="/dashboard/vet/services"
@@ -325,48 +416,22 @@ export default async function VetDashboard({
                         </Link>
                     </div>
 
-                    {/* Visor de Atenciones por Sede y Especialistas */}
+                    {/* Visor de Atenciones por Especialistas */}
                     <div className="bg-white rounded-3xl border border-slate-100 p-5 md:p-6 shadow-sm space-y-4">
                         <div>
                             <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                                 📊 Visor de Operaciones y Rendimiento
                             </h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Control de atenciones acumuladas por local y especialista médico</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Control de atenciones acumuladas por especialista médico</p>
                         </div>
                         
-                        <div className="grid md:grid-cols-2 gap-6 pt-2">
-                            {/* Sedes stats */}
-                            <div className="space-y-3">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                    🏪 Desglose por Local (Sedes)
-                                </h3>
-                                {stats.estStats?.length === 0 ? (
-                                    <p className="text-xs text-slate-400 italic">No tienes locales registrados</p>
-                                ) : (
-                                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                                        {stats.estStats?.map((est: any) => (
-                                            <div key={est.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-1.5">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="font-bold text-xs text-slate-800 truncate max-w-[170px]">{est.name}</span>
-                                                    <span className="text-[10px] bg-slate-200/80 text-slate-700 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">Total: {est.total}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3 text-[10px] font-bold">
-                                                    <span className="text-amber-600 flex items-center gap-1">⏰ Pendientes: {est.pending}</span>
-                                                    <span className="text-slate-400">|</span>
-                                                    <span className="text-emerald-600 flex items-center gap-1">✓ Completadas: {est.completed}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
+                        <div className="pt-2 max-w-2xl">
                             {/* Specialists stats */}
                             <div className="space-y-3">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
                                     🩺 Rendimiento de Especialistas
                                 </h3>
-                                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                                     {stats.specStats?.map((spec: any, idx: number) => (
                                         <div key={idx} className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex items-center justify-between">
                                             <div className="min-w-0 pr-2">
@@ -383,49 +448,63 @@ export default async function VetDashboard({
                         </div>
                     </div>
 
-                    {/* Recent Appointments History */}
-                    <section className="space-y-3">
-                        <h2 className="text-lg font-semibold text-slate-900">Historial Reciente de Atenciones</h2>
-                        {appointments.length === 0 ? (
-                            <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center shadow-sm">
-                                <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                                <p className="text-sm text-slate-500">No hay atenciones registradas</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {appointments.slice(0, 8).map((apt: any) => {
-                                    const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]
-                                    return (
-                                        <div
-                                            key={apt.id}
-                                            className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm"
-                                        >
-                                            <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
-                                                {apt.status === 'completed' ? (
-                                                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                                ) : apt.status === 'validated' ? (
-                                                    <ClipboardList className="w-5 h-5 text-primary-500" />
-                                                ) : (
-                                                    <Clock className="w-5 h-5 text-amber-500" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-slate-900 truncate">
-                                                    {(apt.client as { fullName: string })?.fullName || 'Cliente'}
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-0.5">
-                                                    🐶 {(apt.pet as { name: string })?.name} · {apt.serviceType}
-                                                </p>
-                                            </div>
-                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusInfo?.color || 'text-slate-700 bg-slate-100'} shrink-0`}>
-                                                {statusInfo?.label || apt.status}
-                                            </span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-                    </section>
+                    {(() => {
+                        const historyAppointments = appointments.filter((apt: any) => {
+                            if (apt.status === 'completed' || apt.status === 'cancelled') return true;
+                            if (apt.status === 'paid' && apt.scheduledAt) {
+                                const diff = Date.now() - new Date(apt.scheduledAt).getTime();
+                                if (diff > 48 * 60 * 60 * 1000) return true;
+                            }
+                            return false;
+                        })
+                        return (
+                            <section className="space-y-3">
+                                <h2 className="text-lg font-semibold text-slate-900">Historial de Atenciones</h2>
+                                {historyAppointments.length === 0 ? (
+                                    <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center shadow-sm">
+                                        <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                        <p className="text-sm text-slate-500">No hay atenciones finalizadas registradas</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                                        {historyAppointments.map((apt: any) => {
+                                            const isNoAtendido = apt.status === 'paid' && apt.scheduledAt && (Date.now() - new Date(apt.scheduledAt).getTime() > 48 * 60 * 60 * 1000);
+                                            const statusInfo = isNoAtendido
+                                                ? { label: 'No atendido', color: 'text-slate-500 bg-slate-100' }
+                                                : (APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: 'text-slate-700 bg-slate-100' });
+                                            return (
+                                                <div
+                                                    key={apt.id}
+                                                    className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm hover:border-slate-200 transition-all duration-200"
+                                                >
+                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isNoAtendido ? 'bg-slate-50' : 'bg-primary-50'}`}>
+                                                        {apt.status === 'completed' ? (
+                                                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                                        ) : apt.status === 'cancelled' ? (
+                                                            <X className="w-5 h-5 text-red-500" />
+                                                        ) : (
+                                                            <AlertCircle className="w-5 h-5 text-slate-400" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold text-slate-900 truncate">
+                                                            {(apt.client as { fullName: string })?.fullName || 'Cliente'}
+                                                        </p>
+                                                        <p className="text-xs text-slate-555 mt-0.5 font-semibold truncate max-w-[185px] sm:max-w-[280px]" title={`🐶 ${(apt.pet as { name: string })?.name} · ${apt.serviceType}`}>
+                                                            🐶 {(apt.pet as { name: string })?.name} · {apt.serviceType}
+                                                        </p>
+                                                    </div>
+                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${statusInfo?.color || 'text-slate-700 bg-slate-100'} shrink-0 uppercase tracking-wider`}>
+                                                        {statusInfo?.label || apt.status}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </section>
+                        )
+                    })()}
                 </div>
             )}
         </div>

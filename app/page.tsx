@@ -73,11 +73,11 @@ export default async function Home() {
                 </div>
                 
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-950 max-w-4xl mx-auto leading-[1.1] mb-6">
-                    El ecosistema integral para <span className="text-primary-600">mascotas, clínicas y spas.</span>
+                    Todo lo que tu mascota necesita, <span className="text-primary-600">en un solo lugar.</span>
                 </h1>
                 
                 <p className="text-lg md:text-xl text-slate-500 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
-                    Conectamos a dueños de mascotas con los mejores especialistas verificados. Reserva citas, gestiona su historial médico digital y olvídate de las colas.
+                    Desde veterinarias y spas hasta hospedajes y entrenadores. Olvídate de los papeles perdidos y las colas: reserva citas al instante con especialistas reales y lleva el historial médico digital de tu mascota siempre en tu celular.
                 </p>
 
                 {/* Floating Search Bar */}
@@ -311,7 +311,7 @@ export default async function Home() {
                         </ul>
 
                         <Link 
-                            href="/signup" 
+                            href="/signup?role=vet" 
                             className="inline-flex items-center gap-2.5 bg-slate-900 text-white text-base font-black px-10 py-5 rounded-full hover:bg-primary-600 hover:shadow-lg hover:shadow-primary-500/20 active:scale-95 transition-all duration-300 group"
                         >
                             Unirse como Profesional <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
@@ -387,9 +387,9 @@ export default async function Home() {
                     <div>
                         <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider text-[11px]">Descubrir</h4>
                         <ul className="space-y-2.5 font-medium">
-                            <li><Link href="/discover?category=VETERINARIA" className="hover:text-white transition-colors">Clínicas Veterinarias</Link></li>
-                            <li><Link href="/discover?category=SPA" className="hover:text-white transition-colors">Spas para Mascotas</Link></li>
-                            <li><Link href="/discover?category=PASEOS" className="hover:text-white transition-colors">Servicios de Paseo</Link></li>
+                            <li><Link href="/discover?type=clinic" className="hover:text-white transition-colors">Clínicas Veterinarias</Link></li>
+                            <li><Link href="/discover?type=groomer" className="hover:text-white transition-colors">Spas para Mascotas</Link></li>
+                            <li><Link href="/discover?type=walker" className="hover:text-white transition-colors">Servicios de Paseo</Link></li>
                             <li><Link href="/discover" className="hover:text-white transition-colors">Buscar por Distrito</Link></li>
                         </ul>
                     </div>
@@ -398,7 +398,7 @@ export default async function Home() {
                     <div>
                         <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider text-[11px]">Para Especialistas</h4>
                         <ul className="space-y-2.5 font-medium">
-                            <li><Link href="/signup" className="hover:text-white transition-colors">Registrar Local</Link></li>
+                            <li><Link href="/signup?role=provider" className="hover:text-white transition-colors">Registrar Local</Link></li>
                             <li><Link href="/login" className="hover:text-white transition-colors">Acceder a Panel</Link></li>
                             <li><a href="#soy-proveedor" className="hover:text-white transition-colors">Beneficios de Negocio</a></li>
                         </ul>

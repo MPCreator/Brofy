@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
     return {
         name: 'Brofy Mascotas',
         short_name: 'Brofy',
-        description: 'Reserva veterinarias, grooming y más en minutos.',
+        description: 'Todo lo que tu mascota necesita, en un solo lugar.',
         start_url: '/',
         display: 'standalone',
         background_color: '#ffffff',

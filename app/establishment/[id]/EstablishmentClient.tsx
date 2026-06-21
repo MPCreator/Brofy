@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ESTABLISHMENT_TYPE_LABELS, SERVICE_CATEGORIES } from '@/lib/types'
 import { formatPEN } from '@/lib/utils'
 import Link from 'next/link'
@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation'
 import SafeImage from '@/components/ui/SafeImage'
 
 const typeEmoji: Record<string, string> = {
-    clinic: '🏥', groomer: '✂️', walker: '🐕‍🦺', hospital: '🏨', pet_shop: '🛍️'
+    clinic: '🏥', hospital: '🏥', groomer: '✂️', walker: '🦮', lodging: '🏨', trainer: '🎓', other: '🐾'
 }
 
 function StarRow({ rating, filled }: { rating: number; filled: boolean }) {
@@ -40,17 +40,18 @@ export default function EstablishmentClient({ est, reviews, session }: { est: an
         }
     }
 
-    const estForModal = {
+    const estForModal = useMemo(() => ({
         id: est.id,
         name: est.name,
         ownerId: est.owner?.id || '',
         type: est.type,
         address: est.address,
         city: est.city,
-        services: est.services || [],   // ← fix: pass services to BookingModal
+        services: est.services || [],
         operatingHours: est.operatingHours,
         blockedDates: est.blockedDates,
-    }
+        concurrentSlots: est.concurrentSlots,
+    }), [est])
 
     return (
         <div className="min-h-screen bg-surface-50">
@@ -74,10 +75,10 @@ export default function EstablishmentClient({ est, reviews, session }: { est: an
                                             alt={est.name}
                                             className="w-full h-full object-cover"
                                             bare
-                                            fallback={<span className="text-3xl">{typeEmoji[est.type] || '🏠'}</span>}
+                                            fallback={<span className="text-3xl">{est.type ? est.type.split(',').map((t: string) => typeEmoji[t.trim()] || '').filter(Boolean).join('') || '🏠' : '🏠'}</span>}
                                         />
                                     ) : (
-                                        <span className="text-3xl">{typeEmoji[est.type] || '🏠'}</span>
+                                        <span className="text-3xl">{est.type ? est.type.split(',').map((t: string) => typeEmoji[t.trim()] || '').filter(Boolean).join('') || '🏠' : '🏠'}</span>
                                     )
                                 }
                             />
@@ -85,7 +86,7 @@ export default function EstablishmentClient({ est, reviews, session }: { est: an
                         <div className="flex-1">
                             <h1 className="text-2xl font-bold">{est.name}</h1>
                             <p className="text-sm text-white/80 mt-1">
-                                {ESTABLISHMENT_TYPE_LABELS[est.type as EstablishmentType] || est.type}
+                                {est.type ? est.type.split(',').map((t: string) => ESTABLISHMENT_TYPE_LABELS[t.trim() as EstablishmentType] || t.trim()).join(' · ') : ''}
                                 {est.district && ` · ${est.district}`}
                             </p>
                             <div className="flex items-center gap-3 mt-2">
@@ -98,7 +99,9 @@ export default function EstablishmentClient({ est, reviews, session }: { est: an
                                     <span className="flex items-center gap-1 text-sm text-white/70">
                                         <Stethoscope className="w-3.5 h-3.5" /> Dr. {est.owner.fullName}
                                         {est.owner.cmvpId && (
-                                            <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">{est.owner.cmvpId}</span>
+                                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded flex items-center gap-1 group relative cursor-help" title="Colegio de Médicos Veterinarios del Perú: Colegiatura registrada por el profesional. Brofy muestra esta información declarada con fines informativos; la atención y decisiones clínicas son responsabilidad exclusiva del médico y del local.">
+                                                🩺 Vet. Colegiado CMVP: {est.owner.cmvpId}
+                                            </span>
                                         )}
                                     </span>
                                 )}

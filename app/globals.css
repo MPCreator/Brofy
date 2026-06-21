@@ -76,6 +76,63 @@
             transform: translateY(0);
         }
     }
+
+    /* Dialog Animations centered relative to viewport coordinates */
+    @keyframes dialog-show {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -48%) scale(0.96);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+
+    @keyframes dialog-hide {
+        from {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        to {
+            opacity: 0;
+            transform: translate(-50%, -48%) scale(0.96);
+        }
+    }
+
+    @keyframes overlay-fade-in {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes overlay-fade-out {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+
+    .animate-dialog-show {
+        animation: dialog-show 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-dialog-hide {
+        animation: dialog-hide 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-overlay-show {
+        animation: overlay-fade-in 0.2s ease-out forwards;
+    }
+
+    .animate-overlay-hide {
+        animation: overlay-fade-out 0.15s ease-in forwards;
+    }
 }
 
 /* Safe area insets for mobile */
@@ -84,3 +141,11 @@
         padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
     }
 }
+
+/* Hide mobile bottom navigation bar when keyboards/inputs are active to prevent overlapping */
+@media (max-width: 1023px) {
+    body:has(input:focus, textarea:focus) nav.fixed.bottom-0.inset-x-0 {
+        display: none !important;
+    }
+}
+

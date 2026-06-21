@@ -1,23 +1,13 @@
-import { getSession, logout } from '@/lib/auth'
+import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { Suspense } from 'react'
 import { OnboardingTour } from '@/components/dashboard/onboarding-tour'
 import { DashboardNav } from '@/components/dashboard/dashboard-nav'
+import { LogoutButton } from '@/components/dashboard/LogoutButton'
 import {
-    Home,
-    PawPrint,
-    MapPin,
-    ClipboardList,
-    LogOut,
     User,
-    Zap,
-    Building2,
-    DollarSign,
-    Tag,
-    Settings,
-    ShieldCheck,
-    Clock,
 } from 'lucide-react'
 
 export default async function DashboardLayout({
@@ -34,8 +24,10 @@ export default async function DashboardLayout({
 
     return (
         <div className="min-h-screen bg-surface-50">
-            {/* Onboarding Tour Guide */}
-            <OnboardingTour role={session.role} />
+            {/* Onboarding Tour Guide — wrapped in Suspense to prevent SSR hook errors */}
+            <Suspense fallback={null}>
+                <OnboardingTour role={session.role} />
+            </Suspense>
 
             {/* Mobile top bar */}
             <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 lg:hidden">
@@ -55,15 +47,7 @@ export default async function DashboardLayout({
                         <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
                             {session.role === 'vet' ? '🩺 Vet' : session.role === 'provider' ? '🏪 Proveedor' : '🐾 Cliente'}
                         </span>
-                        <form action={logout}>
-                            <button
-                                type="submit"
-                                className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                                title="Cerrar sesión"
-                            >
-                                <LogOut className="w-4 h-4" />
-                            </button>
-                        </form>
+                        <LogoutButton isMobile />
                     </div>
                 </div>
             </header>
@@ -82,8 +66,10 @@ export default async function DashboardLayout({
                     />
                 </div>
 
-                {/* Sidebar Navigation */}
-                <DashboardNav role={session.role} />
+                {/* Sidebar Navigation — wrapped in Suspense to prevent SSR hook errors from usePathname */}
+                <Suspense fallback={<div className="flex-1 px-3 py-4" />}>
+                    <DashboardNav role={session.role} />
+                </Suspense>
 
                 <div className="p-4 border-t border-slate-100">
                     <div className="flex items-center gap-3 mb-3">
@@ -95,15 +81,7 @@ export default async function DashboardLayout({
                             <p className="text-xs text-slate-500 truncate">{session.email}</p>
                         </div>
                     </div>
-                    <form action={logout}>
-                        <button
-                            type="submit"
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                            <LogOut className="w-4 h-4" />
-                            Cerrar sesión
-                        </button>
-                    </form>
+                    <LogoutButton />
                 </div>
             </aside>
 
@@ -115,8 +93,11 @@ export default async function DashboardLayout({
             </main>
 
             {/* Mobile bottom nav — with safe area for Safari */}
+            {/* Wrapped in Suspense to prevent usePathname SSR hook errors */}
             <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/90 backdrop-blur-md border-t border-slate-100 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                <DashboardNav role={session.role} isMobile />
+                <Suspense fallback={<div className="h-16 w-full" />}>
+                    <DashboardNav role={session.role} isMobile />
+                </Suspense>
             </nav>
         </div>
     )

@@ -8,6 +8,7 @@ import {
     Building2, MapPin, Phone, FileText, Save, Loader2, CheckCircle2,
     QrCode, Copy, Check, ExternalLink, Tag, Plus, X, Navigation, Users, Camera
 } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
 import { toast } from 'sonner'
 import { QRCodeSVG } from 'qrcode.react'
 import { OperatingHoursInput } from './OperatingHoursInput'
@@ -78,22 +79,29 @@ export default function EstablishmentPage() {
     // User role (vet vs provider)
     const [userRole, setUserRole] = useState<string>('vet')
 
+    // Establishment types states
+    const [createTypes, setCreateTypes] = useState<string[]>([])
+    const [editTypesMap, setEditTypesMap] = useState<Record<string, string[]>>({})
+
     useEffect(() => { loadData() }, [])
 
     async function loadData() {
         setLoading(true)
-        const [data, role] = await Promise.all([getMyEstablishments(), getMyRole()])
+        const data = await getMyEstablishments()
+        const role = await getMyRole()
         setUserRole(role)
         setEstablishments(data)
-        // Pre-fill editPhotosMap, editLogosMap, blockedDatesMap, and specialistsMap for each establishment
+        // Pre-fill editPhotosMap, editLogosMap, blockedDatesMap, specialistsMap, and editTypesMap for each establishment
         const initialMap: Record<string, (string | null)[]> = {}
         const initialLogos: Record<string, string | null> = {}
         const initialBlockedDates: Record<string, string[]> = {}
         const initialSpecialists: Record<string, { id: string; name: string; cmvpId: string; role: string; isActive: boolean }[]> = {}
+        const initialTypes: Record<string, string[]> = {}
         data.forEach(est => {
             const urls = est.photoUrl ? est.photoUrl.split(',') : []
             initialMap[est.id] = [...urls, null, null, null, null].slice(0, 4)
             initialLogos[est.id] = est.logoUrl || null
+            initialTypes[est.id] = est.type ? est.type.split(',').map((t: string) => t.trim()).filter(Boolean) : []
             try {
                 initialBlockedDates[est.id] = JSON.parse(est.blockedDates || '[]')
             } catch {
@@ -109,7 +117,24 @@ export default function EstablishmentPage() {
         setEditLogosMap(initialLogos)
         setBlockedDatesMap(initialBlockedDates)
         setSpecialistsMap(initialSpecialists)
+        setEditTypesMap(initialTypes)
         setLoading(false)
+    }
+
+    const handleCreateTypeToggle = (type: string) => {
+        setCreateTypes(prev =>
+            prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+        )
+    }
+
+    const handleEditTypeToggle = (estId: string, type: string) => {
+        setEditTypesMap(prev => {
+            const currentList = prev[estId] || []
+            const nextList = currentList.includes(type)
+                ? currentList.filter(t => t !== type)
+                : [...currentList, type]
+            return { ...prev, [estId]: nextList }
+        })
     }
 
     const addSpecialist = (estId: string, name: string, cmvpId: string, role: string) => {
@@ -287,8 +312,14 @@ export default function EstablishmentPage() {
     }
 
     async function handleSave(formData: FormData) {
-        setSaving(true)
         const estId = formData.get('id') as string
+        const currentTypes = editTypesMap[estId] || []
+        if (currentTypes.length === 0) {
+            toast.error('Debes seleccionar al menos una etiqueta/tipo para el local.')
+            return
+        }
+
+        setSaving(true)
         const currentPhotos = editPhotosMap[estId] || []
         formData.set('photosBase64', JSON.stringify(currentPhotos.filter(Boolean)))
         
@@ -315,6 +346,11 @@ export default function EstablishmentPage() {
     }
 
     async function handleCreate(formData: FormData) {
+        if (createTypes.length === 0) {
+            toast.error('Debes seleccionar al menos una etiqueta/tipo para el local.')
+            return
+        }
+
         setSaving(true)
         formData.set('latitude', createLat)
         formData.set('longitude', createLng)
@@ -395,21 +431,32 @@ export default function EstablishmentPage() {
         document.body.removeChild(ta)
     }
 
-    if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+    if (loading) {
+        return (
+            <LoadingState 
+                message="Cargando locales..." 
+                description="Obteniendo información del local y especialistas"
+                minHeight="min-h-[40vh]"
+                size="md"
+            />
+        )
+    }
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Mis Establecimientos</h1>
-                    <p className="text-sm text-slate-500 mt-1">Gestiona tus locales y servicios</p>
+                    <h1 className="text-2xl font-bold text-slate-900">Mi Establecimiento</h1>
+                    <p className="text-sm text-slate-500 mt-1">Gestiona tu local y servicios</p>
                 </div>
-                <button
-                    onClick={() => setShowCreateForm(!showCreateForm)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition-colors shadow-md"
-                >
-                    <Plus className="w-4 h-4" /> Nuevo local
-                </button>
+                {establishments.length === 0 && (
+                    <button
+                        onClick={() => setShowCreateForm(!showCreateForm)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition-colors shadow-md"
+                    >
+                        <Plus className="w-4 h-4" /> Nuevo local
+                    </button>
+                )}
             </div>
 
             {/* Create New Form */}
@@ -523,19 +570,49 @@ export default function EstablishmentPage() {
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Distrito</label>
                             <input name="district" placeholder="Ej: Miraflores" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div>
-                                <label className="text-xs font-medium text-slate-500 mb-1 block">Tipo *</label>
-                                <select name="type" required className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                    {Object.entries(ESTABLISHMENT_TYPE_LABELS).map(([val, label]) => (
-                                        <option key={val} value={val}>{label}</option>
-                                    ))}
-                                </select>
+                        <div className="sm:col-span-2 bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-2.5">
+                            <label className="text-xs font-semibold text-slate-700 block">Etiquetas / Servicios que ofrece *</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                                {Object.entries(ESTABLISHMENT_TYPE_LABELS).map(([val, label]) => {
+                                    const isMedical = val === 'clinic' || val === 'hospital';
+                                    const isProvider = userRole === 'provider';
+                                    const isDisabled = isMedical && isProvider;
+                                    const isSelected = createTypes.includes(val);
+
+                                    return (
+                                        <label
+                                            key={val}
+                                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all select-none cursor-pointer ${
+                                                isDisabled
+                                                    ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
+                                                    : isSelected
+                                                        ? 'bg-primary-50 border-primary-500 text-primary-750 shadow-xs'
+                                                        : 'bg-white border-slate-200 hover:border-slate-350 text-slate-700'
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                name="type"
+                                                value={val}
+                                                checked={isSelected}
+                                                disabled={isDisabled}
+                                                onChange={() => handleCreateTypeToggle(val)}
+                                                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                                            />
+                                            <div className="flex flex-col text-left">
+                                                <span>{label}</span>
+                                                {isDisabled && (
+                                                    <span className="text-[9px] font-medium text-amber-600">Requiere Médico (Vet)</span>
+                                                )}
+                                            </div>
+                                        </label>
+                                    );
+                                })}
                             </div>
-                            <div>
-                                <label className="text-xs font-medium text-slate-500 mb-1 block" title="Veterinarios atendiendo al mismo tiempo">Capacidad (Citas a la vez)</label>
-                                <input type="number" name="concurrentSlots" min="1" max="20" defaultValue="1" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-slate-500 mb-1 block" title="Veterinarios o personal atendiendo al mismo tiempo">Capacidad (Citas a la vez)</label>
+                            <input type="number" name="concurrentSlots" min="1" max="20" defaultValue="1" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Teléfono</label>
@@ -598,8 +675,8 @@ export default function EstablishmentPage() {
             {establishments.length === 0 && !showCreateForm ? (
                 <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center">
                     <Building2 className="w-14 h-14 text-slate-200 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1">Sin establecimientos</h3>
-                    <p className="text-sm text-slate-500 mb-4">Registra tu primer local para empezar a recibir clientes</p>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-1">Sin establecimiento registrado</h3>
+                    <p className="text-sm text-slate-500 mb-4">Registra tu local para empezar a recibir clientes</p>
                     <button
                         onClick={() => setShowCreateForm(true)}
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 shadow-md"
@@ -752,21 +829,53 @@ export default function EstablishmentPage() {
                                     <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Phone className="w-3.5 h-3.5" /> Teléfono</label>
                                     <input name="phone" defaultValue={est.phone || ''} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1"><Tag className="w-3.5 h-3.5" /> Tipo</label>
-                                        <select name="type" defaultValue={est.type} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                            {Object.entries(ESTABLISHMENT_TYPE_LABELS).map(([val, label]) => (
-                                                <option key={val} value={val}>{label}</option>
-                                            ))}
-                                        </select>
+                                <div className="sm:col-span-2 bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-2.5">
+                                    <label className="text-xs font-semibold text-slate-700 block">Etiquetas / Servicios que ofrece *</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                                        {Object.entries(ESTABLISHMENT_TYPE_LABELS).map(([val, label]) => {
+                                            const isMedical = val === 'clinic' || val === 'hospital';
+                                            const isProvider = userRole === 'provider';
+                                            const isDisabled = isMedical && isProvider;
+                                            const currentTypes = editTypesMap[est.id] || [];
+                                            const isSelected = currentTypes.includes(val);
+
+                                            return (
+                                                <label
+                                                    key={val}
+                                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all select-none cursor-pointer ${
+                                                        isDisabled
+                                                            ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
+                                                            : isSelected
+                                                                ? 'bg-primary-50 border-primary-500 text-primary-750 shadow-xs'
+                                                                : 'bg-white border-slate-200 hover:border-slate-350 text-slate-700'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        name="type"
+                                                        value={val}
+                                                        checked={isSelected}
+                                                        disabled={isDisabled}
+                                                        onChange={() => handleEditTypeToggle(est.id, val)}
+                                                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                                                    />
+                                                    <div className="flex flex-col text-left">
+                                                        <span>{label}</span>
+                                                        {isDisabled && (
+                                                            <span className="text-[9px] font-medium text-amber-600">Requiere Médico (Vet)</span>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-500 mb-1 block flex items-center gap-1.5" title="Veterinarios atendiendo al mismo tiempo">
-                                            <Users className="w-3.5 h-3.5" /> Capacidad Simultánea
-                                        </label>
-                                        <input type="number" name="concurrentSlots" min="1" max="20" defaultValue={est.concurrentSlots || 1} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500 mb-1 block flex items-center gap-1.5" title="Veterinarios o personal atendiendo al mismo tiempo">
+                                        <Users className="w-3.5 h-3.5" /> Capacidad Simultánea
+                                    </label>
+                                    <input type="number" name="concurrentSlots" min="1" max="20" defaultValue={est.concurrentSlots || 1} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
 
                                 <div className="sm:col-span-2">
@@ -841,7 +950,7 @@ export default function EstablishmentPage() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => removeBlockedDate(est.id, dateStr)}
-                                                                    className="text-red-500 hover:text-red-750 font-bold transition-colors"
+                                                                    className="text-red-500 hover:text-red-700 font-bold transition-colors"
                                                                 >
                                                                     Eliminar
                                                                 </button>

@@ -2,12 +2,23 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { getMyEstablishments, addService, deleteService, updateService } from '@/lib/actions'
-import { SERVICE_CATEGORIES } from '@/lib/types'
+import { SERVICE_CATEGORIES, SPECIES_LABELS } from '@/lib/types'
 import { formatPEN } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
-    Building2, Plus, Trash2, Clock, DollarSign, Save, Loader2, ChevronDown, ChevronUp, Tag, Edit2
+    Building2, Plus, Trash2, Clock, Coins, Save, Loader2, ChevronDown, ChevronUp, Tag, Edit2
 } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
+
+const ALL_SPECIES = [
+    { value: 'dog', label: '🐕 Perro' },
+    { value: 'cat', label: '🐈 Gato' },
+    { value: 'bird', label: '🦜 Ave' },
+    { value: 'rabbit', label: '🐇 Conejo' },
+    { value: 'hamster', label: '🐹 Hámster' },
+    { value: 'fish', label: '🐟 Pez' },
+    { value: 'reptile', label: '🦎 Reptil' }
+]
 
 export default function ServicesPage() {
     const [establishments, setEstablishments] = useState<any[]>([])
@@ -16,6 +27,10 @@ export default function ServicesPage() {
     const [saving, setSaving] = useState(false)
     const [expandedEst, setExpandedEst] = useState<string | null>(null)
     const [editingService, setEditingService] = useState<any | null>(null)
+    const [addIsSpecific, setAddIsSpecific] = useState(false)
+    const [editIsSpecific, setEditIsSpecific] = useState(false)
+    const [addSpecies, setAddSpecies] = useState<string[]>([])
+    const [editSpecies, setEditSpecies] = useState<string[]>([])
 
     const [addDays, setAddDays] = useState<string[]>(['mon','tue','wed','thu','fri','sat','sun'])
     const [editDays, setEditDays] = useState<string[]>([])
@@ -30,6 +45,8 @@ export default function ServicesPage() {
 
     const startEditing = (svc: any) => {
         setEditingService(svc)
+        setEditIsSpecific(svc.isSpecific || false)
+        setEditSpecies(svc.specieRestriction ? svc.specieRestriction.split(',') : [])
         try {
             setEditDays(JSON.parse(svc.operatingDays || '["mon","tue","wed","thu","fri","sat","sun"]'))
         } catch {
@@ -53,6 +70,8 @@ export default function ServicesPage() {
 
     const startAdding = (estId: string) => {
         setShowForm(estId)
+        setAddIsSpecific(false)
+        setAddSpecies([])
         setAddDays(['mon','tue','wed','thu','fri','sat','sun'])
         setAddStartHour('08:00')
         setAddEndHour('20:00')
@@ -128,7 +147,16 @@ export default function ServicesPage() {
         }
     }
 
-    if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+    if (loading) {
+        return (
+            <LoadingState 
+                message="Cargando servicios..." 
+                description="Cargando tu tarifario y horarios de atención"
+                minHeight="min-h-[40vh]"
+                size="md"
+            />
+        )
+    }
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
@@ -153,7 +181,16 @@ export default function ServicesPage() {
                         >
                             <div className="flex items-center gap-3 text-left">
                                 <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-lg">
-                                    {est.type === 'clinic' ? '🏥' : est.type === 'groomer' ? '✂️' : '🏠'}
+                                    {est.type ? est.type.split(',').map((t: string) => {
+                                        const c = t.trim();
+                                        if (c === 'clinic' || c === 'hospital') return '🏥';
+                                        if (c === 'groomer') return '✂️';
+                                        if (c === 'walker') return '🦮';
+                                        if (c === 'lodging') return '🏨';
+                                        if (c === 'trainer') return '🎓';
+                                        if (c === 'other') return '🐾';
+                                        return '🏠';
+                                    })[0] : '🏠'}
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-slate-900">{est.name}</h3>
@@ -173,14 +210,142 @@ export default function ServicesPage() {
                                         editingService?.id === svc.id ? (
                                             <form key={svc.id} action={handleEditService} className="bg-primary-50 rounded-xl p-4 space-y-3 animate-in border border-primary-200">
                                                 <input type="hidden" name="id" value={svc.id} />
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <input name="name" required defaultValue={svc.name} placeholder="Nombre del servicio" className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                                    <input name="price" type="number" step="0.5" required defaultValue={svc.price} placeholder="Precio (S/)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                                    <input name="duration" type="number" defaultValue={svc.duration} placeholder="Duración (min)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                                    <select name="category" defaultValue={svc.category} className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                                        {SERVICE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                                                    </select>
-                                                    <textarea name="description" defaultValue={svc.description || ''} placeholder="Descripción (opcional)" rows={2} className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                                                <div className="flex items-center gap-1.5 text-xs font-black text-primary-800 uppercase tracking-wider mb-1">
+                                                     <Edit2 className="w-3.5 h-3.5" />
+                                                     <span>Editar Servicio: {svc.name}</span>
+                                                 </div>
+                                                 <div className="grid grid-cols-2 gap-3 text-left">
+                                                     <div className="col-span-2 flex flex-col gap-1">
+                                                         <label className="text-xs font-bold text-slate-500">Nombre del Servicio</label>
+                                                         <input name="name" required defaultValue={svc.name} placeholder="Nombre del servicio" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                                     </div>
+                                                     <div className="flex flex-col gap-1">
+                                                         <label className="text-xs font-bold text-slate-500">Precio (S/)</label>
+                                                         <input name="price" type="number" step="0.5" required defaultValue={svc.price} placeholder="Precio (S/)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-full" />
+                                                     </div>
+                                                     <div className="flex flex-col gap-1">
+                                                         <label className="text-xs font-bold text-slate-500">Duración (min)</label>
+                                                         <input name="duration" type="number" defaultValue={svc.duration} placeholder="Duración (min)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-full" />
+                                                     </div>
+                                                     <div className="col-span-2 flex flex-col gap-1">
+                                                         <label className="text-xs font-bold text-slate-500">Categoría</label>
+                                                         <select name="category" defaultValue={svc.category} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                                             {SERVICE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                                         </select>
+                                                     </div>
+                                                     <div className="col-span-2 flex flex-col gap-1">
+                                                         <label className="text-xs font-bold text-slate-500">Descripción (opcional)</label>
+                                                         <textarea name="description" defaultValue={svc.description || ''} placeholder="Descripción (opcional)" rows={2} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                                                     </div>
+
+                                                     <div className="col-span-2 space-y-2.5 bg-white/70 p-3 rounded-lg border border-slate-200/80 mt-1">
+                                                         <label className="flex items-center gap-2 text-xs font-bold text-slate-750 select-none cursor-pointer">
+                                                             <input
+                                                                 type="checkbox"
+                                                                 name="isSpecific"
+                                                                 value="true"
+                                                                 checked={editIsSpecific}
+                                                                 onChange={(e) => setEditIsSpecific(e.target.checked)}
+                                                                 className="rounded border-slate-350 text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                                                             />
+                                                             <span>⚙️ ¿Es un servicio específico? (Restringir especie, peso, etc.)</span>
+                                                         </label>
+
+                                                         {editIsSpecific && (
+                                                             <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-200 animate-in fade-in text-left">
+                                                                 <div className="col-span-2 flex flex-col gap-1.5">
+                                                                     <label className="text-xs font-bold text-slate-500">Especies elegibles (Selecciona una o más, o ninguna para todas)</label>
+                                                                     <div className="flex flex-wrap gap-2 pt-1">
+                                                                         {ALL_SPECIES.map((spec) => {
+                                                                             const isChecked = editSpecies.includes(spec.value);
+                                                                             return (
+                                                                                 <label key={spec.value} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 select-none">
+                                                                                     <input
+                                                                                         type="checkbox"
+                                                                                         checked={isChecked}
+                                                                                         onChange={() => {
+                                                                                             setEditSpecies(prev =>
+                                                                                                 prev.includes(spec.value)
+                                                                                                     ? prev.filter(v => v !== spec.value)
+                                                                                                     : [...prev, spec.value]
+                                                                                             )
+                                                                                         }}
+                                                                                         className="rounded border-slate-350 text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                                                                                     />
+                                                                                     <span>{spec.label}</span>
+                                                                                 </label>
+                                                                             );
+                                                                         })}
+                                                                     </div>
+                                                                     <input type="hidden" name="specieRestriction" value={editSpecies.join(',')} />
+                                                                 </div>
+                                                                 <div className="flex flex-col gap-1">
+                                                                     <label className="text-xs font-bold text-slate-500">Peso Mínimo (kg)</label>
+                                                                     <input
+                                                                         type="number"
+                                                                         step="0.1"
+                                                                         name="minWeight"
+                                                                         defaultValue={svc.minWeight !== null ? svc.minWeight : ''}
+                                                                         placeholder="Ej: 5.0"
+                                                                         className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                                     />
+                                                                 </div>
+                                                                 <div className="flex flex-col gap-1">
+                                                                     <label className="text-xs font-bold text-slate-500">Peso Máximo (kg)</label>
+                                                                     <input
+                                                                         type="number"
+                                                                         step="0.1"
+                                                                         name="maxWeight"
+                                                                         defaultValue={svc.maxWeight !== null ? svc.maxWeight : ''}
+                                                                         placeholder="Ej: 20.0"
+                                                                         className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                                     />
+                                                                 </div>
+                                                                 <div className="flex flex-col gap-1">
+                                                                     <label className="text-xs font-bold text-slate-500">Edad Mínima (Años)</label>
+                                                                     <input
+                                                                         type="number"
+                                                                         step="0.1"
+                                                                         name="minAge"
+                                                                         defaultValue={svc.minAge !== null ? svc.minAge : ''}
+                                                                         placeholder="Ej: 0.5 (6 meses)"
+                                                                         className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                                     />
+                                                                 </div>
+                                                                 <div className="flex flex-col gap-1">
+                                                                     <label className="text-xs font-bold text-slate-500">Edad Máxima (Años)</label>
+                                                                     <input
+                                                                         type="number"
+                                                                         step="0.1"
+                                                                         name="maxAge"
+                                                                         defaultValue={svc.maxAge !== null ? svc.maxAge : ''}
+                                                                         placeholder="Ej: 10"
+                                                                         className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                                     />
+                                                                 </div>
+                                                                 <div className="col-span-2 flex flex-col gap-1">
+                                                                     <label className="text-xs font-bold text-slate-500">Restricción de Raza (Opcional)</label>
+                                                                     <input
+                                                                         type="text"
+                                                                         name="breedRestriction"
+                                                                         defaultValue={svc.breedRestriction || ''}
+                                                                         placeholder="Ej: Pug, Beagle (dejar vacío para cualquier raza)"
+                                                                         className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                                     />
+                                                                 </div>
+                                                                 <div className="col-span-2 flex flex-col gap-1">
+                                                                     <label className="text-xs font-bold text-slate-500">Restricción de Edad / Nota (Opcional)</label>
+                                                                     <input
+                                                                         type="text"
+                                                                         name="ageRestriction"
+                                                                         defaultValue={svc.ageRestriction || ''}
+                                                                         placeholder="Ej: Solo cachorros de hasta 6 meses"
+                                                                         className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                                     />
+                                                                 </div>
+                                                             </div>
+                                                         )}
+                                                     </div>
                                                     
                                                     {/* Disponibilidad del Servicio */}
                                                     <div className="col-span-2 space-y-2 mt-2 bg-white/70 p-3 rounded-lg border border-slate-200/80">
@@ -285,7 +450,7 @@ export default function ServicesPage() {
                                                         <p className="text-sm font-medium text-slate-900 truncate">{svc.name}</p>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="flex items-center gap-0.5 text-xs text-slate-500">
-                                                                <DollarSign className="w-3 h-3" /> {formatPEN(svc.price)}
+                                                                <Coins className="w-3 h-3 text-slate-400" /> {formatPEN(svc.price)}
                                                             </span>
                                                             <span className="flex items-center gap-0.5 text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg">
                                                                 <Clock className="w-3 h-3 text-slate-400" /> {svc.duration} min
@@ -323,9 +488,34 @@ export default function ServicesPage() {
                                                                 }
                                                                 
                                                                 return (
+                                                                    <>
                                                                     <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${colorClass} uppercase tracking-wider`}>
                                                                         <Tag className="w-2.5 h-2.5" /> {label}
                                                                     </span>
+                                                                    {svc.isSpecific && (
+                                                                        <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border border-rose-250 bg-rose-50 text-rose-800 uppercase tracking-wider">
+                                                                            ⚙️ Específico
+                                                                        </span>
+                                                                    )}
+                                                                    {svc.isSpecific && svc.specieRestriction && svc.specieRestriction.split(',').filter(Boolean).map((spec: string) => {
+                                                                        const label = spec === 'dog' ? '🐕 Solo Perros' : spec === 'cat' ? '🐈 Solo Gatos' : `🐾 Solo ${SPECIES_LABELS[spec as keyof typeof SPECIES_LABELS] || spec}`;
+                                                                        return (
+                                                                            <span key={spec} className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-250 bg-blue-50 text-blue-800 capitalize tracking-wider">
+                                                                                {label}
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                    {svc.isSpecific && (svc.minWeight !== null || svc.maxWeight !== null) && (
+                                                                        <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-250 bg-amber-50 text-amber-800 tracking-wider">
+                                                                            ⚖️ {svc.minWeight !== null ? `${svc.minWeight}kg` : '0'} a {svc.maxWeight !== null ? `${svc.maxWeight}kg` : '∞'}
+                                                                        </span>
+                                                                    )}
+                                                                    {svc.isSpecific && (svc.minAge !== null || svc.maxAge !== null) && (
+                                                                        <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border border-violet-250 bg-violet-50 text-violet-800 tracking-wider">
+                                                                            ⏱️ {svc.minAge !== null ? `${svc.minAge} ${svc.minAge === 1 ? 'año' : 'años'}` : '0'} a {svc.maxAge !== null ? `${svc.maxAge} ${svc.maxAge === 1 ? 'año' : 'años'}` : '∞'}
+                                                                        </span>
+                                                                    )}
+                                                                    </>
                                                                 )
                                                             })()}
                                                         </div>
@@ -387,14 +577,132 @@ export default function ServicesPage() {
                                 {showForm === est.id ? (
                                     <form action={handleAddService} className="bg-primary-50 rounded-xl p-4 space-y-3 animate-in border border-primary-150">
                                         <input type="hidden" name="establishmentId" value={est.id} />
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <input name="name" required placeholder="Nombre del servicio" className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                            <input name="price" type="number" step="0.5" required placeholder="Precio (S/)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                            <input name="duration" type="number" placeholder="Duración (min)" defaultValue="30" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                                            <select name="category" className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                                {SERVICE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                                            </select>
-                                            <textarea name="description" placeholder="Descripción (opcional)" rows={2} className="col-span-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                                        <div className="grid grid-cols-2 gap-3 text-left">
+                                             <div className="col-span-2 flex flex-col gap-1">
+                                                 <label className="text-xs font-bold text-slate-500">Nombre del Servicio</label>
+                                                 <input name="name" required placeholder="Nombre del servicio" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                                             </div>
+                                             <div className="flex flex-col gap-1">
+                                                 <label className="text-xs font-bold text-slate-500">Precio (S/)</label>
+                                                 <input name="price" type="number" step="0.5" required placeholder="Precio (S/)" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-full" />
+                                             </div>
+                                             <div className="flex flex-col gap-1">
+                                                 <label className="text-xs font-bold text-slate-500">Duración (min)</label>
+                                                 <input name="duration" type="number" placeholder="Duración (min)" defaultValue="30" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-full" />
+                                             </div>
+                                             <div className="col-span-2 flex flex-col gap-1">
+                                                 <label className="text-xs font-bold text-slate-500">Categoría</label>
+                                                 <select name="category" className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                                     {SERVICE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                                 </select>
+                                             </div>
+                                             <div className="col-span-2 flex flex-col gap-1">
+                                                 <label className="text-xs font-bold text-slate-500">Descripción (opcional)</label>
+                                                 <textarea name="description" placeholder="Descripción (opcional)" rows={2} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                                             </div>
+
+                                             <div className="col-span-2 space-y-2.5 bg-white/70 p-3 rounded-lg border border-slate-200/80 mt-1">
+                                                 <label className="flex items-center gap-2 text-xs font-bold text-slate-750 select-none cursor-pointer">
+                                                     <input
+                                                         type="checkbox"
+                                                         name="isSpecific"
+                                                         value="true"
+                                                         checked={addIsSpecific}
+                                                         onChange={(e) => setAddIsSpecific(e.target.checked)}
+                                                         className="rounded border-slate-350 text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                                                     />
+                                                     <span>⚙️ ¿Es un servicio específico? (Restringir especie, peso, etc.)</span>
+                                                 </label>
+
+                                                 {addIsSpecific && (
+                                                     <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-200 animate-in fade-in text-left">
+                                                         <div className="col-span-2 flex flex-col gap-1.5">
+                                                             <label className="text-xs font-bold text-slate-500">Especies elegibles (Selecciona una o más, o ninguna para todas)</label>
+                                                             <div className="flex flex-wrap gap-2 pt-1">
+                                                                 {ALL_SPECIES.map((spec) => {
+                                                                     const isChecked = addSpecies.includes(spec.value);
+                                                                     return (
+                                                                         <label key={spec.value} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 select-none">
+                                                                             <input
+                                                                                 type="checkbox"
+                                                                                 checked={isChecked}
+                                                                                 onChange={() => {
+                                                                                     setAddSpecies(prev =>
+                                                                                         prev.includes(spec.value)
+                                                                                             ? prev.filter(v => v !== spec.value)
+                                                                                             : [...prev, spec.value]
+                                                                                     )
+                                                                                 }}
+                                                                                 className="rounded border-slate-350 text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                                                                             />
+                                                                             <span>{spec.label}</span>
+                                                                         </label>
+                                                                     );
+                                                                 })}
+                                                             </div>
+                                                             <input type="hidden" name="specieRestriction" value={addSpecies.join(',')} />
+                                                         </div>
+                                                         <div className="flex flex-col gap-1">
+                                                             <label className="text-xs font-bold text-slate-500">Peso Mínimo (kg)</label>
+                                                             <input
+                                                                 type="number"
+                                                                 step="0.1"
+                                                                 name="minWeight"
+                                                                 placeholder="Ej: 5.0"
+                                                                 className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                             />
+                                                         </div>
+                                                         <div className="flex flex-col gap-1">
+                                                             <label className="text-xs font-bold text-slate-500">Peso Máximo (kg)</label>
+                                                             <input
+                                                                 type="number"
+                                                                 step="0.1"
+                                                                 name="maxWeight"
+                                                                 placeholder="Ej: 20.0"
+                                                                 className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                             />
+                                                         </div>
+                                                         <div className="flex flex-col gap-1">
+                                                             <label className="text-xs font-bold text-slate-500">Edad Mínima (Años)</label>
+                                                             <input
+                                                                 type="number"
+                                                                 step="0.1"
+                                                                 name="minAge"
+                                                                 placeholder="Ej: 0.5 (6 meses)"
+                                                                 className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                             />
+                                                         </div>
+                                                         <div className="flex flex-col gap-1">
+                                                             <label className="text-xs font-bold text-slate-500">Edad Máxima (Años)</label>
+                                                             <input
+                                                                 type="number"
+                                                                 step="0.1"
+                                                                 name="maxAge"
+                                                                 placeholder="Ej: 10"
+                                                                 className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                             />
+                                                         </div>
+                                                         <div className="col-span-2 flex flex-col gap-1">
+                                                             <label className="text-xs font-bold text-slate-500">Restricción de Raza (Opcional)</label>
+                                                             <input
+                                                                 type="text"
+                                                                 name="breedRestriction"
+                                                                 placeholder="Ej: Pug, Beagle (dejar vacío para cualquier raza)"
+                                                                 className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                             />
+                                                         </div>
+                                                         <div className="col-span-2 flex flex-col gap-1">
+                                                             <label className="text-xs font-bold text-slate-500">Restricción de Edad / Nota (Opcional)</label>
+                                                             <input
+                                                                 type="text"
+                                                                 name="ageRestriction"
+                                                                 placeholder="Ej: Solo cachorros"
+                                                                 className="px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                                                             />
+                                                         </div>
+                                                     </div>
+                                                 )}
+                                             </div>
                                             
                                             {/* Disponibilidad del Servicio */}
                                             <div className="col-span-2 space-y-2 mt-2 bg-white/70 p-3 rounded-lg border border-slate-200/80">

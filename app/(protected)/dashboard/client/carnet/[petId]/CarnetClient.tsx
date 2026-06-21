@@ -259,7 +259,7 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
                 {activeTab === 'vacunas' && (
                     vaccineEntries.length === 0 ? (
                         <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center">
-                            <Syringe className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                            <Syringe className="w-12 h-12 text-slate-200 mx-auto mb-3 animate-bounce" />
                             <p className="text-sm font-semibold text-slate-500">No hay vacunas registradas aún</p>
                         </div>
                     ) : (
@@ -299,7 +299,7 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
                 {activeTab === 'diagnosticos' && (
                     diagnosisEntries.length === 0 ? (
                         <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center">
-                            <Stethoscope className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                            <Stethoscope className="w-12 h-12 text-slate-200 mx-auto mb-3 animate-bounce" />
                             <p className="text-sm font-semibold text-slate-500">No hay registros clínicos de diagnóstico aún</p>
                         </div>
                     ) : (
@@ -358,7 +358,7 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
                 {activeTab === 'tratamientos' && (
                     treatmentEntries.length === 0 ? (
                         <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center">
-                            <Pill className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                            <Pill className="w-12 h-12 text-slate-200 mx-auto mb-3 animate-bounce" />
                             <p className="text-sm font-semibold text-slate-500">No hay tratamientos o prescripciones activas</p>
                         </div>
                     ) : (

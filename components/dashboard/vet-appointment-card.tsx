@@ -6,6 +6,7 @@ import { proposeReschedule } from "@/lib/actions";
 import { toast } from "sonner";
 import { Calendar, Phone, Check, Clock, Edit, Sparkles, X } from "lucide-react";
 import Link from "next/link";
+import { PetProfileModal } from "./PetProfileModal";
 
 export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: () => void }) {
     const router = useRouter();
@@ -14,6 +15,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
     const [newTime, setNewTime] = useState("");
     const [notes, setNotes] = useState("");
     const [loading, setLoading] = useState(false);
+    const [showPetModal, setShowPetModal] = useState(false);
 
     const handleReschedule = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -57,7 +59,7 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-primary-200 transition-all">
             {/* Left side: Date indicator */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 min-w-0">
                 <div className="text-center px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl min-w-[70px]">
                     <div className="text-[10px] font-extrabold text-primary-600 uppercase tracking-wider">
                         {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { month: "short" }) : "Turno"}
@@ -71,16 +73,28 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
                 </div>
 
                 {/* Patient / Client / Service info */}
-                <div className="space-y-1">
+                <div className="space-y-1 min-w-0">
                     <p className="font-bold text-slate-800 text-sm flex flex-wrap items-center gap-1">
                         <span>{apt.client?.fullName || "Cliente"}</span>
                         <span className="text-slate-400 font-normal">con</span>
-                        <span className="text-primary-700 bg-primary-50 px-2 py-0.5 rounded-lg text-xs font-semibold">
-                            🐶 {apt.pet?.name || "Mascota"}
-                        </span>
+                        {apt.pet ? (
+                            <button
+                                type="button"
+                                onClick={() => setShowPetModal(true)}
+                                className="text-primary-700 hover:text-primary-800 bg-primary-50 hover:bg-primary-100 px-2.5 py-0.5 rounded-lg text-xs font-extrabold flex items-center gap-1 transition-colors border border-primary-100"
+                                title="Ver Ficha Completa del Paciente"
+                            >
+                                🐶 {apt.pet.name}
+                            </button>
+                        ) : (
+                            <span className="text-slate-400 text-xs">Mascota</span>
+                        )}
                     </p>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
+                    <div className="flex items-center gap-2 max-w-full">
+                        <span 
+                            className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium truncate max-w-[180px] sm:max-w-[280px]"
+                            title={apt.serviceType}
+                        >
                             {apt.serviceType}
                         </span>
                         {apt.notes && (
@@ -106,6 +120,16 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
 
             {/* Right side: Action triggers */}
             <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
+                {apt.pet && (
+                    <button
+                        type="button"
+                        onClick={() => setShowPetModal(true)}
+                        className="inline-flex items-center gap-1 text-[10px] uppercase font-extrabold tracking-wider px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 text-primary-700 transition-colors border border-primary-200/60 active:scale-[0.98]"
+                    >
+                        🔎 Ver Ficha
+                    </button>
+                )}
+
                 {apt.rescheduledAt && (
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-blue-50 text-blue-600 flex items-center gap-1 border border-blue-200">
                         <Clock className="w-3 h-3" /> Reprog. Propuesta
@@ -212,6 +236,18 @@ export function VetAppointmentCard({ apt, onRefresh }: { apt: any; onRefresh?: (
                         </div>
                     </form>
                 </div>
+            )}
+
+            {showPetModal && apt.pet && (
+                <PetProfileModal
+                    key={apt.pet.id}
+                    pet={{
+                        ...apt.pet,
+                        owner: apt.client
+                    }}
+                    isOpen={true}
+                    onClose={() => setShowPetModal(false)}
+                />
             )}
         </div>
     );

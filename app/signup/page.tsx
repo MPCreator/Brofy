@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { signup } from '@/lib/auth'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Mail, Lock, User, Phone, FileText, Loader2, AlertCircle, Stethoscope, PawPrint, Store, ArrowLeft } from 'lucide-react'
 import type { UserRole } from '@/lib/types'
+import { LoadingState } from '@/components/ui/loading-state'
 
 const roles: Array<{ value: UserRole; label: string; icon: typeof PawPrint; description: string }> = [
     { value: 'client', label: 'Soy Dueño de Mascota', icon: PawPrint, description: 'Buscar servicios y gestionar la salud de tus mascotas' },
@@ -33,6 +34,34 @@ export default function SignupPage() {
     const [state, formAction] = useFormState(signup, null)
     const [countryCode, setCountryCode] = useState('+51')
     const [phoneDigits, setPhoneDigits] = useState('')
+    const [isRedirecting, setIsRedirecting] = useState(false)
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const roleParam = params.get('role');
+            if (roleParam === 'vet' || roleParam === 'provider' || roleParam === 'client') {
+                setSelectedRole(roleParam);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (state?.message || state?.errors) {
+            setIsRedirecting(false)
+        }
+    }, [state])
+
+    if (isRedirecting) {
+        return (
+            <LoadingState 
+                message="Creando tu cuenta..." 
+                description="Preparando tu espacio en Brofy..."
+                minHeight="min-h-screen"
+                size="lg"
+            />
+        )
+    }
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-50/30 px-4 py-8 relative">
@@ -114,8 +143,24 @@ export default function SignupPage() {
 
                         {/* Form */}
                         {selectedRole && (
-                            <form action={formAction} className="space-y-3 animate-in">
+                            <form action={(formData) => {
+                                setIsRedirecting(true)
+                                formAction(formData)
+                            }} className="space-y-3 animate-in">
                                 <input type="hidden" name="role" value={selectedRole} />
+                                
+                                {selectedRole === 'client' && (
+                                    <div className="bg-primary-50 border border-primary-150 rounded-2xl p-3.5 space-y-1 text-xs text-primary-950 font-medium leading-relaxed">
+                                        <div className="flex items-center gap-1.5 font-bold text-primary-800">
+                                            <span>💡</span>
+                                            <span>¿Tu veterinario usó Ficha Rápida?</span>
+                                        </div>
+                                        <p className="text-[11px] text-primary-900/90">
+                                            Regístrate con el <strong>mismo número de teléfono móvil</strong> que le diste a tu veterinario o estilista para heredar y acceder de forma automática a toda la ficha médica, recetas e historial de tus mascotas.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Nombre completo</label>
                                     <div className="relative">

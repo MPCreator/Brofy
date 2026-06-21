@@ -28,7 +28,7 @@ export default function TerminosPage() {
                         </div>
                         <h1 className="text-3xl font-extrabold text-slate-900">Términos y Condiciones de Uso</h1>
                         <p className="text-slate-500 mt-2 text-sm">
-                            Última actualización: 28 de mayo de 2026 · Versión 1.1
+                            Última actualización: 11 de junio de 2026 · Versión 1.3
                         </p>
                     </div>
 
@@ -48,12 +48,12 @@ export default function TerminosPage() {
                     <section className="space-y-3">
                         <h2 className="text-lg font-bold text-slate-900">1. Definiciones</h2>
                         <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
-                            <p><strong>Plataforma:</strong> El software, sitio web y aplicaciones móviles de Brofy.</p>
+                            <p><strong>Plataforma:</strong> El software, sitio web and aplicaciones móviles de Brofy.</p>
                             <p><strong>Usuario / Cliente:</strong> Persona natural que accede a la Plataforma en calidad de propietario de una mascota.</p>
                             <p><strong>Profesional:</strong> Médico veterinario, groomer, paseador u otro prestador de servicios de cuidado animal registrado e independiente en la Plataforma.</p>
                             <p><strong>Servicio Digital:</strong> El conjunto de funcionalidades que Brofy provee: directorio, reserva de agenda, sistema de Código de Atención de verificación de identidad, gestión de historial médico digital, y procesamiento de pagos por el uso de infraestructura.</p>
                             <p><strong>Acto Médico:</strong> La consulta, diagnóstico, tratamiento, cirugía o cualquier intervención de salud animal, prestada exclusivamente por el Profesional habilitado y bajo su plena responsabilidad.</p>
-                            <p><strong>Cargo por Infraestructura:</strong> El pago por servicio (establecido por defecto en S/ 5.00 —cinco soles con 00/100— por cada servicio reservado) que el Cliente abona a Brofy por el uso de la infraestructura digital, intermediación tecnológica y, cuando corresponda por la naturaleza del servicio, la verificación de habilitación profesional, tal como se define en la cláusula 5.</p>
+                            <p><strong>Cargo por Infraestructura:</strong> El pago por servicio (establecido por defecto en S/ 5.00 —cinco soles con 00/100— por cada servicio reservado) que el Cliente abona a Brofy por el uso de la infraestructura digital e intermediación tecnológica, tal como se define en la cláusula 5.</p>
                             <p><strong>Código Único de Huella (CUH):</strong> El identificador único, memorizable y alfanumérico generado por la Plataforma para cada mascota registrada (con formato <code className="font-mono bg-slate-100 px-1 rounded">CUH-XXXXXX</code> con 6 dígitos aleatorios), el cual sirve para identificación digital externa y asociación correcta del historial clínico digital.</p>
                             <p><strong>Huellitas:</strong> El sistema de puntaje de fidelización, incentivos y devoluciones de Brofy otorgado a los Clientes. Las Huellitas se acumulan mediante devoluciones, cancelaciones y reembolsos validados administrativamente conforme a los presentes T&C (incluyendo inasistencias de proveedores, desacuerdos por alza de tarifas o disputas por incumplimiento parcial). La equivalencia interna de las Huellitas es de 100 Huellitas equivalentes a S/ 1.00 (de modo que 500 Huellitas equivalen a S/ 5.00).</p>
                         </div>
@@ -72,7 +72,7 @@ export default function TerminosPage() {
                                 Brofy <strong>no es parte</strong> de la relación contractual que se establece entre el Usuario y el Profesional para la prestación del servicio veterinario. La prestación del Acto Médico es un contrato independiente, bilateral y exclusivo entre el Usuario y el Profesional.
                             </p>
                             <p>
-                                En consecuencia, Brofy no asume responsabilidad alguna por: (i) la calidad, idoneidad o resultado de los servicios veterinarios; (ii) errores de diagnóstico o tratamiento; (iii) el estado de salud de la mascota antes, durante o después de la atención; o (iv) cualquier daño, perjuicio o pérdida derivada directa o indirectamente del Acto Médico.
+                                En consecuencia, Brofy no asume responsabilidad alguna por: (i) la calidad, idoneidad o resultado de los servicios veterinarios; (ii) errores de diagnóstico o tratamiento; (iii) el estado de salud de la mascota antes, durante o después de la atención; (iv) cualquier daño, perjuicio o pérdida derivada directa o indirectamente del Acto Médico; (v) la veracidad, vigencia, exactitud o licitud de las credenciales profesionales (como el número de colegiatura CMVP), autorizaciones sanitarias o permisos de funcionamiento declarados por los Profesionales o sus locales; o (vi) cualquier incidente, daño material o lesiones personales ocurridas en el local del Profesional.
                             </p>
                         </div>
                     </section>
@@ -84,7 +84,7 @@ export default function TerminosPage() {
                         <h2 className="text-lg font-bold text-slate-900">3. Registro y Cuenta de Usuario</h2>
                         <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
                             <p>Para acceder a las funcionalidades de la Plataforma, el Usuario deberá registrarse y crear una cuenta personal proporcionando información veraz, exacta y actualizada. El Usuario es responsable de mantener la confidencialidad de sus credenciales de acceso.</p>
-                            <p>Para el registro como Profesional de tipo Clínica u Hospital, la Plataforma requerirá el número de colegiatura del Colegio Médico Veterinario del Perú (CMVP) como mecanismo de verificación de habilitación profesional, de conformidad con la Ley N.º 30407, Ley de Protección y Bienestar Animal.</p>
+                            <p>Para el registro de Profesionales que ofrecen consultas clínicas o intervenciones médicas veterinarias, la Plataforma solicitará la declaración de su número de colegiatura (como el CMVP en el Perú) con fines de ordenamiento y seguridad administrativa. Dicho registro referencial no constituye una validación continua, una certificación oficial de vigencia ni una garantía de habilitación por parte de Brofy, siendo responsabilidad exclusiva de los usuarios verificar de forma directa las credenciales del médico a cargo antes de recibir la atención clínica.</p>
                             <p>Brofy se reserva el derecho de suspender o cancelar cuentas que infrinjan los presentes T&C, proporcionen información falsa o incurran en conductas fraudulentas.</p>
                         </div>
                     </section>
@@ -162,25 +162,28 @@ export default function TerminosPage() {
 
                     {/* 5 — CLAVE LEGAL */}
                     <section className="space-y-3">
-                        <h2 className="text-lg font-bold text-slate-900">5. Cargo por Uso de Infraestructura Digital, Intermediación Tecnológica y Verificación de Habilitación Profesional</h2>
+                        <h2 className="text-lg font-bold text-slate-900">5. Cargo por Uso de Infraestructura Digital e Intermediación Tecnológica</h2>
                         <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
                             <div className="bg-primary-50 border border-primary-200 rounded-xl px-4 py-3 space-y-2">
                                 <p className="font-bold text-primary-900">Definición Contractual Imperativa:</p>
                                 <p>
-                                    El pago de <strong>S/ 5.00 (cinco soles con 00/100)</strong> —o el monto total proporcional acumulado de conformidad con la cláusula 5.B en caso de reservas multi-servicio— que el Usuario abona al momento de registrar su agenda en la Plataforma constituye, en su totalidad e integridad, un <strong>Cargo por Uso de Infraestructura Digital, Intermediación Tecnológica y Verificación de Habilitación Profesional</strong> (en adelante, el Cargo).
+                                    El pago de <strong>S/ 5.00 (cinco soles con 00/100)</strong> —o el monto total proporcional acumulado de conformidad con la cláusula 5.B en caso de reservas multi-servicio— que el Usuario abona al momento de registrar su agenda en la Plataforma constituye, en su totalidad e integridad, un <strong>Cargo por Uso de Infraestructura Digital e Intermediación Tecnológica</strong> (en adelante, el Cargo).
                                 </p>
                                 <p>
                                     Este Cargo retribuye, de manera exclusiva y excluyente, los siguientes servicios digitales prestados por Brofy al Usuario:
                                 </p>
                                 <ul className="list-disc list-inside space-y-1 pl-2">
                                     <li>El uso de la infraestructura tecnológica de la Plataforma (servidores, bases de datos, API, interfaces).</li>
-                                    <li>El servicio de intermediación tecnológica que conecta al Usuario con el directorio de Profesionales habilitados.</li>
-                                    <li>La verificación digital del estado de habilitación profesional del titular del establecimiento seleccionado (consulta del registro público o colegiatura colegiada oficial correspondiente del país de operación, como el CMVP en el Perú, únicamente para servicios de naturaleza médica veterinaria, clínicas u hospitales veterinarios), quedando expresamente excluido de dicha verificación el personal o especialistas independientes registrados de forma interna por el propio establecimiento, conforme a lo establecido en la cláusula 3.C.</li>
+                                    <li>El servicio de intermediación tecnológica que conecta al Usuario con el directorio de Profesionales registrados.</li>
+                                    <li>La verificación preliminar de la colegiatura profesional del Profesional titular al momento de su registro inicial (onboarding) en la Plataforma en los registros públicos gremiales (como el CMVP en el Perú), sin que esto constituya un servicio de auditoría activa en tiempo real, de control sobre personal registrado posteriormente o de garantía de vigencia continua por Brofy.</li>
                                     <li>La generación y gestión del sistema de Código de Atención de verificación de identidad.</li>
-                                    <li>El almacenamiento y cifrado del historial médico digital de la mascota del Usuario.</li>
-                                    <li>La gestión segura de la transacción a través de la pasarela de pago certificada.</li>
+                                    <li>El almacenamiento y alojamiento del historial médico digital de la mascota del Usuario.</li>
+                                    <li>La gestión de la transacción tecnológica a través de la pasarela de pago de un tercero.</li>
                                 </ul>
                             </div>
+                            <p className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-950 font-medium">
+                                ⚠️ DESCARGO DE RESPONSABILIDAD DE CREDENCIALES: Brofy realiza una verificación preliminar de la colegiatura vigente (como el número CMVP) únicamente al Profesional titular al momento de registrar su cuenta principal. Brofy no audita estas credenciales en tiempo real ni supervisa de forma continua su vigencia posterior. Asimismo, Brofy no realiza ninguna verificación ni control sobre las credenciales o habilitación de los Especialistas o personal adicional que el Profesional titular registre de manera interna en su local (conforme a la Cláusula 3.C). Es deber exclusivo del Profesional titular asegurar la vigencia de su staff y responsabilidad del Usuario corroborar el estatus del médico veterinario al momento de recibir la atención clínica.
+                            </p>
                             <p className="font-semibold text-slate-800">El Cargo no constituye, bajo ninguna interpretación posible:</p>
                             <ul className="list-disc list-inside space-y-1 text-slate-600 pl-2">
                                 <li>Un pago por una consulta, diagnóstico, tratamiento o cualquier Acto Médico.</li>
@@ -266,7 +269,7 @@ export default function TerminosPage() {
                             <ul className="list-disc list-inside space-y-1 text-slate-650 pl-2">
                                 <li><strong>Propuesta de Reprogramación Directa y Gratuita:</strong> El Profesional está obligado a coordinar directamente y proponer al Cliente un turno de reprogramación exclusivo para los servicios que quedaron pendientes de ejecución. **Esta reprogramación se realizará a coste cero para el Cliente**, quedando Brofy exenta de cobrar una nueva comisión o Cargo por Uso de Infraestructura por este nuevo turno fraccionado, al entenderse ya liquidada en la reserva original.</li>
                                 <li><strong>Procedimiento de Registro por el Profesional:</strong> Para formalizar esta reprogramación de servicios pendientes sin que se apliquen cargos adicionales, el Profesional deberá registrar el nuevo turno complementario en coordinación directa con el soporte de Brofy o mediante las herramientas específicas de agenda gratuita provistas para compensación de fallos de servicio.</li>
-                                <li><strong>Derecho a Disputa Parcial y Devolución Proporcional:</strong> En caso de que el Profesional no ofrezca una fecha idónea o el Cliente no preste su conformidad para la reprogramación del servicio pendiente, el Cliente podrá registrar una Denuncia Parcial dentro de las 24 horas. El Administrador de Brofy auditará el caso y reembolsará al Cliente la porción correspondiente del Cargo de Infraestructura en puntos **Huellitas** (ej: 500 Huellitas reembolsadas si el servicio principal cancelado representaba la comisión pagada), aplicando las sanciones correspondientes al Profesional por incumplimiento de agenda.</li>
+                                <li><strong>Derecho a Disputa Parcial y Devolución Proporcional:</strong> En caso de que el Profesional no ofrezca una fecha idónea o el Cliente no preste su conformidad para la reprogramación del servicio pendiente, el Cliente podrá registrar una Denuncia Parcial dentro de las 48 horas. El Administrador de Brofy auditará el caso y reembolsará al Cliente la porción correspondiente del Cargo de Infraestructura en puntos **Huellitas** (ej: 500 Huellitas reembolsadas si el servicio principal cancelado representaba la comisión pagada), aplicando las sanciones correspondientes al Profesional por incumplimiento de agenda.</li>
                             </ul>
                         </div>
                     </section>
@@ -314,6 +317,23 @@ export default function TerminosPage() {
 
                     <hr className="border-slate-100" />
 
+                    {/* 5.G */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg font-bold text-slate-900">5.G. Reservas de Servicios con Tarifas Variables (Tamaño, Raza, Peso o Condición Especial)</h2>
+                        <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                            <p>
+                                En aquellos servicios cuyas tarifas sean inherentemente variables y dependan de factores que deban ser evaluados de forma presencial por el Profesional (tales como servicios de baño, peluquería, corte de pelo, profilaxis, o cirugías especializadas que varíen según el tamaño, peso, raza o estado de la mascota), se aplicarán las siguientes reglas:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 text-slate-650 pl-2">
+                                <li><strong>Reserva Estimada:</strong> Si el Cliente posee una mascota mestiza (sin raza definida), de tamaño intermedio, o no está seguro de la categoría tarifaria exacta aplicable, deberá realizar la reserva seleccionando la opción base o la aproximación de tamaño/servicio más cercana disponible en el catálogo del Establecimiento para asegurar su turno.</li>
+                                <li><strong>Determinación del Precio Final y Pago Presencial:</strong> El precio final de los honorarios del servicio será determinado por el Profesional de manera presencial en el local luego de la evaluación física del animal. Dado que Brofy únicamente recauda a través de la Plataforma el Cargo por Uso de Infraestructura (S/ 5.00 por cita) y no cobra por anticipado los honorarios del servicio, cualquier diferencia de tarifa o saldo pendiente derivado del tamaño o condición real de la mascota deberá ser abonado por el Cliente directamente al Establecimiento en el momento de la atención.</li>
+                                <li><strong>Actualización de Ficha de Servicio:</strong> El Profesional registrará la tarifa final cobrada en la Ficha de Atención o Ficha de Servicio digital de la mascota en resguardo de la transparencia y de la exactitud histórica de los consumos y ficha médica de la mascota.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <hr className="border-slate-100" />
+
                     {/* 6 */}
                     <section className="space-y-3">
                         <h2 className="text-lg font-bold text-slate-900">6. Comisiones a Profesionales</h2>
@@ -334,13 +354,13 @@ export default function TerminosPage() {
                         <h2 className="text-lg font-bold text-slate-900">7. Historial Médico Digital y Datos Personales</h2>
                         <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
                             <p>
-                                La información clínica de las mascotas registrada en la Plataforma es propiedad del Usuario. Brofy actúa como encargado del tratamiento de dicha información de conformidad con la ley de protección de datos personales aplicable en el país de registro del usuario (como la Ley N.º 29733 en el Perú, la Ley Federal de Protección de Datos Personales en Posesión de los Particulares en México, o normativas equivalentes en el territorio de operación) y sus reglamentos.
+                                La información clínica de las mascotas registrada en la Plataforma (tales como diagnósticos, recetas, y fichas de atención) es ingresada y gestionada por los Profesionales bajo su exclusiva responsabilidad ética, deontológica y legal. De acuerdo con las normativas sanitarias locales, el Historial Clínico constituye un registro de custodia legal a cargo del Profesional o del establecimiento de salud animal respectivo, quienes están obligados a conservarlo durante los plazos regulados correspondientes.
                             </p>
                             <p>
-                                Brofy implementa medidas técnicas y organizativas adecuadas para garantizar la seguridad, integridad y confidencialidad de la información almacenada. El Profesional que ingresa información clínica declara hacerlo bajo su responsabilidad ética y legal como profesional habilitado.
+                                Brofy actúa únicamente como proveedor de infraestructura digital y almacenamiento en la nube (encargado del tratamiento de datos personales), facilitando al Usuario el acceso a una copia digital de dichos registros para su consulta y portabilidad. Por consiguiente, el Profesional declara que ingresa dicha información clínica bajo su responsabilidad ética y legal como profesional habilitado.
                             </p>
                             <p>
-                                La información no será compartida con terceros sin consentimiento del Usuario, salvo mandato judicial expreso o requerimiento de autoridad competente.
+                                Toda solicitud de supresión o eliminación de datos personales de naturaleza clínica o médica de la mascota estará supeditada a los plazos legales de retención y custodia que correspondan a los Profesionales y establecimientos conforme a la legislación sanitaria aplicable, quedando exenta Brofy de cualquier responsabilidad en caso de imposibilidad de eliminación inmediata de tales antecedentes debido a imperativos regulatorios.
                             </p>
                         </div>
                     </section>
@@ -358,14 +378,14 @@ export default function TerminosPage() {
                                 En consecuencia, la <strong>inasistencia del Usuario</strong> a la cita agendada (no-show) o su decisión voluntaria de no concurrir al local del Profesional <strong>no genera derecho a reembolso, compensación ni devolución</strong> del Cargo.
                             </p>
                             <p>
-                                Sin perjuicio de lo anterior, si la inasistencia o incumplimiento es responsabilidad directa del Profesional o establecimiento seleccionado, el Cliente podrá registrar una denuncia o reporte de inasistencia (&quot;Denuncia&quot;) a través de la Plataforma dentro de las 24 horas posteriores a la cita. La opción de registrar una Denuncia estará habilitada en el panel del Cliente a partir de los <strong>quince (15) minutos</strong> de tolerancia posteriores a la hora pactada de la cita, otorgando dicho periodo de gracia al establecimiento para absorber demoras menores ajenas al control operativo.
+                                Sin perjuicio de lo anterior, si la inasistencia o incumplimiento es responsabilidad directa del Profesional o establecimiento seleccionado, el Cliente podrá registrar una denuncia o reporte de inasistencia (&quot;Denuncia&quot;) a través de la Plataforma dentro de las 48 horas posteriores a la cita. La opción de registrar una Denuncia estará habilitada en el panel del Cliente a partir de los <strong>treinta (30) minutos</strong> de tolerancia posteriores a la hora pactada de la cita, otorgando dicho periodo de gracia al establecimiento para absorber demoras menores ajenas al control operativo. Es requisito indispensable que la ficha de atención del paciente no haya sido abierta o validada por el Profesional mediante el ingreso del Código de Atención (OTP); una vez iniciada la atención, se inhabilita de manera irrevocable la opción de registrar reclamos o reportes de inasistencia por cualquiera de las partes. Asimismo, si no se registra reclamo alguno por el Cliente dentro de las 48 horas, o si el Profesional no reporta el No-Show del Cliente en la ventana permitida para proveedores (habilitada entre las 24 y 48 horas posteriores al turno), la reserva se archivará de forma definitiva e automática en la sección de historial bajo la categoría de &quot;No atendido&quot;, extinguiéndose toda opción de reclamo posterior.
                             </p>
                             <p className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-900 font-medium">
                                 ⚖️ PROCESO DE AUDITORÍA: Las denuncias por inasistencia ya no se reembolsan de manera automática. Al presentarse una Denuncia, la cita cambiará a estado &quot;En Disputa&quot; (disputed). El Administrador de Brofy auditará el caso recabando información de ambas partes y resolverá con criterio justo:
                                 <br />
                                 1. <strong>A favor del Cliente:</strong> Se constata el incumplimiento del Profesional. Se cancelará definitivamente la cita y se reembolsará el 100% de la comisión en puntos **Huellitas** a la cuenta del Cliente (S/ 5.00 devueltos como 500 Huellitas). Adicionalmente, Brofy se reserva el derecho de aplicar sanciones administrativas o advertencias al Profesional.
                                 <br />
-                                2. <strong>A favor del Proveedor:</strong> Se constata que el Profesional estuvo disponible pero el Cliente incurrió en inasistencia (no-show). Se desestimará el reclamo sin otorgar reembolsos en Huellitas.
+                                2. <strong>A favor del Proveedor:</strong> Se constata que el Profesional estuvo disponible pero el Cliente incurrió en inasistencia (no-show) y no canceló preventivamente de forma válida. Se desestimará el reclamo sin otorgar reembolsos en Huellitas.
                             </p>
                         </div>
                     </section>
@@ -424,10 +444,10 @@ export default function TerminosPage() {
                         <h2 className="text-lg font-bold text-slate-900">10. Resolución de Disputas y Jurisdicción</h2>
                         <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
                             <p>
-                                Cualquier controversia derivada de los presentes T&C será sometida, en primera instancia, a un mecanismo de negociación directa. Si no se alcanza acuerdo en un plazo de 15 días hábiles, la controversia será resuelta por arbitraje o por los tribunales competentes de la ciudad sede de la Empresa Operadora en el país de registro del Establecimiento donde se contrató el servicio, aplicándose el derecho local correspondiente. En el caso específico de Perú, será resuelta por un árbitro único del Centro de Arbitraje de la Cámara de Comercio de Lima, aplicándose el derecho peruano.
+                                Cualquier controversia derivada de los presentes T&C será sometida, en primera instancia, a un mecanismo de negociación directa y de trato amistoso entre las partes. Si no se alcanza un acuerdo en un plazo de quince (15) días hábiles, y únicamente si es aceptado de forma voluntaria y expresa por el Usuario en calidad de consumidor, la controversia podrá someterse a arbitraje de consumo o al Centro de Arbitraje de la Cámara de Comercio de Lima en el caso de Perú (u otro foro arbitral equivalente en el país de operación). En su defecto, las partes se someten irrevocablemente a la jurisdicción de los jueces y tribunales ordinarios del domicilio del consumidor, conforme a la legislación aplicable en materia de protección al consumidor.
                             </p>
                             <p>
-                                El Usuario conserva en todo momento su derecho a presentar reclamos ante la autoridad nacional de protección al consumidor competente de su jurisdicción (como el INDECOPI de conformidad con el Código de Protección y Defensa del Consumidor en el caso de la República del Perú). Para los usuarios locales, la Plataforma pone a disposición el Libro de Reclamaciones electrónico de acuerdo a la normativa vigente, accesible en todo momento desde{' '}
+                                El Usuario conserva en todo momento su derecho a presentar reclamos y denuncias administrativas ante la autoridad nacional de protección al consumidor competente de su jurisdicción (como el INDECOPI de conformidad con el Código de Protección y Defensa del Consumidor en el caso de la República del Perú). Para los usuarios locales, la Plataforma pone a disposición el Libro de Reclamaciones electrónico de acuerdo a la normativa vigente, accesible en todo momento desde{' '}
                                 <Link href="/libro-de-reclamaciones" className="text-primary-600 underline">
                                     brofy.pe/libro-de-reclamaciones
                                 </Link>
