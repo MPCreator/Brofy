@@ -22,18 +22,16 @@ import {
     ShieldAlert,
     MessageCircle,
     Copy,
-    ArrowLeft
+    ArrowLeft,
+    Clock
 } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatPEN } from '@/lib/utils'
 import { LoadingState } from '@/components/ui/loading-state'
 
 export default function FastEntryPage() {
     return (
         <Suspense fallback={
-            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3 w-full">
-                <div className="w-10 h-10 border-2 rounded-full border-slate-100 border-t-primary-600 animate-spin" />
-                <p className="text-xs text-slate-400 font-medium animate-pulse">Cargando ficha rápida...</p>
-            </div>
+            <LoadingState size="lg" message="Cargando ficha rápida..." description="Preparando formulario de atención inmediata" />
         }>
             <FastEntryPageContent />
         </Suspense>
@@ -75,6 +73,7 @@ function FastEntryPageContent() {
     const [selectedEstId, setSelectedEstId] = useState('')
     const [role, setRole] = useState('vet')
     const [profile, setProfile] = useState<any>(null)
+    const [debt, setDebt] = useState(0)
 
     // Unified states for loaded data
     const [appointmentData, setAppointmentData] = useState<any>(null)
@@ -82,6 +81,7 @@ function FastEntryPageContent() {
     const [isEditable, setIsEditable] = useState(true)
     const [loadingRecord, setLoadingRecord] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [recordCreatedAt, setRecordCreatedAt] = useState<Date | null>(null)
 
     const getActiveSpecialists = () => {
         let rawSpecialists = '[]'
@@ -103,16 +103,18 @@ function FastEntryPageContent() {
     useEffect(() => {
         async function loadInitialData() {
             try {
-                const { getMyEstablishments, getMyRole, getProfile } = await import('@/lib/actions')
+                const { getMyEstablishments, getMyRole, getProfile, getVetDebt } = await import('@/lib/actions')
                 const list = await getMyEstablishments()
                 const userRole = await getMyRole()
                 const userProfile = await getProfile()
+                const userDebt = await getVetDebt()
                 setEstablishments(list)
                 if (list.length > 0) {
                     setSelectedEstId(list[0].id)
                 }
                 setRole(userRole)
                 setProfile(userProfile)
+                setDebt(userDebt)
                 setAttendingRole(userRole === 'provider' ? 'provider' : 'vet')
             } catch (e) {
                 console.error("Error loading initial data:", e)
@@ -124,12 +126,14 @@ function FastEntryPageContent() {
         async function loadExistingRecord() {
             setLoadingRecord(true)
             try {
-                const { getMyRole, getAppointmentForVet, getProfile } = await import('@/lib/actions')
+                const { getMyRole, getAppointmentForVet, getProfile, getVetDebt } = await import('@/lib/actions')
                 const userRole = await getMyRole()
                 const res = await getAppointmentForVet(appointmentId)
                 const userProfile = await getProfile()
+                const userDebt = await getVetDebt()
                 setRole(userRole)
                 setProfile(userProfile)
+                setDebt(userDebt)
 
                 if (res) {
                     setAppointmentData(res.appointment)
@@ -145,6 +149,7 @@ function FastEntryPageContent() {
                         setTreatment(res.record.treatment || '')
                         setNextVisit(res.record.nextVisit || '')
                         setIsEditable(res.record.isEditable)
+                        setRecordCreatedAt(new Date(res.record.createdAt))
                         setAttendingName(res.record.attendingName || '')
                         setAttendingCmvp(res.record.attendingCmvp || '')
 
@@ -294,9 +299,7 @@ function FastEntryPageContent() {
                 if (resultData.summary) {
                     setSummaryData(resultData.summary)
                 }
-                if (appointmentId) {
-                    setTimeout(() => router.push('/dashboard/vet'), 2000)
-                }
+
             } else {
                 setError(result.message || 'Error al guardar')
             }
@@ -311,8 +314,9 @@ function FastEntryPageContent() {
         if (!summaryData) return ''
         const dateStr = new Date().toLocaleDateString('es-PE')
         const nextVisitStr = summaryData.nextVisit ? `\n📅 *Próximo control:* ${summaryData.nextVisit}` : ''
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://brofy.app'
         
-        return `¡Hola ${summaryData.clientName}! 🐾\n\nTe compartimos el resumen de la atención de *${summaryData.petName}* en *${summaryData.establishmentName}* (${dateStr}):\n\n🩺 *Detalle de la Atención:*\n- *Diagnóstico/Servicio:* ${summaryData.diagnosis}\n- *Prescripción:* ${summaryData.prescription}\n- *Tratamiento:* ${summaryData.treatment}${nextVisitStr}\n\n📲 Para ver todo su historial médico digital de forma gratuita, regístrate en Brofy usando este mismo contacto:\nhttps://brofy.app/register`
+        return `¡Hola ${summaryData.clientName}! 🐾\n\nTe compartimos el resumen de la atención de *${summaryData.petName}* en *${summaryData.establishmentName}* (${dateStr}):\n\n🩺 *Detalle de la Atención:*\n- *Diagnóstico/Servicio:* ${summaryData.diagnosis}\n- *Prescripción:* ${summaryData.prescription}\n- *Tratamiento:* ${summaryData.treatment}${nextVisitStr}\n\n📲 Para ver todo su historial médico digital de forma gratuita, regístrate en Brofy usando este mismo contacto:\n${origin}/signup`
     }
 
     const handleCopy = () => {
@@ -334,7 +338,7 @@ function FastEntryPageContent() {
     }
 
     if (success) {
-        const isGuestWorkflow = !appointmentId && summaryData
+        const isGuestWorkflow = (!appointmentId || appointmentData?.client?.password === 'guest-no-login') && summaryData
 
         if (isGuestWorkflow) {
             return (
@@ -350,6 +354,11 @@ function FastEntryPageContent() {
 
                         <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3 text-xs text-primary-850 inline-block">
                             📲 Recuerda compartir la receta y el diagnóstico con el propietario usando el botón de WhatsApp abajo.
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-xs text-slate-700 text-left space-y-1 max-w-lg mx-auto mt-2 shadow-xs">
+                            <span className="font-bold block text-blue-900">✨ Ficha editable por 24 horas:</span>
+                            <span>Puedes modificar esta ficha clínica durante las siguientes 24 horas desde la sección <strong>&quot;Atenciones Recientes&quot;</strong> de tu panel. Después se cerrará de manera definitiva.</span>
                         </div>
                     </div>
 
@@ -429,13 +438,25 @@ function FastEntryPageContent() {
         }
 
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 animate-in fade-in">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-5 animate-in fade-in max-w-md mx-auto">
                 <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                    <CheckCircle2 className="w-10 h-10 text-emerald-600 animate-bounce" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900">¡Ficha guardada! ✅</h2>
-                <p className="text-sm text-slate-500">El registro se agregó al historial de la mascota</p>
-                <p className="text-xs text-slate-400">Redirigiendo al panel...</p>
+                <h2 className="text-xl font-bold text-slate-900">¡Ficha guardada exitosamente! ✅</h2>
+                <p className="text-sm text-slate-500 leading-relaxed">El registro se agregó correctamente al historial médico de la mascota.</p>
+                <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 text-xs text-primary-850 text-left space-y-1 shadow-sm">
+                    <span className="font-bold block">✨ Edición disponible por 24 horas:</span>
+                    <span>Puedes modificar y actualizar esta ficha clínica durante las próximas 24 horas desde la sección <strong>&quot;Atenciones Recientes&quot;</strong> en tu panel de control.</span>
+                </div>
+                <div className="flex flex-col gap-2 w-full pt-4">
+                    <button
+                        onClick={() => router.push('/dashboard/vet')}
+                        className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold text-sm transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                        Volver al Panel Ahora
+                    </button>
+                    <p className="text-[10px] text-slate-400">Puedes tomarte tu tiempo para revisar el resumen o copiarlo antes de volver.</p>
+                </div>
             </div>
         )
     }
@@ -457,8 +478,42 @@ function FastEntryPageContent() {
         ? 'Guardar Ficha de Servicio'
         : 'Guardar Ficha Médica'
 
+    const isPenalized = profile?.isPenalized || debt >= 120
+
+    if (isPenalized) {
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-6 max-w-md mx-auto animate-in fade-in duration-300">
+                <div className="w-20 h-20 rounded-full bg-rose-105 flex items-center justify-center mx-auto text-rose-600">
+                    <ShieldAlert className="w-10 h-10" />
+                </div>
+                <h2 className="text-xl font-black text-slate-900">Acceso Restringido por Deuda 🚫</h2>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                    Tu cuenta de proveedor tiene penalizaciones activas o has alcanzado el límite de comisiones acumuladas pendientes de pago (monto actual: <strong className="text-rose-600">{formatPEN(debt)}</strong>).
+                </p>
+                <div className="bg-rose-50/50 border border-rose-200 rounded-2xl p-4 text-xs text-rose-950 text-left space-y-1 shadow-sm">
+                    <span className="font-bold block">¿Qué restricciones tienes?</span>
+                    <span>No puedes registrar atenciones manuales de pacientes in-situ ni utilizar la <strong>Ficha Rápida</strong>. Para rehabilitar tu cuenta inmediatamente, realiza la liquidación total de comisiones.</span>
+                </div>
+                <div className="flex flex-col gap-2.5 w-full">
+                    <button
+                        onClick={() => router.push('/dashboard/vet/finances')}
+                        className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-sm transition-all shadow-md active:scale-[0.98] cursor-pointer"
+                    >
+                        Ir a Liquidar Deuda Ahora
+                    </button>
+                    <button
+                        onClick={() => router.push('/dashboard/vet')}
+                        className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                    >
+                        Volver al Panel
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
     return (
-        <div className="space-y-6 pb-20 lg:pb-0">
+        <div className="space-y-6 pb-20 lg:pb-0 font-sans">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <ClipboardList className="w-6 h-6 text-primary-600" />
@@ -469,6 +524,21 @@ function FastEntryPageContent() {
                 </p>
             </div>
 
+            {/* Ficha vs Historial Coherence Explanation Box */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-650 leading-relaxed space-y-1.5 shadow-sm">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    💡 Relación entre Ficha Médica e Historial Clínico (Carnet Digital):
+                </span>
+                <p>
+                    Lo que escribas en esta <strong>Ficha Médica</strong> se guardará como la atención detallada de la cita actual, y automáticamente alimentará el <strong>Historial Clínico (Carnet Digital)</strong> de la mascota, organizándose de la siguiente forma según lo que tipees:
+                </p>
+                <ul className="list-disc pl-4 space-y-1 mt-1 font-medium text-slate-700">
+                    <li><strong className="text-slate-800">Vacunas:</strong> Si en <em>Diagnóstico</em> o <em>Tratamiento/Notas</em> escribes términos como &quot;vacuna&quot; o &quot;desparasit&quot;.</li>
+                    <li><strong className="text-slate-800">Diagnósticos:</strong> El texto ingresado en el campo <em>Diagnóstico</em>.</li>
+                    <li><strong className="text-slate-800">Tratamientos:</strong> Las indicaciones de los campos <em>Prescripción</em>, <em>Tratamiento/Notas</em> y <em>Próxima cita</em>.</li>
+                </ul>
+            </div>
+
             <div className="bg-amber-100/50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 flex gap-2 items-start">
                 <span>⚠️</span>
                 <div>
@@ -477,8 +547,18 @@ function FastEntryPageContent() {
                 </div>
             </div>
 
+            {isEditable && recordCreatedAt && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl p-4 text-xs font-bold flex items-center gap-2.5 shadow-sm">
+                    <Clock className="w-5 h-5 text-blue-600 shrink-0 animate-pulse" />
+                    <div>
+                        <span>Estás editando una ficha existente. </span>
+                        <span className="font-normal block mt-0.5 text-blue-700">Tienes hasta 24 horas desde su creación original ({recordCreatedAt.toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}) para realizar cambios y guardar antes de su cierre definitivo.</span>
+                    </div>
+                </div>
+            )}
+
             {!isEditable && (
-                <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4 text-sm font-semibold flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4 text-sm font-semibold flex items-center gap-2 shadow-sm">
                     <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
                     <span>Esta ficha médica fue completada hace más de 24 horas y ya no puede ser modificada.</span>
                 </div>
@@ -794,9 +874,12 @@ function FastEntryPageContent() {
 
                                     {/* Diagnosis */}
                                     <div>
-                                        <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                                        <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-0.5">
                                             <Stethoscope className="w-4 h-4" /> Diagnóstico
                                         </label>
+                                        <span className="block text-[10px] text-slate-400 mb-1.5">
+                                            *(Muestra el problema de salud en la pestaña &quot;Diagnósticos&quot; del Carnet del dueño)*
+                                        </span>
                                         <input
                                             type="text"
                                             list="diagnosis-list"
@@ -815,9 +898,12 @@ function FastEntryPageContent() {
 
                                     {/* Prescription */}
                                     <div>
-                                        <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                                        <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-0.5">
                                             <Pill className="w-4 h-4" /> Prescripción
                                         </label>
+                                        <span className="block text-[10px] text-slate-400 mb-1.5">
+                                            *(Medicamentos y dosis. Se enviará en la receta de WhatsApp y aparecerá en &quot;Tratamientos&quot;)*
+                                        </span>
                                         <textarea
                                             value={prescription}
                                             onChange={e => setPrescription(e.target.value)}
@@ -832,9 +918,12 @@ function FastEntryPageContent() {
 
                             {/* Treatment / Notes — always shown, label adapts */}
                             <div>
-                                <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                                <label className="text-sm font-medium text-slate-700 mb-0.5 block">
                                     {treatmentNotesLabel}
                                 </label>
+                                <span className="block text-[10px] text-slate-400 mb-1.5">
+                                    *(Procedimientos realizados o notas de la atención. Se mostrará en la pestaña &quot;Tratamientos&quot; del Carnet)*
+                                </span>
                                 <textarea
                                     value={treatment}
                                     onChange={e => setTreatment(e.target.value)}
@@ -847,9 +936,12 @@ function FastEntryPageContent() {
 
                             {/* Next Visit / Reminder Control */}
                             <div>
-                                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-0.5">
                                     <CalendarDays className="w-4 h-4 text-primary-500" /> Próxima cita / Control (Recordatorio Automático)
                                 </label>
+                                <span className="block text-[10px] text-slate-400 mb-1.5">
+                                    *(Crea un recordatorio en la app y se muestra en la pestaña &quot;Tratamientos&quot; del carnet)*
+                                </span>
                                 <input
                                     type="date"
                                     value={nextVisit}
@@ -868,18 +960,23 @@ function FastEntryPageContent() {
 
                             {/* Submit Button */}
                             {isEditable && (
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 text-white rounded-2xl font-semibold text-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
-                                >
-                                    {loading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <CheckCircle2 className="w-5 h-5" />
-                                    )}
-                                    {submitButtonText}
-                                </button>
+                                <div className="space-y-2.5">
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 text-white rounded-2xl font-semibold text-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <CheckCircle2 className="w-5 h-5" />
+                                        )}
+                                        {submitButtonText}
+                                    </button>
+                                    <p className="text-xs text-slate-500 text-center leading-normal px-2">
+                                        ⏱️ <strong>Guarda ahora y completa después:</strong> Si este es un procedimiento complejo o necesitas monitorear la evolución del paciente, puedes guardar esta ficha ahora. Tendrás <strong>hasta 24 horas</strong> para editarla, completarla y actualizarla desde la sección &quot;Atenciones Recientes&quot; de tu panel.
+                                    </p>
+                                </div>
                             )}
                         </form>
                     </div>

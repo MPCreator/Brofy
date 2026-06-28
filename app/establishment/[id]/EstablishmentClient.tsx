@@ -18,6 +18,17 @@ const typeEmoji: Record<string, string> = {
     clinic: '🏥', hospital: '🏥', groomer: '✂️', walker: '🦮', lodging: '🏨', trainer: '🎓', other: '🐾'
 }
 
+function parseDescriptionAndTags(desc: string | null) {
+    if (!desc) return { descriptionText: '', tags: [] }
+    const match = desc.match(/\[Atiende:\s*([^\]]+)\]/)
+    if (match) {
+        const tags = match[1].split(',').map((t: string) => t.trim()).filter(Boolean)
+        const descriptionText = desc.replace(/\[Atiende:\s*[^\]]+\]/, '').trim()
+        return { descriptionText, tags }
+    }
+    return { descriptionText: desc, tags: [] }
+}
+
 function StarRow({ rating, filled }: { rating: number; filled: boolean }) {
     return <Star className={`w-4 h-4 ${filled ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
 }
@@ -184,9 +195,30 @@ export default function EstablishmentClient({ est, reviews, session }: { est: an
                         <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                         <span>{est.address}{est.district ? `, ${est.district}` : ''}, {est.city}</span>
                     </div>
-                    {est.description && (
-                        <p className="text-sm text-slate-600">{est.description}</p>
-                    )}
+                    {est.description && (() => {
+                        const parsed = parseDescriptionAndTags(est.description)
+                        return (
+                            <div className="space-y-3">
+                                {parsed.descriptionText && (
+                                    <p className="text-sm text-slate-650 leading-relaxed whitespace-pre-line">{parsed.descriptionText}</p>
+                                )}
+                                {parsed.tags.length > 0 && (
+                                    <div className="border-t border-slate-100 pt-2.5 mt-1">
+                                        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                            🐾 Especies Atendidas
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {parsed.tags.map((tag: string) => (
+                                                <span key={tag} className="text-[11px] px-2.5 py-0.5 bg-primary-50 text-primary-750 font-bold rounded-lg border border-primary-100/50">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })()}
                     <div className="flex items-start gap-2 text-sm text-slate-600 mt-2">
                         <Clock className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                         <span>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 
 interface PhotoCarouselProps {
     photoUrls: string[]
@@ -146,7 +146,7 @@ export default function PhotoCarousel({ photoUrls, establishmentName, fallbackCa
                                     {/* Pulsing skeleton while loading */}
                                     {!isLoaded && (
                                         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 animate-pulse flex items-center justify-center z-10">
-                                            <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin opacity-60" />
+                                            <Loader2 className="w-6 h-6 animate-spin text-primary-600 opacity-60" />
                                         </div>
                                     )}
                                     <img

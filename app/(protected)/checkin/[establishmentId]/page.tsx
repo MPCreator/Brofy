@@ -147,7 +147,7 @@ export default function CheckinPage() {
 
                 {/* OTP Code */}
                 <div className="bg-white rounded-3xl border-2 border-primary-200 p-8 shadow-floating w-full max-w-sm">
-                    <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider font-medium">Código de validación</p>
+                    <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider font-medium">Código de verificación</p>
                     <p className="text-5xl font-mono font-bold text-slate-900 tracking-[0.3em]">
                         {otp}
                     </p>

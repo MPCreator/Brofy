@@ -13,28 +13,28 @@ interface PetModalProps {
 
 export function PetModal({ isOpen, onClose, petToEdit }: PetModalProps) {
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedSpecies, setSelectedSpecies] = useState("DOG");
+    const [customSpecies, setCustomSpecies] = useState("");
+
+    useEffect(() => {
+        if (petToEdit?.species) {
+            const isKnown = ["DOG", "CAT", "BIRD"].includes(petToEdit.species);
+            setSelectedSpecies(isKnown ? petToEdit.species : "OTHER");
+            setCustomSpecies(isKnown ? "" : petToEdit.species);
+        } else {
+            setSelectedSpecies("DOG");
+            setCustomSpecies("");
+        }
+    }, [petToEdit]);
 
     // Form handling
     const handleSubmit = async (formData: FormData) => {
         setIsLoading(true);
         try {
             if (petToEdit) {
-                // Update
-                // We need to implement updatePet in actions if not exists or use a server action that handles it
-                // For now assuming updatePet exists and takes formData + id
                 formData.append('id', petToEdit.id);
-                // See implementation plan: we need to ensure updatePet is available
-                // Actually I haven't added updatePet to actions.ts yet? I did in Step 540 via replace_file_content but wait...
-                // Step 540 added updatePet/deletePet. Yes.
-                // But updatePet was NOT in the replacement content of Step 540! 
-                // Step 540 added updateService, deleteService, updateEmergencySettings, getEmergencySettings, deletePet.
-                // MISSING: updatePet.
-                // I need to add updatePet to actions.ts first.
-
-                // Let's assume I will add it.
                 await updatePet(formData);
             } else {
-                // Create
                 await addPet(formData);
             }
             onClose();
@@ -64,40 +64,53 @@ export function PetModal({ isOpen, onClose, petToEdit }: PetModalProps) {
                         {petToEdit ? 'Modifica los datos de tu mascota aquí.' : 'Ingresa los datos de tu nueva mascota.'}
                     </DialogDescription>
                 </DialogHeader>
-                <form action={handleSubmit} className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="name" className="text-right text-sm font-medium">Nombre</label>
-                        <input id="name" name="name" defaultValue={petToEdit?.name} className="col-span-3 p-2 border rounded-md" required />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="species" className="text-right text-sm font-medium">Especie</label>
-                        <select id="species" name="species" defaultValue={petToEdit?.species || "DOG"} className="col-span-3 p-2 border rounded-md bg-white">
-                            <option value="DOG">Perro</option>
-                            <option value="CAT">Gato</option>
-                            <option value="BIRD">Ave</option>
-                            <option value="OTHER">Otro</option>
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="breed" className="text-right text-sm font-medium">Raza</label>
-                        <input id="breed" name="breed" defaultValue={petToEdit?.breed} className="col-span-3 p-2 border rounded-md" placeholder="Opcional" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="age" className="text-right text-sm font-medium">Edad</label>
-                        <input id="age" name="age" type="number" defaultValue={petToEdit?.age} className="col-span-3 p-2 border rounded-md" required min="0" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="weight" className="text-right text-sm font-medium">Peso (kg)</label>
-                        <input id="weight" name="weight" type="number" step="0.1" defaultValue={petToEdit?.weight} className="col-span-3 p-2 border rounded-md" placeholder="Opcional" />
+                <form action={handleSubmit} className="space-y-4">
+                    <div>
+                        <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                        <input id="name" name="name" defaultValue={petToEdit?.name} className="w-full p-2 border rounded-md" required />
                     </div>
 
-                    <DialogFooter className="flex justify-between sm:justify-between">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="species" className="block text-sm font-medium text-slate-700 mb-1">Especie</label>
+                            <select id="species" name="species" value={selectedSpecies} onChange={(e) => setSelectedSpecies(e.target.value)} className="w-full p-2 border rounded-md bg-white">
+                                <option value="DOG">Perro</option>
+                                <option value="CAT">Gato</option>
+                                <option value="BIRD">Ave</option>
+                                <option value="OTHER">Otro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="age" className="block text-sm font-medium text-slate-700 mb-1">Edad</label>
+                            <input id="age" name="age" type="number" defaultValue={petToEdit?.age} className="w-full p-2 border rounded-md" required min="0" />
+                        </div>
+                    </div>
+
+                    {selectedSpecies === 'OTHER' && (
+                        <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                            <label htmlFor="customSpecies" className="block text-sm font-medium text-slate-700 mb-1">Especie Personalizada</label>
+                            <input id="customSpecies" name="customSpecies" value={customSpecies} onChange={(e) => setCustomSpecies(e.target.value)} className="w-full p-2 border rounded-md" required placeholder="Ej. Loro, Hámster..." />
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="breed" className="block text-sm font-medium text-slate-700 mb-1">Raza</label>
+                            <input id="breed" name="breed" defaultValue={petToEdit?.breed} className="w-full p-2 border rounded-md" placeholder="Opcional" />
+                        </div>
+                        <div>
+                            <label htmlFor="weight" className="block text-sm font-medium text-slate-700 mb-1">Peso (kg)</label>
+                            <input id="weight" name="weight" type="number" step="0.1" defaultValue={petToEdit?.weight} className="w-full p-2 border rounded-md" placeholder="Opcional" min="0" />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex justify-between sm:justify-between pt-2">
                         {petToEdit && (
                             <button type="button" onClick={handleDelete} className="text-red-500 hover:bg-red-50 p-2 rounded-md">
                                 <Trash className="w-5 h-5" />
                             </button>
                         )}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 ml-auto">
                             <button type="button" onClick={onClose} className="px-4 py-2 border rounded-md hover:bg-slate-50">Cancelar</button>
                             <button type="submit" disabled={isLoading} className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50">Guardar</button>
                         </div>

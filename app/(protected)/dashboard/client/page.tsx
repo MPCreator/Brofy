@@ -18,12 +18,15 @@ import { APPOINTMENT_STATUS_LABELS, SPECIES_LABELS } from '@/lib/types'
 import { QuickRescheduleButton } from '@/components/dashboard/quick-reschedule'
 import { ClientRemindersList } from '@/components/dashboard/client-reminders'
 import { ClientPetsList } from '@/components/dashboard/ClientPetsList'
+import { ClientOnboarding } from '@/components/dashboard/ClientOnboarding'
 
 export default async function ClientDashboard() {
     const session = await requireRole(['client'])
-    const pets = await getUserPets()
-    const appointments = await getClientAppointments()
-    const reminders = await getClientReminders()
+    const [pets, appointments, reminders] = await Promise.all([
+        getUserPets(),
+        getClientAppointments(),
+        getClientReminders()
+    ])
 
     const now = Date.now();
     const TOLERANCE_MS = 30 * 60 * 1000; // 30 minutos de tolerancia
@@ -41,6 +44,7 @@ export default async function ClientDashboard() {
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0">
+            <ClientOnboarding initialNeedsOnboarding={pets.length === 0} />
             {/* Welcome */}
             <div>
                 <h1 className="text-2xl font-bold text-slate-900">
@@ -187,19 +191,6 @@ export default async function ClientDashboard() {
                                         </div>
                                     </div>
 
-                                    {/* Stale/Expired Alert Banner */}
-                                    {isStale && (
-                                        <div className="px-4 py-3 bg-amber-50/70 border-t border-amber-200 text-xs text-amber-850 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 leading-relaxed font-medium">
-                                            <span>La hora de tu cita ya pasó sin atención. Puedes denunciar inasistencia para recuperar tu comisión.</span>
-                                            <Link 
-                                                href="/dashboard/client/pending" 
-                                                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm text-center shrink-0 w-fit"
-                                            >
-                                                Iniciar Reclamo
-                                            </Link>
-                                        </div>
-                                    )}
-
                                     {/* Reschedule Proposed Banner */}
                                     {isRescheduleProposed && (
                                         <div className="px-4 py-3 bg-indigo-50/70 border-t border-indigo-200 text-xs text-indigo-855 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 leading-relaxed font-medium">
@@ -214,15 +205,30 @@ export default async function ClientDashboard() {
                                     )}
 
                                     {/* OTP Banner */}
-                                    {isPaid && !isStale && !isRescheduleProposed && apt.otpValidationCode && (
-                                        <div className="px-4 py-3 bg-primary-600 flex items-center justify-between gap-3 text-white">
-                                            <div>
-                                                <p className="text-xs text-primary-200 font-medium">Código de atención</p>
-                                                <p className="text-[10px] text-primary-300">Muéstraselo al veterinario al llegar</p>
+                                    {(apt.status === 'paid' || apt.status === 'confirmed') && !isRescheduleProposed && apt.otpValidationCode && (
+                                        <div className={`px-4 py-3 flex flex-col gap-2.5 text-white ${isStale ? 'bg-amber-500' : 'bg-primary-600'}`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-xs text-white/95 font-medium">Código de verificación</p>
+                                                    <p className="text-[10px] text-white/80">Muéstraselo al especialista al llegar</p>
+                                                </div>
+                                                <span className="font-mono text-xl font-black tracking-[0.2em] bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
+                                                    {apt.otpValidationCode}
+                                                </span>
                                             </div>
-                                            <span className="font-mono text-xl font-black tracking-[0.2em] bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
-                                                {apt.otpValidationCode}
-                                            </span>
+                                            {isStale && (
+                                                <div className="border-t border-white/25 pt-2.5 mt-0.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                                    <span className="text-[11px] text-white font-semibold leading-normal">
+                                                        ⚠️ El horario de tu cita ya pasó sin atención. Puedes iniciar un Reclamo por inasistencia.
+                                                    </span>
+                                                    <Link 
+                                                        href="/dashboard/client/pending" 
+                                                        className="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm text-center shrink-0 w-fit active:scale-95 border border-amber-600/30"
+                                                    >
+                                                        Iniciar Reclamo
+                                                    </Link>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

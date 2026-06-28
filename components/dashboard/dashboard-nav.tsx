@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { 
     Home, Zap, ClipboardList, Building2, Tag, DollarSign, Settings, 
-    ShieldCheck, Clock, PawPrint, MapPin, HelpCircle, MoreHorizontal, X 
+    ShieldCheck, Clock, PawPrint, MapPin, HelpCircle, MoreHorizontal, X,
+    Users, Bell
 } from 'lucide-react'
 import { useTranslation } from '../../lib/i18n-context'
 
@@ -22,14 +23,29 @@ interface DashboardNavProps {
 
 export function DashboardNav({ role, isMobile = false }: DashboardNavProps) {
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const [showMore, setShowMore] = useState(false)
     const { t } = useTranslation()
     const isAdmin = role === 'admin'
     const isVet = role === 'vet' || role === 'provider'
 
+    const activeTab = searchParams.get('tab') || 'auditoria'
+
+    const checkActive = (href: string) => {
+        if (href.includes('?tab=')) {
+            const tabParam = href.split('?tab=')[1]
+            return pathname.startsWith('/dashboard/admin') && activeTab === tabParam
+        }
+        return pathname === href
+    }
+
     const sidebarItems: NavItem[] = isAdmin
         ? [
-            { href: '/dashboard/admin', icon: ShieldCheck, label: t('nav.adminPanel') },
+            { href: '/dashboard/admin?tab=auditoria', icon: ShieldCheck, label: 'Auditorías y Disputas ⚖️' },
+            { href: '/dashboard/admin?tab=usuarios', icon: Users, label: 'Usuarios y Reclamos 👥' },
+            { href: '/dashboard/admin?tab=finanzas', icon: DollarSign, label: 'Finanzas y Liquidación 💰' },
+            { href: '/dashboard/admin?tab=campanas', icon: Bell, label: 'Campañas y Alertas 📢' },
+            { href: '/dashboard/admin?tab=bitacora', icon: ClipboardList, label: 'Bitácora del Sistema 📜' },
             { href: '/dashboard/settings', icon: Settings, label: t('nav.settings') },
         ]
         : isVet
@@ -54,8 +70,9 @@ export function DashboardNav({ role, isMobile = false }: DashboardNavProps) {
 
     const mobileMainItems: NavItem[] = isAdmin
         ? [
-            { href: '/dashboard/admin', icon: ShieldCheck, label: t('nav.admin') },
-            { href: '/dashboard/settings', icon: Settings, label: t('nav.profile') },
+            { href: '/dashboard/admin?tab=auditoria', icon: ShieldCheck, label: 'Auditorías' },
+            { href: '/dashboard/admin?tab=finanzas', icon: DollarSign, label: 'Finanzas' },
+            { href: '/dashboard/settings', icon: Settings, label: 'Perfil' },
         ]
         : isVet
             ? [
@@ -67,12 +84,16 @@ export function DashboardNav({ role, isMobile = false }: DashboardNavProps) {
             : [
                 { href: '/dashboard/client', icon: Home, label: t('nav.home') },
                 { href: '/dashboard/client/pending', icon: Clock, label: t('nav.appointments') },
-                { href: '/dashboard/discover', icon: MapPin, label: t('nav.search') },
+                { href: '/discover', icon: MapPin, label: t('nav.search') },
                 { href: '/dashboard/help', icon: HelpCircle, label: t('nav.help') },
             ]
 
     const mobileMoreItems: NavItem[] = isAdmin
-        ? []
+        ? [
+            { href: '/dashboard/admin?tab=usuarios', icon: Users, label: 'Usuarios' },
+            { href: '/dashboard/admin?tab=campanas', icon: Bell, label: 'Campañas' },
+            { href: '/dashboard/admin?tab=bitacora', icon: ClipboardList, label: 'Bitácora' },
+        ]
         : isVet
             ? [
                 { href: '/dashboard/vet/fast-entry', icon: ClipboardList, label: t('nav.fastEntry') },
@@ -111,7 +132,7 @@ export function DashboardNav({ role, isMobile = false }: DashboardNavProps) {
                             </div>
                             <div className="grid grid-cols-2 gap-2.5">
                                 {mobileMoreItems.map(item => {
-                                    const isActive = pathname === item.href
+                                    const isActive = checkActive(item.href)
                                     return (
                                         <Link
                                             key={item.href}
@@ -135,7 +156,7 @@ export function DashboardNav({ role, isMobile = false }: DashboardNavProps) {
 
                 <div className={`grid ${gridCols} items-center px-1.5 py-1 h-16 w-full select-none bg-white/95 backdrop-blur-md`}>
                     {mobileMainItems.map(item => {
-                        const isActive = pathname === item.href
+                        const isActive = checkActive(item.href)
                         return (
                             <Link
                                 key={item.href}
@@ -173,7 +194,7 @@ export function DashboardNav({ role, isMobile = false }: DashboardNavProps) {
     return (
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {activeItems.map(item => {
-                const isActive = pathname === item.href
+                const isActive = checkActive(item.href)
                 return (
                     <Link
                         key={item.href}

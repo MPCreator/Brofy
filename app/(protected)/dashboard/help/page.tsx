@@ -32,8 +32,8 @@ export default function HelpPage() {
     const isVet = profile?.role === 'vet' || profile?.role === 'provider'
 
     const handleRestartTour = () => {
-        if (!profile?.role) return
-        localStorage.removeItem(`brofy_onboarding_shown_${profile.role}`)
+        if (!profile?.role || !profile?.id) return
+        localStorage.removeItem(`brofy_onboarding_shown_${profile.id}_${profile.role}`)
         toast.success('¡Tour guiado reiniciado! Recargando panel...')
         setTimeout(() => {
             window.location.reload()
@@ -42,12 +42,12 @@ export default function HelpPage() {
 
     const providerGuides = [
         {
-            title: '1. Validación de Citas con Código OTP 🔑',
+            title: '1. Validación de Citas con Código de Verificación 🔑',
             subtitle: 'El corazón de la atención y la seguridad digital',
             icon: KeyRound,
-            content: `El Código de Atención de 6 dígitos provisto por el cliente al llegar a tu local es fundamental por tres razones:
+            content: `El Código de verificación de 6 dígitos provisto por el cliente al llegar a tu local es fundamental por tres razones:
             
-• Desbloqueo del Historial Médico/Estético: Al ingresar este código en la sección "Atención", el sistema te dará acceso inmediato a la ficha del paciente para consultar antecedentes y registrar la nueva atención.
+• Validación del Inicio de Atención: Al ingresar este código en la sección "Atención", el sistema registrará el inicio de la consulta y abrirá la ficha correspondiente para registrar la nueva atención.
 • Prevención de Desintermediación: Brofy valida la asistencia al local garantizando que las atenciones se efectúen dentro del marco de la plataforma.
 • Registro del No-Show: Si el cliente no asiste y la cita expira, la plataforma permite registrar la disputa para el arbitraje de la comisión de reserva.`
         },
@@ -68,10 +68,11 @@ export default function HelpPage() {
             content: `Si un cliente acude a tu establecimiento de forma directa (Atención Presencial) y no cuenta con una reserva digital en la Plataforma, dispones de dos herramientas:
 
 • Ficha Rápida Directa: Registra de inmediato la atención clínica o estética junto con el diagnóstico y receta en un solo paso. Al guardar, el historial clínico se crea al instante.
+• Edición de Fichas (Límite de 24h): Tras guardar cualquier ficha médica (ya sea rápida o desde una cita normal), dispones de 24 horas para editarla o completarla antes de su cierre definitivo. Puedes acceder a estas fichas editables en la sección "Atenciones Recientes Modificables" de tu panel principal.
 • Agendar Turno Manual (Crear Turno): Si deseas programar al paciente presencial en tu agenda o colocarlo en tu Sala de Espera para atenderlo más tarde, usa "+ Agendar Turno" al lado de tu agenda. Esto reservará y bloqueará el horario para evitar cruces en tu calendario.
 • Iniciar Atención Directa (Sin OTP): Para citas creadas manualmente con "+ Agendar Turno", al dar clic en "Atender ahora" desde la Sala de Espera, el sistema no te solicitará código OTP. Mostrará un botón para iniciar la atención directamente y abrir la Ficha Rápida pre-completada.
 • Notificaciones Gratuitas de Recetas: Es obligatorio ingresar el teléfono o el correo del cliente. Si ingresas su correo, el sistema le enviará un email gratuito con los detalles médicos e invitación a registrarse. Si ingresas su teléfono, al finalizar podrás compartirle su receta por WhatsApp de forma gratuita mediante un enlace automático.
-• Comisión por Ingreso Manual: El registro de atenciones presenciales sin cuenta digital (Caso B) genera una comisión administrativa de S/ 6.00 que se adiciona a tu "Deuda con Brofy" al completarse la atención. Puedes liquidar este saldo periódicamente en la sección "Finanzas".`
+• Comisión por Ingreso Manual: El registro de atenciones presenciales sin cuenta digital (Caso B) genera una comisión administrativa de S/ 6.00 que se adiciona a tu "Deuda con Brofy" al completarse la atención. Puedes liquidar este saldo periódicamente en la sección "Finanzas", y deberás pagarlo al finalizar cada mes para evitar penalizaciones o restricciones en tu cuenta.`
         },
         {
             title: '4. Finanzas e Historial de Ingresos 📈',
@@ -127,15 +128,15 @@ export default function HelpPage() {
             
 • Explora Locales: Utiliza el mapa interactivo en la sección "Descubrir" para encontrar veterinarias, spas, paseadores u hoteles cercanos.
 • Elige y Compara Precios: Revisa el tarifario oficial publicado por el local, incluyendo la fecha de la última actualización de precios.
-• Cargo por Infraestructura: Al confirmar tu agenda, abonarás S/ 5.00 a la plataforma por uso de infraestructura e intermediación digital. Recibirás tu Código de Atención al instante.`
+• Cargo por Infraestructura: Al confirmar tu agenda, abonarás S/ 5.00 a la plataforma por uso de infraestructura e intermediación digital. Recibirás tu Código de verificación al instante.`
         },
         {
-            title: '2. El Código de Atención y Ficha Digital 🔑',
+            title: '2. El Código de verificación y Ficha Digital 🔑',
             subtitle: 'Tu llave de acceso al llegar al local',
             icon: KeyRound,
-            content: `Tras agendar y realizar el pago digital, se genera un código OTP único en tu panel de "Citas Activas":
+            content: `Tras agendar y realizar el pago digital, se genera un código de verificación único en tu panel de "Citas Activas":
 
-• Al llegar al local: Dicta este código de 6 dígitos al especialista. Él lo ingresará para verificar tu identidad y desbloquear el historial clínico o de cuidado de tu mascota.
+• Al llegar al local: Dicta este código de 6 dígitos al especialista. Él lo ingresará para validar tu cita y registrar el inicio de la atención de tu mascota.
 • Carnet de Vacunas Digitalizado: La información, diagnósticos o indicaciones médicas registradas por el especialista quedarán guardadas permanentemente en tu cuenta, sin riesgo de pérdida de libretas físicas.`
         },
         {
@@ -244,7 +245,7 @@ export default function HelpPage() {
                         </h1>
                         <p className="text-sm text-primary-100 max-w-xl">
                             {isVet 
-                                ? 'Domina el sistema operativo Brofy: gestión de tarifas, validación con código OTP, fichas rápidas y comisiones.' 
+                                ? 'Domina el sistema operativo Brofy: gestión de tarifas, validación con código de verificación, fichas rápidas y comisiones.' 
                                 : 'Todo sobre tu cuenta Brofy, el carnet digital de tu mascota, la Billetera de Huellitas y cómo reservar citas.'
                             }
                         </p>

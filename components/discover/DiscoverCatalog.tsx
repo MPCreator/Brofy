@@ -253,14 +253,14 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
     const bestMatch = getBestDistrictMatch(districtQuery);
     const districtFiltered = districtQuery.trim()
         ? categoryFiltered.filter(est => {
-            const queryLower = districtQuery.toLowerCase();
-            const matchesDirect = est.district?.toLowerCase().includes(queryLower) || 
-                                  est.address?.toLowerCase().includes(queryLower) ||
-                                  est.name?.toLowerCase().includes(queryLower);
+            const normQuery = normalizeString(districtQuery);
+            const matchesDirect = normalizeString(est.district || '').includes(normQuery) || 
+                                  normalizeString(est.address || '').includes(normQuery) ||
+                                  normalizeString(est.name || '').includes(normQuery);
             if (matchesDirect) return true;
             
             // If typo-correction found a close district match, match establishments in that district
-            if (bestMatch && est.district?.toLowerCase() === bestMatch.toLowerCase()) {
+            if (bestMatch && normalizeString(est.district || '') === normalizeString(bestMatch)) {
                 return true;
             }
             return false;

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import prisma from './prisma'
 import { getSession, requireSession, requireRole, logout } from './auth'
 import { revalidatePath } from 'next/cache'
+import { cache } from 'react'
 import { calculateDistanceKm, generateOtp, checkIfNonClinical } from './utils'
 import { uploadImage } from './cloudinary'
 import type {
@@ -24,21 +25,27 @@ export async function getMyRole() {
 const AddPetSchema = z.object({
     name: z.string().min(1, 'El nombre es requerido'),
     species: z.string().min(1, 'La especie es requerida'),
-    breed: z.string().optional(),
-    dateOfBirth: z.string().optional(),
-    weight: z.coerce.number().min(0).optional(),
-    sex: z.enum(['male', 'female', 'unknown']).optional(),
-    allergies: z.string().optional(),
-    distinctiveFeature: z.string().optional(),
-    behavior: z.string().optional(),
+    breed: z.string().nullable().optional(),
+    dateOfBirth: z.string().nullable().optional(),
+    weight: z.preprocess((val) => (val === '' || val === null) ? undefined : val, z.coerce.number().min(0).optional()),
+    sex: z.preprocess((val) => (val === '' || val === null) ? 'unknown' : val, z.enum(['male', 'female', 'unknown']).optional()),
+    allergies: z.string().nullable().optional(),
+    distinctiveFeature: z.string().nullable().optional(),
+    behavior: z.string().nullable().optional(),
 })
 
 export async function addPet(formData: FormData) {
     const session = await requireSession()
 
+    let speciesVal = formData.get('species') as string
+    const customSpecies = formData.get('customSpecies') as string
+    if ((speciesVal === 'other' || speciesVal === 'OTHER' || speciesVal === 'Otro') && customSpecies) {
+        speciesVal = customSpecies
+    }
+
     const validatedFields = AddPetSchema.safeParse({
         name: formData.get('name'),
-        species: formData.get('species'),
+        species: speciesVal,
         breed: formData.get('breed'),
         dateOfBirth: formData.get('dateOfBirth'),
         weight: formData.get('weight'),
@@ -100,7 +107,7 @@ export async function addPet(formData: FormData) {
     }
 }
 
-export async function getUserPets() {
+export const getUserPets = cache(async () => {
     const session = await getSession()
     if (!session) return []
 
@@ -130,7 +137,7 @@ export async function getUserPets() {
     } catch {
         return []
     }
-}
+})
 
 export async function getPetById(petId: string) {
     const session = await getSession()
@@ -167,11 +174,18 @@ export async function updatePet(formData: FormData) {
 
     const id = formData.get('id') as string
     const name = formData.get('name') as string
-    const species = formData.get('species') as string
+    let species = formData.get('species') as string
+    const customSpecies = formData.get('customSpecies') as string
+    if ((species === 'other' || species === 'OTHER' || species === 'Otro') && customSpecies) {
+        species = customSpecies
+    }
     const breed = formData.get('breed') as string
     const dateOfBirth = formData.get('dateOfBirth') as string
     const weightVal = formData.get('weight')
     const weight = weightVal ? Number(weightVal) : null
+    if (weight !== null && (isNaN(weight) || weight < 0)) {
+        return { success: false, message: 'El peso no puede ser negativo' }
+    }
     const sex = formData.get('sex') as string
     const allergies = formData.get('allergies') as string
     const distinctiveFeature = formData.get('distinctiveFeature') as string
@@ -232,6 +246,10 @@ export async function updatePetInline(
 ) {
     const session = await requireSession()
 
+    if (data.weight !== undefined && data.weight !== null && data.weight < 0) {
+        return { success: false, message: 'El peso no puede ser negativo' }
+    }
+
     try {
         await prisma.pet.update({
             where: { id: petId, ownerId: session.sub },
@@ -259,7 +277,15 @@ export async function updatePetInline(
 
 export async function getEstablishments() {
     const establishments = await prisma.establishment.findMany({
-        where: { isActive: true },
+        where: { 
+            isActive: true,
+            owner: {
+                OR: [
+                    { role: { not: 'vet' } },
+                    { cmvpValidated: true }
+                ]
+            }
+        },
         include: {
             services: {
                 where: { isActive: true }
@@ -288,7 +314,15 @@ export async function getNearbyEstablishments(
     userLng: number,
     typeFilter?: string
 ): Promise<EstablishmentWithDistance[]> {
-    const whereClause: Record<string, unknown> = { isActive: true }
+    const whereClause: any = { 
+        isActive: true,
+        owner: {
+            OR: [
+                { role: { not: 'vet' } },
+                { cmvpValidated: true }
+            ]
+        }
+    }
 
     const establishments = await prisma.establishment.findMany({
         where: whereClause,
@@ -460,7 +494,7 @@ export async function createEstablishment(formData: FormData) {
     const randomDigits = Math.floor(100000 + Math.random() * 900000).toString()
     const dni = `EST-${randomDigits}`
 
-    await prisma.establishment.create({
+    const newEst = await prisma.establishment.create({
         data: {
             ...validated.data,
             district: validated.data.district || null,
@@ -476,7 +510,7 @@ export async function createEstablishment(formData: FormData) {
     })
 
     revalidatePath('/dashboard/vet')
-    return { success: true }
+    return { success: true, establishmentId: newEst.id }
 }
 
 // ============================================================================
@@ -562,7 +596,8 @@ export async function createAppointment(data: {
     }
 
     const numServices = selectedServicesList.length > 0 ? selectedServicesList.length : 1
-    const commissionAmount = 5.00 * numServices
+    const mb = await getMarchaBlancaSetting()
+    const commissionAmount = mb.isActive ? 0.00 : (5.00 * numServices)
 
     // Req 4: Prevención robusta de solapamientos basada en duraciones reales
     if (data.scheduledAt) {
@@ -658,6 +693,26 @@ export async function processPayment(appointmentId: string): Promise<OtpResult> 
 
     if (!appointment) {
         return { success: false, message: 'Cita no encontrada o ya fue pagada.' }
+    }
+
+    // Bypass de pago por Marcha Blanca
+    const mb = await getMarchaBlancaSetting()
+    if (mb.isActive) {
+        await prisma.appointment.update({
+            where: { id: appointmentId },
+            data: {
+                status: 'paid',
+                paymentId: 'GRATIS-MARCHABLANCA',
+                otpValidationCode: Math.floor(100000 + Math.random() * 900000).toString(),
+                otpExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+            }
+        })
+        revalidatePath('/dashboard/client')
+        revalidatePath('/dashboard/client/pending')
+        return {
+            success: true,
+            redirectUrl: '/dashboard/client/pending?status=success'
+        }
     }
 
     const merchantId = process.env.IZIPAY_MERCHANT_ID
@@ -811,7 +866,7 @@ export async function validateOtp(appointmentId: string, code: string) {
     })
 
     if (!appointment) {
-        return { success: false, message: 'Código OTP inválido.' }
+        return { success: false, message: 'Código de verificación inválido.' }
     }
 
     if (appointment.scheduledAt && appointment.otpValidationCode !== 'MANUAL') {
@@ -833,7 +888,7 @@ export async function validateOtp(appointmentId: string, code: string) {
     })
 
     revalidatePath('/dashboard/vet')
-    return { success: true, message: 'OTP validado. Ficha médica desbloqueada.' }
+    return { success: true, message: 'Código de verificación validado. Cita validada e inicio de atención registrado.' }
 }
 
 /**
@@ -854,11 +909,28 @@ export async function createMedicalRecord(data: {
 }) {
     const session = await requireRole(['vet'])
 
-    // Fetch profile for fallback CMVP
+    // Fetch profile for fallback CMVP and penalty status
     const profile = await prisma.profile.findUnique({
         where: { id: session.sub },
-        select: { cmvpId: true }
+        select: { cmvpId: true, isPenalized: true }
     })
+
+    if (profile?.isPenalized) {
+        return {
+            success: false,
+            message: 'Tu cuenta de proveedor está penalizada. Por favor regulariza tu saldo en Finanzas para poder crear fichas médicas.'
+        }
+    }
+
+    // Check outstanding debt limit (automatic penalty above S/ 120)
+    const totalDebt = await getVetDebt()
+    if (totalDebt >= 120) {
+        return {
+            success: false,
+            message: 'Has alcanzado el límite de deudas de comisiones pendientes (S/ 120.00). Regulariza tu cuenta en Finanzas para desbloquear el registro manual.'
+        }
+    }
+
     const fallbackCmvp = profile?.cmvpId || undefined
 
     // Verificar que la cita está validada o completada y pertenece al vet
@@ -868,13 +940,13 @@ export async function createMedicalRecord(data: {
             providerId: session.sub,
             status: { in: ['validated', 'completed'] },
         },
-        include: { pet: true, client: true },
+        include: { pet: true, client: true, establishment: true },
     })
 
     if (!appointment) {
         return {
             success: false,
-            message: 'La cita no está activa o no tienes permiso para editarla. Verifica el código de atención primero.'
+            message: 'La cita no está activa o no tienes permiso para editarla. Verifica el código de verificación primero.'
         }
     }
 
@@ -1032,9 +1104,21 @@ export async function createMedicalRecord(data: {
         })
     }
 
+    const isGuest = appointment.client.password === 'guest-no-login'
+    const summary = isGuest ? {
+        clientName: appointment.client.fullName,
+        clientPhone: appointment.client.phone || '',
+        petName: appointment.pet.name,
+        diagnosis: record.diagnosis || 'No indicado',
+        prescription: record.prescription || 'Ninguna',
+        treatment: record.treatment || 'No indicado',
+        nextVisit: data.nextVisit || '',
+        establishmentName: appointment.establishment?.name || 'Veterinaria'
+    } : undefined
+
     revalidatePath('/dashboard/vet')
     revalidatePath('/dashboard/client')
-    return { success: true, recordId: record.id }
+    return { success: true, recordId: record.id, summary }
 }
 
 /**
@@ -1142,6 +1226,10 @@ if (!est) {
         })
     }
 
+    const mb = await getMarchaBlancaSetting()
+    const commissionAmount = mb.isActive ? 0.00 : 6.00
+    const paymentId = mb.isActive ? 'GRATIS-MARCHABLANCA' : 'DEBT'
+
     // 3. Crear cita (completada)
     const appointment = await prisma.appointment.create({
         data: {
@@ -1152,8 +1240,8 @@ if (!est) {
             status: 'completed',
             serviceType: data.serviceType || 'consultation',
             commissionType: 'walkin',
-            commissionAmount: 6.00,
-            paymentId: 'DEBT'
+            commissionAmount,
+            paymentId
         }
     })
 
@@ -1441,6 +1529,10 @@ export async function createManualTurn(data: {
         }
     }
 
+    const mb = await getMarchaBlancaSetting()
+    const commissionAmount = mb.isActive ? 0.00 : 6.00
+    const paymentId = mb.isActive ? 'GRATIS-MARCHABLANCA' : 'DEBT'
+
     // 4. Crear cita manual
     const appointment = await prisma.appointment.create({
         data: {
@@ -1451,8 +1543,8 @@ export async function createManualTurn(data: {
             status: 'paid', // so it shows in today's agenda or waiting list
             serviceType: finalServiceType,
             commissionType: 'walkin',
-            commissionAmount: 6.00,
-            paymentId: 'DEBT',
+            commissionAmount,
+            paymentId,
             otpValidationCode: 'MANUAL',
             scheduledAt: scheduledDate,
             bookedServices: bookedServicesJson,
@@ -1564,7 +1656,7 @@ export async function getEstablishmentReviews(establishmentId: string) {
 // QUERY ACTIONS
 // ============================================================================
 
-export async function getClientAppointments() {
+export const getClientAppointments = cache(async () => {
     const session = await getSession()
     if (!session) return []
 
@@ -1588,9 +1680,9 @@ export async function getClientAppointments() {
         },
         orderBy: { createdAt: 'desc' },
     })
-}
+})
 
-export async function getVetAppointments() {
+export const getVetAppointments = cache(async () => {
     const session = await getSession()
     if (!session) return []
 
@@ -1615,13 +1707,13 @@ export async function getVetAppointments() {
         },
         orderBy: { createdAt: 'desc' },
     })
-}
+})
 
 /**
  * Devuelve citas en estado 'validated' que NO tienen ficha médica completada.
  * Permite al vet retomar fichas que quedaron abiertas.
  */
-export async function getOpenFichas() {
+export const getOpenFichas = cache(async () => {
     const session = await getSession()
     if (!session) return []
 
@@ -1637,7 +1729,7 @@ export async function getOpenFichas() {
         },
         orderBy: { updatedAt: 'desc' },
     })
-}
+})
 
 export async function getMedicalHistory(petId: string) {
     const session = await getSession()
@@ -1711,14 +1803,14 @@ export async function getPetHistoryForProvider(petId: string, appointmentId: str
             id: appointmentId,
             establishment: { ownerId: session.sub }
         },
-        select: { scheduledAt: true }
+        select: { scheduledAt: true, createdAt: true }
     })
 
     if (!appointment) return []
 
-    const appointmentTime = appointment.scheduledAt ? new Date(appointment.scheduledAt) : new Date()
+    const appointmentTime = appointment.scheduledAt ? new Date(appointment.scheduledAt) : new Date(appointment.createdAt)
 
-    // Fetch all medical records for this pet that were created at or BEFORE the appointment's scheduled date
+    // Fetch all medical records for this pet that were created at or BEFORE this specific appointment
     const records = await prisma.medicalRecord.findMany({
         where: {
             appointment: { petId },
@@ -1739,20 +1831,28 @@ export async function getPetHistoryForProvider(petId: string, appointmentId: str
 export async function getPetClinicalHistory(petId: string) {
     const session = await requireRole(['vet', 'provider'])
 
-    // Validar acceso: La mascota debe tener al menos una cita registrada en el local del consultor
-    const hasAccess = await prisma.appointment.findFirst({
+    // Validar acceso: Encontrar la cita más reciente de esta mascota en un local de este proveedor
+    const latestAppointment = await prisma.appointment.findFirst({
         where: {
             petId,
             establishment: { ownerId: session.sub },
             status: { in: ['paid', 'validated', 'completed'] }
-        }
+        },
+        orderBy: [
+            { scheduledAt: 'desc' },
+            { createdAt: 'desc' }
+        ]
     })
 
-    if (!hasAccess) return []
+    if (!latestAppointment) return []
 
+    const tMax = latestAppointment.scheduledAt ? new Date(latestAppointment.scheduledAt) : new Date(latestAppointment.createdAt)
+
+    // Solo se pueden ver registros clínicos creados hasta la fecha/hora de su última cita con este proveedor
     const records = await prisma.medicalRecord.findMany({
         where: {
-            appointment: { petId }
+            appointment: { petId },
+            createdAt: { lte: tMax }
         },
         include: {
             vet: { select: { fullName: true, cmvpId: true } },
@@ -1869,7 +1969,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
     return { success: true }
 }
 
-export async function getVetStats() {
+export const getVetStats = cache(async () => {
     const session = await getSession()
     if (!session) return { todayCount: 0, monthRevenue: 0, pendingOtp: 0, completedTotal: 0, estStats: [], specStats: [] }
 
@@ -2009,7 +2109,7 @@ export async function getVetStats() {
         estStats, 
         specStats 
     }
-}
+})
 
 // ============================================================================
 // PROFILE ACTIONS
@@ -2024,7 +2124,7 @@ export async function getProfile() {
             id: true, email: true, fullName: true, role: true,
             cmvpId: true, phone: true, avatarUrl: true,
             latitude: true, longitude: true,
-            creditBalance: true,
+            creditBalance: true, isPenalized: true,
         }
     })
 }
@@ -2169,14 +2269,14 @@ export async function deleteProfileAccount() {
 // SERVICE (TARIFARIO) ACTIONS
 // ============================================================================
 
-export async function getEstablishmentServices(establishmentId: string) {
+export const getEstablishmentServices = cache(async (establishmentId: string) => {
     return prisma.service.findMany({
         where: { establishmentId, isActive: true },
         orderBy: { price: 'asc' },
     })
-}
+})
 
-export async function getMyEstablishments() {
+export const getMyEstablishments = cache(async () => {
     const session = await getSession()
     if (!session) return []
     const establishments = await prisma.establishment.findMany({
@@ -2199,7 +2299,7 @@ export async function getMyEstablishments() {
         updatedEstablishments.push(est)
     }
     return updatedEstablishments
-}
+})
 
 export async function addService(formData: FormData) {
     const session = await requireRole(['vet', 'provider'])
@@ -2469,13 +2569,18 @@ export async function getFinanceSummary() {
 // ============================================================================
 
 export async function getEstablishmentPublic(id: string) {
-    return prisma.establishment.findUnique({
+    const est = await prisma.establishment.findUnique({
         where: { id, isActive: true },
         include: {
-            owner: { select: { id: true, fullName: true, cmvpId: true, role: true } },
+            owner: { select: { id: true, fullName: true, cmvpId: true, role: true, cmvpValidated: true } },
             services: { where: { isActive: true }, orderBy: { price: 'asc' } },
         }
     })
+    if (!est) return null
+    if (est.owner.role === 'vet' && !est.owner.cmvpValidated) {
+        return null
+    }
+    return est
 }
 
 export async function updateEstablishment(formData: FormData) {
@@ -2584,6 +2689,205 @@ export async function getAllUsers() {
     return prisma.profile.findMany({
         orderBy: { createdAt: 'desc' }
     })
+}
+
+export async function getPendingCmvpVets() {
+    await requireRole(['admin'])
+    return prisma.profile.findMany({
+        where: {
+            role: 'vet',
+            NOT: [
+                { cmvpId: null },
+                { cmvpId: "" }
+            ],
+            cmvpValidated: false
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+}
+
+export async function getAdminFinanceData() {
+    await requireRole(['admin'])
+
+    // Count online and manual walkin appointments directly in the DB
+    const totalOnlineCount = await prisma.appointment.count({
+        where: { commissionType: 'booking' }
+    })
+    const totalWalkinCount = await prisma.appointment.count({
+        where: { commissionType: 'walkin' }
+    })
+
+    // Optimize by limiting bitacora log to the 100 most recent appointments
+    const appointments = await prisma.appointment.findMany({
+        take: 100,
+        include: {
+            client: true,
+            pet: true,
+            provider: true,
+            establishment: true
+        },
+        orderBy: { scheduledAt: 'desc' }
+    })
+
+    // Fetch only vets/providers that have relevant appointments to compute debt/paid stats
+    const vets = await prisma.profile.findMany({
+        where: {
+            role: { in: ['vet', 'provider'] },
+            appointmentsAsProvider: {
+                some: {
+                    OR: [
+                        { paymentId: 'DEBT' },
+                        { paymentId: { startsWith: 'PAID-' } }
+                    ]
+                }
+            }
+        },
+        include: {
+            establishments: {
+                select: {
+                    name: true
+                }
+            },
+            appointmentsAsProvider: {
+                where: {
+                    OR: [
+                        { paymentId: 'DEBT' },
+                        { paymentId: { startsWith: 'PAID-' } }
+                    ]
+                },
+                select: {
+                    id: true,
+                    commissionAmount: true,
+                    paymentId: true
+                }
+            }
+        }
+    })
+
+    const providersDebt = vets.map(vet => {
+        const pendingDebt = vet.appointmentsAsProvider
+            .filter(apt => apt.paymentId === 'DEBT')
+            .reduce((sum, apt) => sum + apt.commissionAmount, 0)
+
+        const toBillDebt = vet.appointmentsAsProvider
+            .filter(apt => apt.paymentId?.startsWith('PAID-') && !apt.paymentId.endsWith('_INVOICED'))
+            .reduce((sum, apt) => sum + apt.commissionAmount, 0)
+
+        const invoicedDebt = vet.appointmentsAsProvider
+            .filter(apt => apt.paymentId?.endsWith('_INVOICED'))
+            .reduce((sum, apt) => sum + apt.commissionAmount, 0)
+
+        const paidDebt = toBillDebt + invoicedDebt
+
+        return {
+            id: vet.id,
+            fullName: vet.fullName,
+            email: vet.email,
+            phone: vet.phone,
+            role: vet.role,
+            pendingDebt,
+            paidDebt,
+            toBillDebt,
+            invoicedDebt,
+            isPenalized: vet.isPenalized,
+            establishments: vet.establishments.map(e => e.name).join(', ')
+        }
+    }).filter(p => p.pendingDebt > 0 || p.paidDebt > 0)
+
+    return {
+        appointments,
+        providersDebt,
+        totalOnlineCount,
+        totalWalkinCount
+    }
+}
+
+export async function markProviderCommissionsInvoiced(providerId: string) {
+    await requireRole(['admin'])
+    const appointments = await prisma.appointment.findMany({
+        where: {
+            providerId,
+            paymentId: {
+                startsWith: 'PAID-'
+            }
+        }
+    })
+
+    const toUpdate = appointments.filter(apt => apt.paymentId && !apt.paymentId.endsWith('_INVOICED'))
+
+    for (const apt of toUpdate) {
+        await prisma.appointment.update({
+            where: { id: apt.id },
+            data: {
+                paymentId: `${apt.paymentId}_INVOICED`
+            }
+        })
+    }
+
+    revalidatePath('/dashboard/admin')
+    return { success: true }
+}
+
+export async function toggleProviderPenalty(providerId: string) {
+    const session = await requireRole(['admin'])
+    const profile = await prisma.profile.findUnique({
+        where: { id: providerId }
+    })
+
+    if (!profile) {
+        return { success: false, message: 'Proveedor no encontrado.' }
+    }
+
+    const newPenalized = !profile.isPenalized
+
+    await prisma.profile.update({
+        where: { id: providerId },
+        data: { isPenalized: newPenalized }
+    })
+
+    // Log action to security audit log
+    await prisma.auditLog.create({
+        data: {
+            actorId: session.sub,
+            actorName: session.fullName,
+            actorEmail: session.email,
+            action: newPenalized ? 'SUSPEND_USER' : 'REACTIVATE_USER',
+            targetId: providerId,
+            details: `${newPenalized ? 'Aplicó penalización' : 'Revocó penalización'} al proveedor ${profile.fullName} manualmente.`
+        }
+    })
+
+    revalidatePath('/dashboard/admin')
+    return { success: true }
+}
+
+export async function toggleAppointmentInvoiceStatus(appointmentId: string) {
+    await requireRole(['admin'])
+    const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId }
+    })
+    if (!appointment || !appointment.paymentId) {
+        return { success: false, message: 'Cita o referencia de pago no encontrada.' }
+    }
+
+    if (appointment.paymentId === 'DEBT') {
+        return { success: false, message: 'Esta cita tiene deuda pendiente y no se puede facturar aún.' }
+    }
+
+    let newPaymentId = appointment.paymentId
+    if (appointment.paymentId.endsWith('_INVOICED')) {
+        newPaymentId = appointment.paymentId.replace('_INVOICED', '')
+    } else {
+        newPaymentId = `${appointment.paymentId}_INVOICED`
+    }
+
+    await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { paymentId: newPaymentId }
+    })
+
+    revalidatePath('/dashboard/admin')
+    return { success: true }
 }
 
 export async function validateVetCmvp(userId: string, valid: boolean) {
@@ -2815,7 +3119,7 @@ export async function createReminder(data: {
     return { success: true, reminder }
 }
 
-export async function getClientReminders() {
+export const getClientReminders = cache(async () => {
     const session = await getSession()
     if (!session) return []
     // Get personal reminders + global reminders created by admin
@@ -2832,15 +3136,16 @@ export async function getClientReminders() {
         },
         orderBy: { dueDate: 'asc' }
     })
-}
+})
 
-export async function getVetReminders() {
+export const getVetReminders = cache(async () => {
     const session = await requireRole(['vet', 'provider'])
-    // Vets see reminders they created, or global templates
+    // Vets see reminders they created, reminders directed to them, or global templates
     return prisma.reminder.findMany({
         where: {
             OR: [
                 { createdBy: session.sub },
+                { clientId: session.sub },
                 { isGlobal: true }
             ]
         },
@@ -2850,7 +3155,7 @@ export async function getVetReminders() {
         },
         orderBy: { dueDate: 'asc' }
     })
-}
+})
 
 export async function completeReminder(id: string) {
     const session = await getSession()
@@ -3025,13 +3330,13 @@ export async function fileDenuncia(appointmentId: string, reason: string) {
     })
     if (!appointment) return { success: false, message: 'Cita no encontrada.' }
 
-    // Si abrieron la ficha (status 'validated' o 'completed'), no se puede denunciar
+    // Si abrieron la ficha (status 'validated' o 'completed'), no se puede reclamar
     if (appointment.status === 'validated' || appointment.status === 'completed') {
         return { success: false, message: 'No puedes reportar inasistencia ni reclamar ya que la ficha del paciente ya ha sido abierta o completada.' }
     }
 
     if (appointment.status !== 'paid' && appointment.status !== 'confirmed') {
-        return { success: false, message: 'La cita no tiene un estado válido para denuncia.' }
+        return { success: false, message: 'La cita no tiene un estado válido para reclamo.' }
     }
 
     // Verificar que el horario programado cumpla con la tolerancia de 30 minutos y el límite de 48 horas
@@ -3056,7 +3361,7 @@ export async function fileDenuncia(appointmentId: string, reason: string) {
             status: 'disputed', 
             denunciaReason: reason,
             denunciaStatus: 'pending',
-            notes: appointment.notes ? `${appointment.notes}\n[Denuncia: ${reason}]` : `Denuncia: ${reason}`
+            notes: appointment.notes ? `${appointment.notes}\n[Reclamo: ${reason}]` : `Reclamo: ${reason}`
         }
     })
 
@@ -3447,4 +3752,86 @@ export async function getAuditLogs() {
     return prisma.auditLog.findMany({
         orderBy: { createdAt: 'desc' }
     })
+}
+
+export async function getMarchaBlancaSetting() {
+    try {
+        const settings = await prisma.systemSetting.findMany()
+        const active = settings.find((s: any) => s.key === 'marcha_blanca_active')?.value ?? 'true'
+        const startsAt = settings.find((s: any) => s.key === 'marcha_blanca_starts_at')?.value ?? '2026-06-23'
+        const endsAt = settings.find((s: any) => s.key === 'marcha_blanca_ends_at')?.value ?? '2026-07-23'
+        
+        return {
+            isActive: active === 'true',
+            startDate: startsAt,
+            endDate: endsAt
+        }
+    } catch (e) {
+        console.error("Error fetching Marcha Blanca settings:", e)
+        return {
+            isActive: true,
+            startDate: '2026-06-23',
+            endDate: '2026-07-23'
+        }
+    }
+}
+
+export async function updateMarchaBlancaSetting(active: boolean, startDate: string, endDate: string) {
+    const session = await requireRole(['admin'])
+    
+    await prisma.$transaction([
+        prisma.systemSetting.upsert({
+            where: { key: 'marcha_blanca_active' },
+            update: { value: active ? 'true' : 'false' },
+            create: { key: 'marcha_blanca_active', value: active ? 'true' : 'false' }
+        }),
+        prisma.systemSetting.upsert({
+            where: { key: 'marcha_blanca_starts_at' },
+            update: { value: startDate },
+            create: { key: 'marcha_blanca_starts_at', value: startDate }
+        }),
+        prisma.systemSetting.upsert({
+            where: { key: 'marcha_blanca_ends_at' },
+            update: { value: endDate },
+            create: { key: 'marcha_blanca_ends_at', value: endDate }
+        })
+    ])
+
+    await prisma.auditLog.create({
+        data: {
+            actorId: session.sub,
+            actorName: session.fullName,
+            actorEmail: session.email,
+            action: 'SEND_CUSTOM_EMAIL',
+            targetId: 'SYSTEM',
+            details: `Actualización de Marcha Blanca: activo=${active}, inicio=${startDate}, fin=${endDate}`
+        }
+    })
+
+    revalidatePath('/')
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/vet')
+    revalidatePath('/dashboard/client')
+    return { success: true }
+}
+
+export async function sendSystemNotification(userId: string, title: string, message: string) {
+    const session = await requireRole(['admin'])
+    
+    await prisma.reminder.create({
+        data: {
+            clientId: userId,
+            createdBy: session.sub,
+            type: 'admin_alert',
+            title,
+            message,
+            dueDate: new Date().toISOString().split('T')[0],
+            isCompleted: false
+        }
+    })
+    
+    revalidatePath('/dashboard/vet')
+    revalidatePath('/dashboard/client')
+    return { success: true }
 }

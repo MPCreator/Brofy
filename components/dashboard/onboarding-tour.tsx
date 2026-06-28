@@ -1,32 +1,46 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Sparkles, KeyRound, Award, Tag } from 'lucide-react'
+import { 
+    X, ChevronRight, ChevronLeft, Sparkles, KeyRound, Tag, 
+    PawPrint, AlertCircle, Building2, Users, FileText, DollarSign 
+} from 'lucide-react'
 
 export interface OnboardingTourProps {
     role: string
+    userId: string
+    needsOnboarding?: boolean
 }
 
-export function OnboardingTour({ role }: OnboardingTourProps) {
+export function OnboardingTour({ role, userId, needsOnboarding = false }: OnboardingTourProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [step, setStep] = useState(0)
+    const [isOnboardingActive, setIsOnboardingActive] = useState(false)
 
     const isVet = role === 'vet' || role === 'provider'
 
     useEffect(() => {
-        const key = `brofy_onboarding_shown_${role}`
+        const active = localStorage.getItem('brofy_onboarding_active') === 'true' || needsOnboarding
+        setIsOnboardingActive(active)
+        if (active) {
+            setIsOpen(false)
+            return
+        }
+        const key = `brofy_onboarding_shown_${userId}_${role}`
         const hasShown = localStorage.getItem(key)
         if (!hasShown) {
             setIsOpen(true)
         }
-    }, [role])
+    }, [role, userId, needsOnboarding])
 
     const handleClose = () => {
-        localStorage.setItem(`brofy_onboarding_shown_${role}`, 'true')
+        localStorage.setItem(`brofy_onboarding_shown_${userId}_${role}`, 'true')
         setIsOpen(false)
     }
 
-    // High-impact, highly summarized 3 steps for Clients
+    if (needsOnboarding || isOnboardingActive) return null
+
+    // Client Steps (4 Steps)
     const clientSteps = [
         {
             title: '¡Bienvenido a Brofy! 🐾',
@@ -37,27 +51,35 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
             glowColor: 'bg-white/20 text-white border-white/20'
         },
         {
-            title: 'Tu Código de Atención (OTP) 🔑',
-            subtitle: 'Tu llave de acceso al llegar al local',
-            description: 'Al reservar, recibirás un código de 6 dígitos en tu panel. Dictáselo al especialista al llegar para verificar tu reserva, iniciar el servicio y guardar tus recetas de forma segura.',
+            title: 'Registra a tu Mascota 🐕',
+            subtitle: 'Habilita su carnet digital de salud',
+            description: 'Registra el nombre, especie, raza y peso de tu engreído. Así creas su Ficha Médica Única donde cualquier veterinario autorizado podrá leer sus antecedentes clínicos en segundos.',
+            icon: PawPrint,
+            gradient: 'from-purple-500 to-indigo-600',
+            glowColor: 'bg-white/20 text-white border-white/20'
+        },
+        {
+            title: 'Agenda y Valida tu Cita 🔑',
+            subtitle: 'El código de verificación al llegar',
+            description: 'Reserva tus citas pagando la comisión de plataforma. En tu panel aparecerá un código de verificación de 6 dígitos. Muéstraselo al especialista al llegar para iniciar la atención de forma oficial.',
             icon: KeyRound,
             gradient: 'from-amber-500 to-orange-600',
             glowColor: 'bg-white/20 text-white border-white/20'
         },
         {
-            title: 'Control de Precios y Reembolsos ⚖️',
-            subtitle: 'Consentimiento garantizado en tu tarifa',
-            description: 'Si un local incrementa sus precios de una cita que ya reservaste, te avisaremos al instante. Podrás aceptar la nueva tarifa o cancelar recibiendo el 100% de reembolso a tu Billetera de Huellitas.',
-            icon: Award,
+            title: 'Gestión ante Imprevistos ⚠️',
+            subtitle: 'Reprogramación y Reclamos por inasistencia',
+            description: '¿Tuviste un imprevisto? Reprograma gratis negociando el nuevo horario con tu especialista. Si el local no te atiende en la fecha, inicia un Reclamo por inasistencia para recuperar tu comisión.',
+            icon: AlertCircle,
             gradient: 'from-emerald-500 to-teal-600',
             glowColor: 'bg-white/20 text-white border-white/20'
         }
     ]
 
-    // High-impact, highly summarized 3 steps for Providers/Vets
+    // Vet/Provider Steps (6 Steps)
     const providerSteps = [
         {
-            title: '¡Bienvenido Socio Brofy! 🏪🩺',
+            title: '¡Bienvenido Socio Brofy! Store 🩺',
             subtitle: 'El centro operativo para tu negocio',
             description: 'Administra tus reservas, digitaliza historiales clínicos, ingresa clientes rápidos y controla tus finanzas de forma centralizada en una sola interfaz profesional.',
             icon: Sparkles,
@@ -65,19 +87,43 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
             glowColor: 'bg-white/20 text-white border-white/20'
         },
         {
-            title: 'Valida Citas con el Código OTP 🔑',
-            subtitle: 'El corazón de la seguridad e historial',
-            description: 'Cuando el cliente llegue, pídele su Código de Atención de 6 dígitos. Ingrésalo en tu panel para desbloquear su historial clínico, iniciar la atención y registrar los detalles en segundos.',
+            title: 'Configura tu Local y Tarifarios 🏪',
+            subtitle: 'Edición de precios y alertas automáticas',
+            description: 'Registra tus sedes, horarios y edita tus precios con total libertad. Si cambias el precio de un servicio, los clientes con citas activas recibirán alertas automáticas para aceptar o reprogramar.',
+            icon: Building2,
+            gradient: 'from-purple-500 to-indigo-600',
+            glowColor: 'bg-white/20 text-white border-white/20'
+        },
+        {
+            title: 'Gestión de Personal 👥',
+            subtitle: 'Agrega colaboradores a tu Staff',
+            description: 'Registra y administra a tus veterinarios y asistentes de atención. Asigna roles y permite que atiendan de forma simultánea configurando la capacidad de atención en paralelo del local.',
+            icon: Users,
+            gradient: 'from-blue-500 to-sky-600',
+            glowColor: 'bg-white/20 text-white border-white/20'
+        },
+        {
+            title: 'El Código de Verificación 🔑',
+            subtitle: 'Inicio seguro de atenciones',
+            description: 'Al recibir al cliente, pídele su código de verificación de 6 dígitos. Ingrésalo en tu panel para verificar la cita e iniciar la atención oficial correspondiente.',
             icon: KeyRound,
             gradient: 'from-amber-500 to-orange-600',
             glowColor: 'bg-white/20 text-white border-white/20'
         },
         {
-            title: 'Tarifas Libres y Alertas de Cambio 📈',
-            subtitle: 'Libertad de precios con total transparencia',
-            description: 'Eres libre de actualizar tus precios cuando desees. Si lo haces, el sistema enviará alertas automáticamente a los clientes con citas activas de ese servicio para que las acepten o las cancelen con devolución.',
-            icon: Tag,
-            gradient: 'from-purple-500 to-indigo-600',
+            title: 'Historial Clínico Digital 📋',
+            subtitle: 'Carnet digital del paciente y recetas',
+            description: 'Registra síntomas, diagnóstico, peso, temperatura y medicamentos. Todo se organiza automáticamente en el Carnet digital del dueño. ¡Puedes modificar la ficha durante las primeras 24 horas antes del cierre definitivo desde la sección Atenciones Recientes!',
+            icon: FileText,
+            gradient: 'from-teal-500 to-emerald-600',
+            glowColor: 'bg-white/20 text-white border-white/20'
+        },
+        {
+            title: 'Gestión Financiera y Reclamos 💵',
+            subtitle: 'Flujo de ingresos, comisiones y reclamos',
+            description: 'Revisa tu balance de ingresos, comisiones y gastos. Las fichas rápidas y registros manuales generan una comisión de S/ 6.00 que se acumula en Finanzas y debes liquidar a fin de mes para evitar penalizaciones o la suspensión de tu cuenta.',
+            icon: DollarSign,
+            gradient: 'from-pink-500 to-rose-600',
             glowColor: 'bg-white/20 text-white border-white/20'
         }
     ]
@@ -90,7 +136,7 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
         return (
             <button
                 onClick={() => { setStep(0); setIsOpen(true); }}
-                className="fixed bottom-20 right-4 lg:bottom-4 lg:right-4 z-40 flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-full text-xs font-bold shadow-md hover:bg-slate-50 hover:text-primary-600 transition-all cursor-pointer animate-in fade-in"
+                className="fixed bottom-20 right-4 lg:bottom-4 lg:right-4 z-40 flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-650 rounded-full text-xs font-bold shadow-md hover:bg-slate-50 hover:text-primary-650 transition-all cursor-pointer animate-in fade-in"
             >
                 💡 Guía Rápida
             </button>
@@ -99,7 +145,6 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
 
     return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            {/* Premium Light-Themed Modal Card with Glowing Headers */}
             <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 max-w-sm w-full overflow-hidden flex flex-col justify-between animate-in zoom-in-95 relative">
                 {/* Close Button */}
                 <button
@@ -109,7 +154,7 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
                     <X className="w-4 h-4" />
                 </button>
 
-                {/* Top Visual Gradient Header (Highly Colorful) */}
+                {/* Top Visual Gradient Header */}
                 <div className={`p-8 pb-6 flex flex-col items-center justify-center text-center bg-gradient-to-br ${currentStep.gradient} text-white relative transition-all duration-500`}>
                     <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
                     
@@ -124,7 +169,7 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
                     <h3 className="font-extrabold text-lg tracking-tight leading-tight">{currentStep.title}</h3>
                 </div>
 
-                {/* Content Container (High Contrast Light Theme) */}
+                {/* Content Container */}
                 <div className="p-6 md:p-8 space-y-3.5 text-center bg-white">
                     <h4 className="font-bold text-xs text-primary-600 tracking-wide uppercase">{currentStep.subtitle}</h4>
                     <p className="text-slate-600 text-xs leading-relaxed tracking-normal font-medium max-w-[280px] mx-auto">
@@ -132,7 +177,7 @@ export function OnboardingTour({ role }: OnboardingTourProps) {
                     </p>
                 </div>
 
-                {/* Bottom Navigation with contrasting light colors */}
+                {/* Bottom Navigation */}
                 <div className="p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
                     {/* Dots indicator */}
                     <div className="flex gap-1.5 pl-2">

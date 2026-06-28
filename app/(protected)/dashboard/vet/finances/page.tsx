@@ -7,8 +7,8 @@ import { formatPEN } from '@/lib/utils'
 import {
     TrendingUp, TrendingDown, DollarSign, Plus, Trash2, Loader2, ArrowUpCircle, ArrowDownCircle, BarChart3
 } from 'lucide-react'
-import { IzipayMock } from '@/components/ui/izipay-mock'
 import { LoadingState } from '@/components/ui/loading-state'
+import { toast } from 'sonner'
 
 export default function FinancesPage() {
     const [transactions, setTransactions] = useState<any[]>([])
@@ -18,7 +18,7 @@ export default function FinancesPage() {
     const [showForm, setShowForm] = useState(false)
     const [formType, setFormType] = useState<'income' | 'expense'>('income')
     const [saving, setSaving] = useState(false)
-    const [payingDebt, setPayingDebt] = useState(false)
+    const [paying, setPaying] = useState(false)
 
     useEffect(() => { loadData() }, [])
 
@@ -34,23 +34,28 @@ export default function FinancesPage() {
         setLoading(false)
     }
 
-    async function handlePayDebt() {
-        if (!confirm(`¿Pagar deuda pendiente de ${formatPEN(debt)} a Brofy? (Simulación)`)) return
-        setPayingDebt(true)
-        const { payVetDebt, addTransaction } = await import('@/lib/actions')
-        await payVetDebt()
-        
-        // Registrar el pago en transacciones para cuadrar finanzas
-        const formData = new FormData()
-        formData.append('type', 'expense')
-        formData.append('amount', debt.toString())
-        formData.append('category', 'brofy_commission')
-        formData.append('description', 'Pago de deuda de comisiones a Brofy')
-        formData.append('date', new Date().toISOString().split('T')[0])
-        await addTransaction(formData)
-
-        setPayingDebt(false)
-        loadData()
+    async function handlePayNow() {
+        try {
+            setPaying(true)
+            const res = await fetch('/api/izipay/checkout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ payVetDebt: true })
+            })
+            const data = await res.json()
+            if (data.redirectUrl) {
+                window.location.href = data.redirectUrl
+            } else {
+                toast.error(data.error || 'Error al iniciar el pago')
+            }
+        } catch (error) {
+            console.error(error)
+            toast.error('Error de conexión')
+        } finally {
+            setPaying(false)
+        }
     }
 
     async function handleAdd(formData: FormData) {
@@ -124,26 +129,17 @@ export default function FinancesPage() {
                     <div className="flex items-center gap-4">
                         <span className="text-2xl font-black text-rose-800">{formatPEN(debt)}</span>
                         <button 
-                            onClick={() => setPayingDebt(true)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition-all flex items-center gap-2 whitespace-nowrap"
+                            onClick={handlePayNow}
+                            disabled={paying}
+                            className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
                         >
-                            <DollarSign className="w-5 h-5" />
-                            Pagar Ahora
+                            {paying ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <DollarSign className="w-5 h-5" />
+                            )}
+                            {paying ? 'Procesando...' : 'Pagar Ahora'}
                         </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Izipay Mockup para Deuda */}
-            {payingDebt && debt > 0 && (
-                <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="w-full max-w-sm">
-                        <IzipayMock
-                            amount={debt}
-                            description="Pago de comisiones acumuladas"
-                            onSuccess={handlePayDebt}
-                            onCancel={() => setPayingDebt(false)}
-                        />
                     </div>
                 </div>
             )}

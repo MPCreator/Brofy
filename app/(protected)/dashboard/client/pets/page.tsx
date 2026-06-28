@@ -32,6 +32,7 @@ export default function PetsPage() {
     const [showForm, setShowForm] = useState(false)
     const [editingPet, setEditingPet] = useState<PetForm | null>(null)
     const [saving, setSaving] = useState(false)
+    const [formSpecies, setFormSpecies] = useState('dog')
     
     // Photo preview and base64 upload states
     const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -65,6 +66,10 @@ export default function PetsPage() {
     }
 
     function startEdit(pet: any) {
+        const knownSpecies = ['dog', 'cat', 'bird', 'rabbit', 'hamster', 'fish', 'reptile'];
+        const isKnown = knownSpecies.includes(pet.species);
+        setFormSpecies(isKnown ? pet.species : 'other')
+
         setEditingPet({
             id: pet.id,
             name: pet.name,
@@ -85,6 +90,7 @@ export default function PetsPage() {
     }
 
     function startAdd() {
+        setFormSpecies('dog')
         setEditingPet(null)
         setPhotoPreview(null)
         setPhotoBase64(null)
@@ -99,10 +105,25 @@ export default function PetsPage() {
             }
             if (editingPet?.id) {
                 formData.set('id', editingPet.id)
-                await updatePet(formData)
+                const res = await updatePet(formData)
+                if (res && !res.success) {
+                    toast.error(res.message || 'Error al actualizar la mascota')
+                    setSaving(false)
+                    return
+                }
                 toast.success('Mascota actualizada correctamente')
             } else {
-                await addPet(formData)
+                const res = await addPet(formData)
+                if (res?.errors) {
+                    const errorMsg = Object.values(res.errors).flat().join(', ')
+                    toast.error(errorMsg || 'Por favor, completa los campos obligatorios.')
+                    setSaving(false)
+                    return
+                } else if (res?.message && !res.success) {
+                    toast.error(res.message)
+                    setSaving(false)
+                    return
+                }
                 toast.success('Mascota agregada correctamente')
             }
             setShowForm(false)
@@ -178,23 +199,52 @@ export default function PetsPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                        <input name="name" defaultValue={editingPet?.name || ''} required placeholder="Nombre de la mascota" className="col-span-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
-                        <select name="species" defaultValue={editingPet?.species || 'dog'} className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium">
-                            {SPECIES_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                        </select>
-                        <select name="sex" defaultValue={editingPet?.sex || 'unknown'} className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium">
-                            <option value="male">♂ Macho</option>
-                            <option value="female">♀ Hembra</option>
-                            <option value="unknown">Desconocido</option>
-                        </select>
-                        <input name="breed" defaultValue={editingPet?.breed || ''} placeholder="Raza (ej: Beagle)" className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
-                        <input name="weight" type="number" step="0.1" defaultValue={editingPet?.weight || ''} placeholder="Peso (kg)" className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
                         <div className="col-span-2">
-                            <label className="block text-xs font-semibold text-slate-500 mb-1">Fecha de nacimiento</label>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre de la mascota (Obligatorio)</label>
+                            <input name="name" defaultValue={editingPet?.name || ''} required placeholder="Ej. Firulais" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Especie (Obligatorio)</label>
+                            <select name="species" value={formSpecies} onChange={(e) => setFormSpecies(e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium">
+                                {SPECIES_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Sexo (Obligatorio)</label>
+                            <select name="sex" defaultValue={editingPet?.sex || 'unknown'} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium">
+                                <option value="male">♂ Macho</option>
+                                <option value="female">♀ Hembra</option>
+                                <option value="unknown">Desconocido</option>
+                            </select>
+                        </div>
+
+                        {formSpecies === 'other' && (
+                            <div className="col-span-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Especie Personalizada (Obligatorio)</label>
+                                <input required name="customSpecies" defaultValue={(!['dog', 'cat', 'bird', 'rabbit', 'hamster', 'fish', 'reptile'].includes(editingPet?.species || '')) ? (editingPet?.species || '') : ''} placeholder="Ej. Loro, Minicerdo, etc." className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Raza (Opcional)</label>
+                            <input name="breed" defaultValue={editingPet?.breed || ''} placeholder="Raza (ej: Beagle)" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Peso (kg) (Opcional)</label>
+                            <input name="weight" type="number" step="0.1" min="0" defaultValue={editingPet?.weight || ''} placeholder="Peso (kg)" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Fecha de nacimiento (Opcional)</label>
                             <input name="dateOfBirth" type="date" defaultValue={editingPet?.dateOfBirth || ''} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
                         </div>
-                        <input name="distinctiveFeature" defaultValue={editingPet?.distinctiveFeature || ''} placeholder="Seña particular (ej: cicatriz, mancha)" className="col-span-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
-                        <input name="behavior" defaultValue={editingPet?.behavior || ''} placeholder="Conducta/Temperamento (ej: miedoso, amigable)" className="col-span-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Seña particular (Opcional)</label>
+                            <input name="distinctiveFeature" defaultValue={editingPet?.distinctiveFeature || ''} placeholder="Seña particular (ej: cicatriz, mancha)" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Conducta / Temperamento (Opcional)</label>
+                            <input name="behavior" defaultValue={editingPet?.behavior || ''} placeholder="Conducta/Temperamento (ej: miedoso, amigable)" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium" />
+                        </div>
                         <div className="col-span-2">
                             <label className="block text-xs font-semibold text-slate-500 mb-1">Alergias o condiciones médicas (Opcional)</label>
                             <textarea name="allergies" defaultValue={editingPet?.allergies || ''} placeholder="Ej: Piel sensible, alergia a champú de avena..." rows={2} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium resize-none" />

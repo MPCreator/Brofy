@@ -7,6 +7,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 import { LoadingState } from '@/components/ui/loading-state'
+import { useSearchParams } from 'next/navigation'
 
 // Wrap the submit button to use useFormStatus for loading state
 function SubmitButton() {
@@ -27,6 +28,8 @@ export default function LoginPage() {
     // login needs to be compatible with useFormState: (prevState, formData) => Promise<State>
     const [state, formAction] = useFormState(login, null)
     const [isRedirecting, setIsRedirecting] = useState(false)
+    const searchParams = useSearchParams()
+    const from = searchParams.get('from') || ''
 
     useEffect(() => {
         if (state?.message || state?.errors) {
@@ -78,6 +81,7 @@ export default function LoginPage() {
                     setIsRedirecting(true)
                     formAction(formData)
                 }} className="space-y-4">
+                    {from && <input type="hidden" name="from" value={from} />}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">
                             Email
@@ -112,7 +116,7 @@ export default function LoginPage() {
                     </div>
 
                     {state?.message && (
-                        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">
+                        <div className="flex items-center gap-2 text-sm text-red-655 bg-red-50 border border-red-200 rounded-xl p-3">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             {state.message}
                         </div>
@@ -123,7 +127,7 @@ export default function LoginPage() {
 
                 <p className="text-center text-sm text-slate-500">
                     ¿No tienes cuenta?{' '}
-                    <Link href="/signup" className="text-primary-600 font-medium hover:underline">
+                    <Link href={from ? `/signup?from=${encodeURIComponent(from)}` : "/signup"} className="text-primary-600 font-medium hover:underline">
                         Crear cuenta
                     </Link>
                 </p>

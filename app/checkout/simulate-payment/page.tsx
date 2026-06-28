@@ -3,69 +3,151 @@ import { redirect } from 'next/navigation'
 import prisma from '@/lib/prisma'
 import { formatPEN } from '@/lib/utils'
 import { CreditCard, Shield, AlertCircle } from 'lucide-react'
+import { getSession } from '@/lib/auth'
 
 // Action to simulate successful payment
 async function simulatePaymentAction(formData: FormData) {
     'use server'
     const appointmentId = formData.get('appointmentId') as string
-    if (!appointmentId) return
+    const vetDebt = formData.get('vetDebt') as string
 
-    // 1. Generate mock OTP code (6 digits)
-    const otp = Math.floor(100000 + Math.random() * 900000).toString()
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
+    if (vetDebt === 'true') {
+        const session = await getSession()
+        if (!session) return
 
-    // 2. Update appointment status in Database
-    await prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-            status: 'paid',
-            paymentId: `sim_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-            otpValidationCode: otp,
-            otpExpiresAt: expiresAt
+        const vetId = session.sub
+        const appointmentsWithDebt = await prisma.appointment.findMany({
+            where: {
+                providerId: vetId,
+                paymentId: 'DEBT'
+            }
+        })
+
+        if (appointmentsWithDebt.length > 0) {
+            const totalDebt = appointmentsWithDebt.reduce((sum, apt) => sum + apt.commissionAmount, 0)
+            const transactionId = `sim_debt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+            await prisma.appointment.updateMany({
+                where: {
+                    providerId: vetId,
+                    paymentId: 'DEBT'
+                },
+                data: {
+                    paymentId: `PAID-${transactionId}`
+                }
+            })
+
+            await prisma.profile.update({
+                where: { id: vetId },
+                data: { isPenalized: false }
+            })
+
+            await prisma.transaction.create({
+                data: {
+                    profileId: vetId,
+                    type: 'expense',
+                    amount: totalDebt,
+                    category: 'commission',
+                    description: 'Liquidación automática de comisiones Brofy via Izipay',
+                    date: new Date().toISOString().split('T')[0]
+                }
+            })
         }
-    })
 
-    // 3. Redirect back to client dashboard pending appointments
-    redirect('/dashboard/client/pending?status=success')
+        redirect('/dashboard/vet/finances?status=success')
+    } else {
+        if (!appointmentId) return
+
+        // 1. Generate mock OTP code (6 digits)
+        const otp = Math.floor(100000 + Math.random() * 900000).toString()
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
+
+        // 2. Update appointment status in Database
+        await prisma.appointment.update({
+            where: { id: appointmentId },
+            data: {
+                status: 'paid',
+                paymentId: `sim_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                otpValidationCode: otp,
+                otpExpiresAt: expiresAt
+            }
+        })
+
+        // 3. Redirect back to client dashboard pending appointments
+        redirect('/dashboard/client/pending?status=success')
+    }
 }
 
 export default async function SimulatePaymentPage({
     searchParams
 }: {
-    searchParams: { appointmentId?: string }
+    searchParams: { appointmentId?: string; vetDebt?: string }
 }) {
     const appointmentId = searchParams.appointmentId
+    const isVetDebt = searchParams.vetDebt === 'true'
 
-    if (!appointmentId) {
+    if (!appointmentId && !isVetDebt) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
                 <h1 className="text-lg font-bold text-slate-800">Error</h1>
-                <p className="text-sm text-slate-500 text-center">Falta el parámetro `appointmentId` para iniciar el pago.</p>
+                <p className="text-sm text-slate-500 text-center">Falta el parámetro para iniciar el pago.</p>
             </div>
         )
     }
 
-    // Fetch details of the appointment
-    const appointment = await prisma.appointment.findUnique({
-        where: { id: appointmentId },
-        include: {
-            establishment: true,
-            client: true
+    let totalFee = 0
+    let displayName = ""
+    let displayService = ""
+
+    if (isVetDebt) {
+        const session = await getSession()
+        if (!session) {
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+                    <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
+                    <h1 className="text-lg font-bold text-slate-800">No autorizado</h1>
+                    <p className="text-sm text-slate-500 text-center">Debes iniciar sesión para realizar este pago.</p>
+                </div>
+            )
         }
-    })
+        const appointmentsWithDebt = await prisma.appointment.findMany({
+            where: {
+                providerId: session.sub,
+                paymentId: 'DEBT'
+            }
+        })
+        totalFee = appointmentsWithDebt.reduce((sum, apt) => sum + apt.commissionAmount, 0)
+        
+        const profile = await prisma.profile.findUnique({
+            where: { id: session.sub },
+            include: { establishments: true }
+        })
+        displayName = profile?.fullName || "Proveedor Brofy"
+        displayService = `Liquidación de comisiones acumuladas (${profile?.establishments.map(e => e.name).join(', ') || 'Fichas rápidas'})`
+    } else {
+        // Fetch details of the appointment
+        const appointment = await prisma.appointment.findUnique({
+            where: { id: appointmentId! },
+            include: {
+                establishment: true,
+                client: true
+            }
+        })
 
-    if (!appointment) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
-                <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
-                <h1 className="text-lg font-bold text-slate-800">Error</h1>
-                <p className="text-sm text-slate-500 text-center">No se encontró la cita solicitada.</p>
-            </div>
-        )
+        if (!appointment) {
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+                    <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
+                    <h1 className="text-lg font-bold text-slate-800">Error</h1>
+                    <p className="text-sm text-slate-500 text-center">No se encontró la cita solicitada.</p>
+                </div>
+            )
+        }
+        totalFee = appointment.commissionAmount
+        displayName = appointment.establishment.name
+        displayService = `Reserva: ${appointment.serviceType}`
     }
-
-    const totalFee = appointment.commissionAmount
 
     return (
         <div className="min-h-screen flex flex-col justify-between bg-slate-50 font-sans text-slate-800">
@@ -82,8 +164,8 @@ export default async function SimulatePaymentPage({
                 <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
                     <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between gap-4 items-start text-sm">
                         <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-slate-900 truncate">{appointment.establishment.name}</p>
-                            <p className="text-xs text-slate-500 break-words mt-0.5">Reserva: {appointment.serviceType}</p>
+                            <p className="font-semibold text-slate-900 truncate">{displayName}</p>
+                            <p className="text-xs text-slate-500 break-words mt-0.5">{displayService}</p>
                         </div>
                         <div className="text-right shrink-0">
                             <p className="font-bold text-slate-900 text-lg">{formatPEN(totalFee)}</p>
@@ -95,7 +177,7 @@ export default async function SimulatePaymentPage({
                         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3 flex items-start gap-2.5">
                             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                             <p className="text-xs text-amber-950 leading-relaxed">
-                                Estás en el **Simulador de Izipay**. Al hacer clic en &quot;Confirmar Pago Exitoso&quot;, simularemos la pasarela marcando la cita como pagada y generando el código de atención.
+                                Estás en el **Simulador de Izipay**. Al hacer clic en &quot;Confirmar Pago Exitoso&quot;, simularemos la pasarela marcando la transacción como pagada y asentando los registros correspondientes.
                             </p>
                         </div>
 
@@ -117,7 +199,7 @@ export default async function SimulatePaymentPage({
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                    <label className="text-[10px] font-bold text-slate-550 uppercase tracking-wider block mb-1">
                                         Fecha Vence
                                     </label>
                                     <input 
@@ -128,7 +210,7 @@ export default async function SimulatePaymentPage({
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                    <label className="text-[10px] font-bold text-slate-550 uppercase tracking-wider block mb-1">
                                         CVC
                                     </label>
                                     <input 
@@ -142,7 +224,11 @@ export default async function SimulatePaymentPage({
                         </div>
 
                         <form action={simulatePaymentAction}>
-                            <input type="hidden" name="appointmentId" value={appointment.id} />
+                            {isVetDebt ? (
+                                <input type="hidden" name="vetDebt" value="true" />
+                            ) : (
+                                <input type="hidden" name="appointmentId" value={appointmentId} />
+                            )}
                             
                             <button
                                 type="submit"

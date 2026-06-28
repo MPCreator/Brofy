@@ -13,10 +13,7 @@ import { SPECIES_LABELS } from '@/lib/types'
 export default function ValidarCodigoPage() {
     return (
         <Suspense fallback={
-            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3 w-full">
-                <div className="w-10 h-10 border-2 rounded-full border-slate-100 border-t-primary-600 animate-spin" />
-                <p className="text-xs text-slate-400 font-medium animate-pulse">Cargando validador...</p>
-            </div>
+            <LoadingState size="lg" message="Cargando validador..." description="Preparando verificador de códigos de seguridad" />
         }>
             <ValidarCodigoPageContent />
         </Suspense>

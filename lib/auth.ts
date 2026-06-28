@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import type { UserRole } from './types'
 import { createClient } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
+import { cache } from 'react'
 
 // ---------------------------------------------------------------------------
 // Validation Schemas
@@ -41,6 +42,7 @@ interface SessionPayload {
 // ---------------------------------------------------------------------------
 
 export async function signup(prevState: any, formData: FormData) {
+    const from = formData.get('from') as string | null
     console.log("Signup action triggered with email:", formData.get('email'))
     const validatedFields = SignupSchema.safeParse({
         fullName: formData.get('fullName'),
@@ -237,7 +239,8 @@ export async function signup(prevState: any, formData: FormData) {
         return { message: 'Error de servidor. Inténtalo de nuevo.' }
     }
 
-    redirect(dashboardPath)
+    const redirectPath = (from && from.startsWith('/')) ? from : dashboardPath
+    redirect(redirectPath)
 }
 
 async function mergeGhostProfile(ghostId: string, realId: string) {
@@ -306,6 +309,7 @@ async function mergeGhostProfile(ghostId: string, realId: string) {
 }
 
 export async function login(prevState: any, formData: FormData) {
+    const from = formData.get('from') as string | null
     console.log("Login action triggered with email:", formData.get('email'))
     const validatedFields = LoginSchema.safeParse({
         email: formData.get('email'),
@@ -397,7 +401,8 @@ export async function login(prevState: any, formData: FormData) {
         return { message: 'Error de conexión. Inténtalo de nuevo.' }
     }
 
-    redirect(dashboardPath)
+    const redirectPath = (from && from.startsWith('/')) ? from : dashboardPath
+    redirect(redirectPath)
 }
 
 export async function logout() {
@@ -406,7 +411,7 @@ export async function logout() {
     return { success: true }
 }
 
-export async function getSession() {
+export const getSession = cache(async () => {
     try {
         const supabase = createClient()
         const { data: { user }, error } = await supabase.auth.getUser()
@@ -446,7 +451,7 @@ export async function getSession() {
         console.error("getSession error:", e)
         return null
     }
-}
+})
 
 export async function requireSession(): Promise<SessionPayload> {
     const session = await getSession()

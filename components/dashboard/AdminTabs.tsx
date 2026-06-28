@@ -47,6 +47,18 @@ export function AdminTabs({ activeTab }: AdminTabsProps) {
                     Usuarios y Reclamaciones 👥
                 </button>
                 <button
+                    onClick={() => handleTabChange('finanzas')}
+                    disabled={isPending}
+                    type="button"
+                    className={`pb-2.5 px-4 text-sm font-bold border-b-2 transition-colors ${
+                        activeTab === 'finanzas'
+                            ? 'border-primary-600 text-primary-700'
+                            : 'border-transparent text-slate-500 hover:text-slate-700'
+                    } disabled:opacity-80`}
+                >
+                    Finanzas y Liquidación 💰
+                </button>
+                <button
                     onClick={() => handleTabChange('campanas')}
                     disabled={isPending}
                     type="button"

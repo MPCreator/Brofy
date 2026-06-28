@@ -1,6 +1,8 @@
-import { getAllUsers, getAllClaims, getAllRemindersAdmin, getAllDisputedAppointments, getAuditLogs } from '@/lib/actions'
+import { getAllUsers, getAllClaims, getAllRemindersAdmin, getAllDisputedAppointments, getAuditLogs, getAdminFinanceData, getMarchaBlancaSetting, getPendingCmvpVets } from '@/lib/actions'
 import { requireRole } from '@/lib/auth'
-import { Shield, Users, BookOpen, Bell, AlertTriangle, FileSpreadsheet } from 'lucide-react'
+import { AdminMarchaBlanca } from './AdminMarchaBlanca'
+import { Shield, Users, BookOpen, Bell, AlertTriangle, FileSpreadsheet, Receipt, CalendarDays, Mail, Phone, MessageSquare, DollarSign, CheckCircle2 } from 'lucide-react'
+import { formatPEN } from '@/lib/utils'
 import { AdminUserList } from './AdminUserList'
 import { AdminClaimsList } from './AdminClaimsList'
 import { AdminArcoList } from './AdminArcoList'
@@ -8,7 +10,8 @@ import { AdminRemindersList } from './AdminRemindersList'
 import { AdminDisputesList } from './AdminDisputesList'
 import { AdminAuditLog } from './AdminAuditLog'
 import Link from 'next/link'
-import { AdminTabs } from '@/components/dashboard/AdminTabs'
+import { AdminFinanceDashboard } from './AdminFinanceDashboard'
+import { AdminFinanceRow } from './AdminFinanceRow'
 
 export default async function AdminDashboard({
     searchParams
@@ -17,18 +20,34 @@ export default async function AdminDashboard({
 }) {
     const activeTab = searchParams?.tab || 'auditoria'
     await requireRole(['admin'])
-    const users = await getAllUsers()
-    const claims = await getAllClaims()
-    const reminders = await getAllRemindersAdmin()
-    const disputes = await getAllDisputedAppointments()
-    const auditLogs = await getAuditLogs()
 
-    const adminUsers = users.filter((u: any) => u.role !== 'admin')
-    const pendingCmvpVets = adminUsers.filter((u: any) => u.role === 'vet' && u.cmvpId && !u.cmvpValidated)
-    
-    // Separate standard claims from ARCO requests
-    const claimsLibro = claims.filter((c: any) => c.claimType === 'queja' || c.claimType === 'reclamo')
-    const arcoRequests = claims.filter((c: any) => c.claimType.startsWith('arco_'))
+    let pendingCmvpVets: any[] = []
+    let disputes: any[] = []
+    let adminUsers: any[] = []
+    let claimsLibro: any[] = []
+    let arcoRequests: any[] = []
+    let marchaBlancaSetting: any = null
+    let reminders: any[] = []
+    let auditLogs: any[] = []
+    let financeData = { appointments: [] as any[], providersDebt: [] as any[], totalOnlineCount: 0, totalWalkinCount: 0 }
+
+    if (activeTab === 'auditoria') {
+        disputes = await getAllDisputedAppointments()
+        pendingCmvpVets = await getPendingCmvpVets()
+    } else if (activeTab === 'usuarios') {
+        const users = await getAllUsers()
+        adminUsers = users.filter((u: any) => u.role !== 'admin')
+        const claims = await getAllClaims()
+        claimsLibro = claims.filter((c: any) => c.claimType === 'queja' || c.claimType === 'reclamo')
+        arcoRequests = claims.filter((c: any) => c.claimType.startsWith('arco_'))
+    } else if (activeTab === 'campanas') {
+        marchaBlancaSetting = await getMarchaBlancaSetting()
+        reminders = await getAllRemindersAdmin()
+    } else if (activeTab === 'finanzas') {
+        financeData = await getAdminFinanceData()
+    } else if (activeTab === 'bitacora') {
+        auditLogs = await getAuditLogs()
+    }
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0 max-w-5xl mx-auto">
@@ -42,9 +61,6 @@ export default async function AdminDashboard({
                     Gestiona usuarios, valida profesionales y atiende reclamos de inasistencia.
                 </p>
             </div>
-
-            {/* Tabs Selector */}
-            <AdminTabs activeTab={activeTab} />
 
             {/* TAB CONTENT: AUDITORIAS Y DISPUTAS */}
             {activeTab === 'auditoria' && (
@@ -122,6 +138,9 @@ export default async function AdminDashboard({
             {/* TAB CONTENT: CAMPANAS Y ALERTAS */}
             {activeTab === 'campanas' && (
                 <div className="space-y-6 animate-in fade-in duration-200">
+                    {/* Marcha Blanca Config Card */}
+                    <AdminMarchaBlanca initialSetting={marchaBlancaSetting} />
+
                     {/* Reminders & Global Alerts Section */}
                     <section className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
                         <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
@@ -129,6 +148,84 @@ export default async function AdminDashboard({
                         </h2>
                         <AdminRemindersList initialReminders={reminders} />
                     </section>
+                </div>
+            )}
+
+            {/* TAB CONTENT: FINANZAS Y LIQUIDACION */}
+            {activeTab === 'finanzas' && (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Comisiones Pendientes</span>
+                            <p className="text-2xl font-black text-rose-600">
+                                {formatPEN(financeData.providersDebt.reduce((sum, p) => sum + p.pendingDebt, 0))}
+                            </p>
+                            <span className="text-[10px] text-rose-500 font-medium">Por cobrar a proveedores</span>
+                        </div>
+                        <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Comisiones Cobradas</span>
+                            <p className="text-2xl font-black text-emerald-600">
+                                {formatPEN(financeData.providersDebt.reduce((sum, p) => sum + p.paidDebt, 0))}
+                            </p>
+                            <span className="text-[10px] text-emerald-500 font-medium">Pagos recibidos del mes</span>
+                        </div>
+                        <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Citas Online (S/ 5.00)</span>
+                            <p className="text-2xl font-black text-slate-900">
+                                {financeData.totalOnlineCount}
+                            </p>
+                            <span className="text-[10px] text-slate-500 font-medium">Reservas vía app</span>
+                        </div>
+                        <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Fichas Rápidas (S/ 6.00)</span>
+                            <p className="text-2xl font-black text-slate-900">
+                                {financeData.totalWalkinCount}
+                            </p>
+                            <span className="text-[10px] text-slate-500 font-medium">Registros manuales</span>
+                        </div>
+                    </div>
+
+                    {/* Providers with Debt Table */}
+                    <section className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm space-y-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <Receipt className="w-5 h-5 text-primary-600" />
+                                Estado de Cuentas de Proveedores
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Contacta a los veterinarios/locales para recordar el pago de comisiones pendientes y emitir sus boletas.</p>
+                        </div>
+
+                        {financeData.providersDebt.length === 0 ? (
+                            <div className="text-center py-8 text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+                                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                <p className="text-sm font-semibold">Todos los proveedores están al día</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 text-slate-400 font-semibold uppercase tracking-wider">
+                                            <th className="pb-3">Proveedor / Establecimiento</th>
+                                            <th className="pb-3">Contacto</th>
+                                            <th className="pb-3 text-right text-rose-500">Deuda (Pendiente)</th>
+                                            <th className="pb-3 text-right text-amber-600">Por Facturar</th>
+                                            <th className="pb-3 text-right text-emerald-600">Facturado (Enviado)</th>
+                                            <th className="pb-3 text-center">Acciones de Cobro</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {financeData.providersDebt.map((p) => (
+                                            <AdminFinanceRow key={p.id} provider={p} />
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </section>
+
+                    {/* Bookings log (Simple appointments log for billing) */}
+                    <AdminFinanceDashboard appointments={financeData.appointments} />
                 </div>
             )}
 

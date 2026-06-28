@@ -6,18 +6,42 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
-import { getEstablishments } from "@/lib/actions";
+import { getEstablishments, getMarchaBlancaSetting } from "@/lib/actions";
 import LandingSearchBar from "@/components/landing/LandingSearchBar";
 import InteractiveEstablishments from "@/components/landing/InteractiveEstablishments";
+import { LogoutButton } from "@/components/dashboard/LogoutButton";
 
 export default async function Home() {
     const session = await getSession();
-    const establishments = await getEstablishments();
+    const [establishments, mb] = await Promise.all([
+        getEstablishments(),
+        getMarchaBlancaSetting()
+    ]);
+
+    const formattedEndDate = (() => {
+        try {
+            const parts = mb.endDate.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return mb.endDate;
+        } catch {
+            return mb.endDate;
+        }
+    })();
 
     return (
         <main className="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden w-full">
+            {mb.isActive && (
+                <div className="fixed top-0 inset-x-0 h-12 sm:h-8 bg-gradient-to-r from-amber-500 to-orange-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-extrabold z-[60] px-4 shadow-sm text-center animate-in slide-in-from-top duration-300">
+                    <span>
+                        🎉 ¡Estamos en marcha blanca! Disfruta de Brofy 100% gratis para dueños de mascotas y veterinarias hasta el {formattedEndDate}.
+                    </span>
+                </div>
+            )}
+
             {/* Header */}
-            <header className="fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 border-b border-slate-100">
+            <header className={`fixed ${mb.isActive ? 'top-12 sm:top-8' : 'top-0'} w-full bg-white/90 backdrop-blur-md z-50 border-b border-slate-100 transition-all duration-300`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
                     <div className="flex items-center">
                         <Link href="/">
@@ -39,18 +63,21 @@ export default async function Home() {
                     </nav>
                     <div className="flex items-center gap-4">
                         {session ? (
-                            <Link 
-                                href={
-                                    session.role === 'admin' 
-                                        ? '/dashboard/admin' 
-                                        : session.role === 'vet' || session.role === 'provider' 
-                                            ? '/dashboard/vet' 
-                                            : '/dashboard/client'
-                                } 
-                                className="bg-primary-600 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95"
-                            >
-                                Mi Panel 🐾
-                            </Link>
+                            <div className="flex items-center gap-3">
+                                <Link 
+                                    href={
+                                        session.role === 'admin' 
+                                            ? '/dashboard/admin' 
+                                            : session.role === 'vet' || session.role === 'provider' 
+                                                ? '/dashboard/vet' 
+                                                : '/dashboard/client'
+                                    } 
+                                    className="bg-primary-600 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95"
+                                >
+                                    Mi Panel 🐾
+                                </Link>
+                                <LogoutButton isMobile />
+                            </div>
                         ) : (
                             <>
                                 <Link href="/login" className="text-sm font-semibold text-slate-600 hover:text-primary-600 transition-colors">
@@ -66,7 +93,7 @@ export default async function Home() {
             </header>
 
             {/* Hero Section (Airbnb Styled - Enlarged for Premium SaaS Aesthetics) */}
-            <section className="pt-36 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full text-center">
+            <section className={`${mb.isActive ? 'pt-44 sm:pt-40' : 'pt-36'} pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full text-center transition-all duration-300`}>
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-primary-50 text-primary-700 text-xs md:text-sm font-bold mb-8 border border-primary-100/80 animate-pulse">
                     <span className="flex h-2 w-2 rounded-full bg-primary-600"></span>
                     La nueva era del cuidado animal en Perú
@@ -128,7 +155,7 @@ export default async function Home() {
                             <div className="w-16 h-16 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center mb-7 mt-3 group-hover:bg-primary-600 group-hover:text-white transition-all duration-300">
                                 <KeyRound className="w-8 h-8" />
                             </div>
-                            <h3 className="font-extrabold text-xl md:text-2xl text-slate-900 mb-4 group-hover:text-primary-700 transition-colors duration-300">Código de Atención</h3>
+                            <h3 className="font-extrabold text-xl md:text-2xl text-slate-900 mb-4 group-hover:text-primary-700 transition-colors duration-300">Código de verificación</h3>
                             <p className="text-sm md:text-base text-slate-500 leading-relaxed font-medium">
                                 Recibe instantáneamente un código único de 6 dígitos en tu panel. Al llegar al local, solo díselo al especialista para validar tu reserva de forma inmediata.
                             </p>
@@ -357,9 +384,9 @@ export default async function Home() {
                             <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center mb-5 group-hover:bg-primary-600 group-hover:text-white transition-all duration-300">
                                 <KeyRound className="w-7 h-7" />
                             </div>
-                            <h4 className="font-extrabold text-lg md:text-xl text-slate-900 mb-3">Código de Consulta</h4>
+                            <h4 className="font-extrabold text-lg md:text-xl text-slate-900 mb-3">Código de verificación</h4>
                             <p className="text-xs md:text-sm text-slate-500 leading-relaxed font-medium">
-                                Valida la identidad del cliente mediante su código único y desbloquea el historial.
+                                Valida la cita presencial del cliente mediante su código único y registra el inicio de la atención.
                             </p>
                         </div>
                     </div>

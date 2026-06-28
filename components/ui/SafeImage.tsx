@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
     src: string
@@ -70,7 +71,7 @@ export default function SafeImage({
                 />
                 {status === 'loading' && (
                     <div className={`absolute inset-0 bg-slate-100 animate-pulse flex items-center justify-center ${skeletonClassName}`}>
-                        <div className="w-4 h-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin opacity-70" />
+                        <Loader2 className="w-4 h-4 animate-spin text-primary-600 opacity-70" />
                     </div>
                 )}
             </>
@@ -82,7 +83,7 @@ export default function SafeImage({
             {/* Elegant Pulsing Loading Skeleton */}
             {status === 'loading' && (
                 <div className={`absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 animate-pulse flex items-center justify-center ${skeletonClassName}`}>
-                    <div className="w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin opacity-70" />
+                    <Loader2 className="w-5 h-5 animate-spin text-primary-600 opacity-70" />
                 </div>
             )}
 

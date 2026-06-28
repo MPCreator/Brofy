@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createManualTurn, getMyEstablishments } from '@/lib/actions'
 import { toast } from 'sonner'
 import { Calendar, User, Phone, ArrowLeft, Loader2, AlertTriangle, HelpCircle } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
 
 export default function CreateTurnPage() {
     const router = useRouter()
@@ -122,10 +123,7 @@ export default function CreateTurnPage() {
 
     if (loadingInitial) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3 w-full">
-                <Loader2 className="w-10 h-10 text-primary-600 animate-spin" />
-                <p className="text-xs text-slate-500 font-medium">Cargando establecimientos y servicios...</p>
-            </div>
+            <LoadingState size="lg" message="Cargando establecimientos y servicios..." description="Preparando tu agenda de turnos" />
         )
     }
 
@@ -156,6 +154,17 @@ export default function CreateTurnPage() {
             {/* Main form */}
             <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
                 
+                {/* Infrastructure Cost Warning */}
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                    <div className="text-xs space-y-1">
+                        <p className="font-bold text-amber-955">⚠️ Recordatorio de Tarifa por Registro</p>
+                        <p className="leading-relaxed text-amber-800">
+                            Cada turno manual o presencial registrado directamente en la plataforma conlleva un cargo adicional de <strong>S/. 6.00</strong> por concepto de costos de infraestructura.
+                        </p>
+                    </div>
+                </div>
+
                 {/* Sede/Establecimiento Select (Only visible if professional has establishments) */}
                 {establishments.length > 1 && (
                     <div className="space-y-1">

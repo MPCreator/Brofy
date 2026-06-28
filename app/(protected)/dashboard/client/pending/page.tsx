@@ -93,7 +93,7 @@ export default function ClientPendingPage() {
         const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // 30 mins
         const formatDateString = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
         const dates = `${formatDateString(startDate)}/${formatDateString(endDate)}`;
-        const details = encodeURIComponent(`Servicio: ${apt.serviceType}\nMascota: ${apt.pet?.name}\nCódigo de Atención: ${apt.otpValidationCode}\nReserva gestionada por Brofy.`);
+        const details = encodeURIComponent(`Servicio: ${apt.serviceType}\nMascota: ${apt.pet?.name}\nCódigo de verificación: ${apt.otpValidationCode}\nReserva gestionada por Brofy.`);
         const location = encodeURIComponent(apt.establishment?.address || '');
         return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
     };
@@ -172,12 +172,12 @@ export default function ClientPendingPage() {
         try {
             const res = await fileDenuncia(denouncingId, denounceReason);
             if (res.success) {
-                toast.success(res.message || "Denuncia registrada y saldo acreditado.");
+                toast.success(res.message || "Reclamo registrado y saldo acreditado.");
                 setDenouncingId(null);
                 setDenounceReason("");
                 loadData();
             } else {
-                toast.error(res.message || "Error al procesar la denuncia");
+                toast.error(res.message || "Error al procesar el reclamo");
             }
         } catch (e) {
             toast.error("Error de conexión");
@@ -221,12 +221,9 @@ export default function ClientPendingPage() {
         <div className="space-y-6 pb-20 lg:pb-0 max-w-2xl mx-auto">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                    <Clock className="w-6 h-6 text-primary-600" />
-                    Mis Citas e Historial
-                </h1>
-                <p className="text-sm text-slate-500 mt-1">
-                    Monitorea tus atenciones programadas, reprogramaciones y gestiona denuncias por inasistencia.
+                <h1 className="text-2xl font-black text-slate-900">Agenda Activa</h1>
+                <p className="text-sm text-slate-500 mt-1 font-medium">
+                    Monitorea tus atenciones programadas, reprogramaciones y gestiona reclamos por inasistencia.
                 </p>
             </div>
 
@@ -266,7 +263,7 @@ export default function ClientPendingPage() {
                         const isProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null;
                         const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: "text-slate-600 bg-slate-100" };
                         
-                        // Permitir denuncia si la cita fue confirmada/pagada y ya pasó su horario con una tolerancia de 30 minutos, hasta un máximo de 48 horas
+                        // Permitir reclamo si la cita fue confirmada/pagada y ya pasó su horario con una tolerancia de 30 minutos, hasta un máximo de 48 horas
                         const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0;
                         const TOLERANCE_MS = 30 * 60 * 1000; // 30 minutos de tolerancia
                         const LIMIT_MS = 48 * 60 * 60 * 1000; // 48 horas de límite
@@ -360,15 +357,42 @@ export default function ClientPendingPage() {
                                 )}
 
                                 {/* Active OTP Attention Code Widget */}
-                                {isPaid && apt.otpValidationCode && (
-                                    <div className="bg-primary-600 text-white rounded-2xl p-4 flex items-center justify-between gap-3 shadow-md">
-                                        <div>
-                                            <p className="text-xs text-primary-200 font-semibold">Tu Código de Atención</p>
-                                            <p className="text-[10px] text-primary-300">Muéstraselo al veterinario al llegar</p>
+                                {(apt.status === "paid" || apt.status === "confirmed") && apt.otpValidationCode && (
+                                    <div className={`rounded-2xl p-4 flex flex-col gap-3 shadow-md border transition-all duration-300 ${
+                                        canClaim && !isProposed
+                                            ? 'bg-amber-500 text-amber-950 border-amber-400' 
+                                            : 'bg-primary-600 text-white border-primary-500'
+                                    }`}>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p className={`text-xs font-semibold ${
+                                                    canClaim && !isProposed ? 'text-amber-950' : 'text-primary-200'
+                                                }`}>Tu Código de verificación</p>
+                                                <p className={`text-[10px] ${
+                                                    canClaim && !isProposed ? 'text-amber-900' : 'text-primary-300'
+                                                }`}>Muéstraselo al especialista al llegar</p>
+                                            </div>
+                                            <span className={`font-mono text-2xl font-black tracking-[0.3em] px-4 py-2 rounded-xl border ${
+                                                canClaim && !isProposed 
+                                                    ? 'bg-black/10 border-black/10 text-amber-950' 
+                                                    : 'bg-white/10 border-white/20 text-white'
+                                            }`}>
+                                                {apt.otpValidationCode}
+                                            </span>
                                         </div>
-                                        <span className="font-mono text-2xl font-black tracking-[0.3em] bg-white/10 px-4 py-2 rounded-xl border border-white/20">
-                                            {apt.otpValidationCode}
-                                        </span>
+                                        {canClaim && !isProposed && (
+                                            <div className="border-t border-amber-600/30 pt-3 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                                                <span className="text-[11px] text-amber-950 leading-normal font-semibold">
+                                                    ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario expiró. Puedes reclamar inasistencia para recuperar tu comisión (el código de verificación sigue siendo válido por si te atiendes tarde).
+                                                </span>
+                                                <button
+                                                    onClick={() => setDenouncingId(apt.id)}
+                                                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-xl text-[10px] uppercase shrink-0 transition-colors shadow-md border border-red-500/20 active:scale-95"
+                                                >
+                                                    Reclamar
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -400,26 +424,9 @@ export default function ClientPendingPage() {
                                                     onClick={() => setDenouncingId(apt.id)}
                                                     className="px-4 py-2.5 bg-white border border-slate-200 text-red-650 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors"
                                                 >
-                                                    Denunciar / Reclamar
+                                                    Iniciar Reclamo
                                                 </button>
                                             )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Claims / Cancel trigger */}
-                                {!isProposed && (apt.status === "paid" || apt.status === "confirmed") && canClaim && (
-                                    <div className="flex items-center justify-between border-t border-slate-50 pt-3 mt-1.5 w-full">
-                                        <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-center gap-2 w-full justify-between animate-in fade-in duration-200">
-                                            <div className="text-[10px] text-red-800 leading-normal">
-                                                ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario de la cita ha expirado y no se registró la atención. Puedes iniciar un reclamo para obtener el reembolso.
-                                            </div>
-                                            <button
-                                                onClick={() => setDenouncingId(apt.id)}
-                                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] uppercase shrink-0 transition-colors shadow-sm"
-                                            >
-                                                Denunciar
-                                            </button>
                                         </div>
                                     </div>
                                 )}
@@ -528,19 +535,19 @@ export default function ClientPendingPage() {
                     )}
                 </div>
             )}
-
+            
             {/* Denuncia Modal Dialog Form */}
             {denouncingId && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                     <form onSubmit={handleDenounce} className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-xl border border-slate-150 animate-in zoom-in-95">
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                             <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-1.5">
-                                <AlertTriangle className="w-4 h-4 text-red-500" /> Registrar Denuncia Brofy
+                                <AlertTriangle className="w-4 h-4 text-red-500" /> Registrar Reclamo Brofy
                             </h3>
                             <button 
                                 type="button" 
                                 onClick={() => setDenouncingId(null)}
-                                className="p-1 text-slate-400 hover:text-slate-650 rounded-lg"
+                                className="p-1 text-slate-400 hover:text-slate-655 rounded-lg"
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -548,7 +555,7 @@ export default function ClientPendingPage() {
 
                         <div className="bg-red-50 text-red-950 border border-red-200 p-3.5 rounded-2xl text-[10px] leading-relaxed space-y-1">
                             <p className="font-bold">⚠️ Sistema de Auditoría y Protección Brofy:</p>
-                            <p>Tu denuncia será auditada por el Administrador de Brofy para validar las versiones de ambas partes. Si se aprueba, se cancelará el turno y **se te reembolsará la comisión en forma de Huellitas** (ej: 500 Huellitas por S/ 5.00) en tu cuenta. Se podrán aplicar sanciones al proveedor en caso de incumplimiento.</p>
+                            <p>Tu reclamo será auditado por el Administrador de Brofy para validar las versiones de ambas partes. Si se aprueba, se cancelará el turno y **se te reembolsará la comisión en forma de Huellitas** (ej: 500 Huellitas por S/ 5.00) en tu cuenta. Se podrán aplicar sanciones al proveedor en caso de incumplimiento.</p>
                         </div>
 
                         <div className="space-y-1">
@@ -566,7 +573,7 @@ export default function ClientPendingPage() {
                             <button
                                 type="button"
                                 onClick={() => setDenouncingId(null)}
-                                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-650 rounded-xl text-xs font-semibold hover:bg-slate-50"
+                                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-655 rounded-xl text-xs font-semibold hover:bg-slate-50"
                             >
                                 Cancelar
                             </button>
@@ -575,7 +582,7 @@ export default function ClientPendingPage() {
                                 disabled={submittingDenounce}
                                 className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {submittingDenounce ? "Enviando..." : "Confirmar Denuncia"}
+                                {submittingDenounce ? "Enviando..." : "Confirmar Reclamo"}
                             </button>
                         </div>
                     </form>
@@ -668,12 +675,12 @@ export default function ClientPendingPage() {
 
                         {/* OTP Warning */}
                         <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 space-y-2">
-                            <p className="text-xs text-primary-800 font-semibold">Código de Atención (OTP):</p>
+                            <p className="text-xs text-primary-800 font-semibold">Código de verificación:</p>
                             <span className="font-mono text-3xl font-black tracking-[0.3em] text-primary-700 block">
                                 {successApt.otpValidationCode}
                             </span>
                             <p className="text-[10px] text-primary-600 leading-normal">
-                                Este es tu código único de atención. Muéstraselo al veterinario al llegar al establecimiento para iniciar la cita.
+                                Este es tu código único de verificación. Muéstraselo al veterinario al llegar al establecimiento para iniciar la cita.
                             </p>
                         </div>
 

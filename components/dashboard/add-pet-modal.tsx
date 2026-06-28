@@ -14,6 +14,7 @@ interface AddPetModalProps {
 export function AddPetModal({ isOpen, onClose }: AddPetModalProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [selectedSpecies, setSelectedSpecies] = useState('DOG')
     const router = useRouter()
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -25,7 +26,8 @@ export function AddPetModal({ isOpen, onClose }: AddPetModalProps) {
         const result = await addPet(formData)
 
         if (result?.errors) {
-            setError("Verifica los campos.")
+            const errorMsg = Object.values(result.errors).flat().join(', ')
+            setError(errorMsg || "Verifica los campos obligatorios.")
         } else if (result?.message && !result.success) {
             setError(result.message)
         } else if (result?.success) {
@@ -46,14 +48,14 @@ export function AddPetModal({ isOpen, onClose }: AddPetModalProps) {
                 )}
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre (Obligatorio)</label>
                     <input required name="name" type="text" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="Ej. Firulais" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Especie</label>
-                        <select name="species" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none bg-white">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Especie (Obligatorio)</label>
+                        <select name="species" value={selectedSpecies} onChange={(e) => setSelectedSpecies(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none bg-white">
                             <option value="DOG">Perro</option>
                             <option value="CAT">Gato</option>
                             <option value="OTHER">Otro</option>
@@ -65,9 +67,22 @@ export function AddPetModal({ isOpen, onClose }: AddPetModalProps) {
                     </div>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Raza (Opcional)</label>
-                    <input name="breed" type="text" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Ej. Labrador" />
+                {selectedSpecies === 'OTHER' && (
+                    <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Especie Personalizada (Obligatorio)</label>
+                        <input required name="customSpecies" type="text" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Ej. Loro, Hámster..." />
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Raza (Opcional)</label>
+                        <input name="breed" type="text" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Ej. Labrador" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Peso (kg) (Opcional)</label>
+                        <input name="weight" type="number" min="0" step="0.1" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Ej. 10.5" />
+                    </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">

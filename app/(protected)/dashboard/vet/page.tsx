@@ -1,6 +1,8 @@
 import { requireRole } from '@/lib/auth'
-import { getVetAppointments, getVetStats, getOpenFichas, getVetReminders } from '@/lib/actions'
+import { getVetAppointments, getVetStats, getOpenFichas, getVetReminders, getMyEstablishments, getVetDebt } from '@/lib/actions'
+import { ProviderOnboarding } from '@/components/dashboard/ProviderOnboarding'
 import Link from 'next/link'
+import prisma from '@/lib/prisma'
 import {
     Zap,
     ClipboardList,
@@ -13,10 +15,11 @@ import {
     Tag,
     DollarSign,
     PawPrint,
-    FileWarning,
     Building2,
     X,
     Plus,
+    Edit,
+    ShieldAlert,
 } from 'lucide-react'
 import { formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
@@ -32,10 +35,24 @@ export default async function VetDashboard({
 }) {
     const activeTab = searchParams?.tab || 'agenda'
     const session = await requireRole(['vet', 'provider'])
-    const stats = await getVetStats()
-    const appointments = await getVetAppointments()
-    const openFichas = await getOpenFichas()
-    const reminders = await getVetReminders()
+    const [stats, appointments, openFichas, reminders, establishments, profile, debt] = await Promise.all([
+        getVetStats(),
+        getVetAppointments(),
+        getOpenFichas(),
+        getVetReminders(),
+        getMyEstablishments(),
+        prisma.profile.findUnique({
+            where: { id: session.sub },
+            select: { isPenalized: true, cmvpValidated: true, role: true }
+        }),
+        getVetDebt()
+    ])
+
+    const isPenalized = profile?.isPenalized || false
+    const isBlocked = isPenalized || debt >= 120
+    const isPendingCmvp = profile?.role === 'vet' && !profile?.cmvpValidated
+
+    const needsOnboarding = establishments.length === 0 || establishments.every((est: any) => !est.services || est.services.length === 0)
 
     const endOfToday = new Date()
     endOfToday.setHours(23, 59, 59, 999)
@@ -93,6 +110,11 @@ export default async function VetDashboard({
 
     return (
         <div className="space-y-6 pb-20 lg:pb-0 font-sans">
+            <ProviderOnboarding 
+                initialNeedsOnboarding={needsOnboarding}
+                userRole={session.role} 
+                initialEstablishmentId={establishments[0]?.id} 
+            />
             {/* Welcome */}
             <div className="flex justify-between items-start gap-4">
                 <div>
@@ -104,6 +126,50 @@ export default async function VetDashboard({
                     </p>
                 </div>
             </div>
+
+            {/* Pending CMVP Validation Warning Banner */}
+            {isPendingCmvp && (
+                <div className="bg-gradient-to-r from-amber-50/70 to-orange-50/70 border border-amber-250 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 shadow-inner">
+                            <ShieldAlert className="w-6 h-6 text-amber-600 animate-pulse" />
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-black text-amber-950 flex items-center gap-1.5">
+                                Colegiatura (CMVP) en Proceso de Aprobación ⚠️
+                            </h2>
+                            <p className="text-xs text-amber-800 mt-1 max-w-2xl font-medium leading-relaxed">
+                                Tu número de colegiatura veterinaria está siendo verificado por el administrador. Mientras tanto, tu establecimiento <strong className="text-amber-950">no será visible</strong> en las búsquedas ni en la página de reservas públicas de los clientes. Podrás gestionar tu local de forma privada. <strong className="text-amber-950">Nos comunicaremos contigo en un plazo aproximado de 24 horas útiles (días hábiles) para validar tu colegiatura.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Warning Banner */}
+            {isBlocked && (
+                <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center flex-shrink-0 text-rose-600 shadow-inner animate-pulse">
+                            <ShieldAlert className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-black text-rose-950 flex items-center gap-1.5">
+                                Acceso Restringido para Atenciones Presenciales 🚫
+                            </h2>
+                            <p className="text-xs text-rose-750 mt-1 max-w-2xl font-medium leading-relaxed">
+                                Tu cuenta se encuentra temporalmente restringida para realizar Fichas Clínicas Rápidas y atenciones manuales presenciales, ya sea por penalización manual o por acumulación de comisiones pendientes (monto actual: <strong className="text-rose-950 font-bold">{formatPEN(debt)}</strong>). Las reservas en línea vía web siguen funcionando con normalidad.
+                            </p>
+                        </div>
+                    </div>
+                    <Link
+                        href="/dashboard/vet/finances"
+                        className="shrink-0 w-full md:w-auto text-center px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-98 cursor-pointer"
+                    >
+                        Liquidar Deuda en Finanzas
+                    </Link>
+                </div>
+            )}
 
             {/* Tabs Navigation Selector */}
             <VetTabs activeTab={activeTab} />
@@ -288,7 +354,7 @@ export default async function VetDashboard({
                     {openFichas.length > 0 && (
                         <section className="space-y-2">
                             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                <FileWarning className="w-4 h-4 text-rose-500" />
+                                <ClipboardList className="w-4 h-4 text-rose-500" />
                                 Fichas clínicas pendientes ({openFichas.length})
                             </h2>
                             <div className="space-y-2">
@@ -301,7 +367,7 @@ export default async function VetDashboard({
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0">
-                                                    <FileWarning className="w-5 h-5" />
+                                                    <ClipboardList className="w-5 h-5" />
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-bold text-slate-900">
@@ -321,6 +387,87 @@ export default async function VetDashboard({
                             </div>
                         </section>
                     )}
+
+                    {/* Fichas modificables (últimas 24 horas) */}
+                    {(() => {
+                        const editableRecords = appointments.filter((apt: any) => {
+                            if (!apt.medicalRecord) return false
+                            const recordCreatedAt = new Date(apt.medicalRecord.createdAt)
+                            const diffHours = (Date.now() - recordCreatedAt.getTime()) / (1000 * 60 * 60)
+                            return diffHours <= 24
+                        }).sort((a: any, b: any) => new Date(b.medicalRecord.createdAt).getTime() - new Date(a.medicalRecord.createdAt).getTime())
+
+                        if (editableRecords.length === 0) return null
+
+                        return (
+                            <section className="space-y-3">
+                                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-violet-500 animate-pulse" />
+                                    Atenciones recientes modificables ({editableRecords.length})
+                                </h2>
+                                <div className="space-y-2">
+                                    {editableRecords.map((apt: any) => {
+                                        const record = apt.medicalRecord
+                                        const createdAtDate = new Date(record.createdAt)
+                                        const expiresAt = new Date(createdAtDate.getTime() + 24 * 60 * 60 * 1000)
+                                        const diffMs = expiresAt.getTime() - Date.now()
+                                        const hoursLeft = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)))
+                                        const minutesLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)))
+                                        const timeLeftText = diffMs <= 0 
+                                            ? 'Cerrado' 
+                                            : `Quedan ${hoursLeft}h y ${minutesLeft}m para editar`;
+
+                                        return (
+                                            <div
+                                                key={apt.id}
+                                                className="bg-white border border-slate-100 rounded-2xl p-4 transition-all shadow-sm hover:border-violet-250 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {/* Pet photo/avatar */}
+                                                    <div className="relative w-10 h-10 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center text-xl overflow-hidden shrink-0">
+                                                        <SafeImage
+                                                            src={apt.pet?.photoUrl || ''}
+                                                            alt={apt.pet?.name || 'Mascota'}
+                                                            className="w-full h-full object-cover"
+                                                            fallback={
+                                                                <span>
+                                                                    {apt.pet?.species === 'dog' ? '🐕' : apt.pet?.species === 'cat' ? '🐈' : '🐾'}
+                                                                </span>
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-900">
+                                                            {apt.client?.fullName || 'Cliente'} con <span className="text-primary-700 font-extrabold">{apt.pet?.name}</span>
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 mt-0.5 font-semibold flex items-center gap-1.5">
+                                                            <span>{apt.serviceType}</span>
+                                                            {record.diagnosis && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span className="text-slate-705 italic truncate max-w-[150px] sm:max-w-[200px]" title={record.diagnosis}>{record.diagnosis}</span>
+                                                                </>
+                                                            )}
+                                                        </p>
+                                                        <p className="text-[10px] text-violet-650 bg-violet-50 px-2 py-0.5 rounded-md font-bold mt-1.5 w-fit flex items-center gap-1 border border-violet-100/50">
+                                                            <Clock className="w-3 h-3 text-violet-500" /> {timeLeftText} (Creación: {createdAtDate.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true })})
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <Link
+                                                    href={`/dashboard/vet/fast-entry?appointmentId=${apt.id}`}
+                                                    className="flex items-center justify-center gap-1 px-4 py-2 bg-violet-600 hover:bg-violet-750 text-white rounded-xl text-xs font-bold shrink-0 transition-colors shadow-sm active:scale-98 self-end sm:self-auto cursor-pointer"
+                                                >
+                                                    <Edit className="w-3.5 h-3.5" />
+                                                    Editar Ficha
+                                                </Link>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </section>
+                        )
+                    })()}
 
                     {/* Agenda de Citas Programadas */}
                     <section className="space-y-3">

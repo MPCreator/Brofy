@@ -20,6 +20,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
     const [step, setStep] = useState(1);
     const [pets, setPets] = useState<any[]>([]);
     const [clientProfile, setClientProfile] = useState<any>(null);
+    const [loadingData, setLoadingData] = useState(false);
 
     // Selection state
     const [selectedPet, setSelectedPet] = useState<string | null>(null);
@@ -140,6 +141,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
     }, [isOpen, establishment, selectedDay]);
 
     const loadData = async () => {
+        setLoadingData(true);
         try {
             const p = await getUserPets();
             const profile = await getProfile();
@@ -151,6 +153,8 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
             }
         } catch (e) {
             console.error("Error al cargar datos iniciales del modal", e);
+        } finally {
+            setLoadingData(false);
         }
     };
 
@@ -226,7 +230,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                     const payResult = await bookWithCredits(res.appointmentId);
                     if (payResult.success) {
                         toast.success(
-                            `🐾 ¡Turno confirmado en Brofy! ${petName} tiene cita para ${serviceNames} el ${formattedDate}. Tu código de atención ya está disponible en "Mis Citas".`,
+                            `🐾 ¡Turno confirmado en Brofy! ${petName} tiene cita para ${serviceNames} el ${formattedDate}. Tu código de verificación ya está disponible en "Mis Citas".`,
                             { duration: 6000 }
                         );
                         onClose();
@@ -538,27 +542,34 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                     {step === 1 && (
                         <div className="space-y-3">
                             <p className="text-xs text-slate-500">¿Para cuál de tus mascotas es la atención?</p>
-                            <div className="grid grid-cols-2 gap-3">
-                                {pets.map(pet => (
-                                    <button
-                                        key={pet.id}
-                                        onClick={() => setSelectedPet(pet.id)}
-                                        className={`p-4 border-2 rounded-2xl text-left transition-all ${selectedPet === pet.id ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200' : 'border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
-                                    >
-                                        <div className="font-bold text-slate-800 flex items-center gap-2 truncate">
-                                            <PawPrint className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                            {pet.name}
+                            {loadingData ? (
+                                <div className="flex flex-col items-center justify-center py-10 space-y-3 w-full">
+                                    <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+                                    <p className="text-xs text-slate-500 font-medium">Cargando tus mascotas...</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-3">
+                                    {pets.map(pet => (
+                                        <button
+                                            key={pet.id}
+                                            onClick={() => setSelectedPet(pet.id)}
+                                            className={`p-4 border-2 rounded-2xl text-left transition-all ${selectedPet === pet.id ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200' : 'border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
+                                        >
+                                            <div className="font-bold text-slate-800 flex items-center gap-2 truncate">
+                                                <PawPrint className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                                {pet.name}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1 capitalize truncate">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</div>
+                                        </button>
+                                    ))}
+                                    {pets.length === 0 && (
+                                        <div className="col-span-2 text-center py-6 text-slate-500 text-sm">
+                                            <PawPrint className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                            No tienes mascotas registradas. Agrega una desde tu perfil.
                                         </div>
-                                        <div className="text-xs text-slate-500 mt-1 capitalize truncate">{SPECIES_LABELS[pet.species as keyof typeof SPECIES_LABELS] || pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</div>
-                                    </button>
-                                ))}
-                                {pets.length === 0 && (
-                                    <div className="col-span-2 text-center py-6 text-slate-500 text-sm">
-                                        <PawPrint className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                                        No tienes mascotas registradas. Agrega una desde tu perfil.
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
 
                              {selectedPet && (
                                 !showPetDetails ? (
@@ -814,7 +825,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                             <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-2xl p-3 mt-2">
                                 <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                                 <p className="text-xs text-blue-700 leading-relaxed">
-                                    El valor del servicio se abona directamente al local. El paso final cobra únicamente el acceso a la plataforma Brofy (código de atención, validación y carnet digital).
+                                    El valor del servicio se abona directamente al local. El paso final cobra únicamente el acceso a la plataforma Brofy (código de verificación y carnet digital).
                                 </p>
                             </div>
                         </div>
@@ -961,7 +972,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                                 const serviceNames = selectedServices.map(s => s.name).join(' + ');
                                                 const formattedDate = new Date(`${selectedDay}T${selectedTime}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
                                                 toast.success(
-                                                    `🐾 ¡Turno confirmado en Brofy! ${petName} tiene cita para ${serviceNames} el ${formattedDate}. Tu código de atención ya está disponible en "Mis Citas".`,
+                                                    `🐾 ¡Turno confirmado en Brofy! ${petName} tiene cita para ${serviceNames} el ${formattedDate}. Tu código de verificación ya está disponible en "Mis Citas".`,
                                                     { duration: 6000 }
                                                 );
                                                 onClose();

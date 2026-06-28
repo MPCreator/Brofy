@@ -8,6 +8,7 @@ import Image from 'next/image'
 import { Mail, Lock, User, Phone, FileText, Loader2, AlertCircle, Stethoscope, PawPrint, Store, ArrowLeft } from 'lucide-react'
 import type { UserRole } from '@/lib/types'
 import { LoadingState } from '@/components/ui/loading-state'
+import { useSearchParams } from 'next/navigation'
 
 const roles: Array<{ value: UserRole; label: string; icon: typeof PawPrint; description: string }> = [
     { value: 'client', label: 'Soy Dueño de Mascota', icon: PawPrint, description: 'Buscar servicios y gestionar la salud de tus mascotas' },
@@ -35,6 +36,8 @@ export default function SignupPage() {
     const [countryCode, setCountryCode] = useState('+51')
     const [phoneDigits, setPhoneDigits] = useState('')
     const [isRedirecting, setIsRedirecting] = useState(false)
+    const searchParams = useSearchParams()
+    const from = searchParams.get('from') || ''
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -148,6 +151,7 @@ export default function SignupPage() {
                                 formAction(formData)
                             }} className="space-y-3 animate-in">
                                 <input type="hidden" name="role" value={selectedRole} />
+                                {from && <input type="hidden" name="from" value={from} />}
                                 
                                 {selectedRole === 'client' && (
                                     <div className="bg-primary-50 border border-primary-150 rounded-2xl p-3.5 space-y-1 text-xs text-primary-950 font-medium leading-relaxed">
@@ -335,7 +339,7 @@ export default function SignupPage() {
 
                         <p className="text-center text-sm text-slate-500">
                             ¿Ya tienes cuenta?{' '}
-                            <Link href="/login" className="text-primary-600 font-medium hover:underline">
+                            <Link href={from ? `/login?from=${encodeURIComponent(from)}` : "/login"} className="text-primary-600 font-medium hover:underline">
                                 Ingresar
                             </Link>
                         </p>

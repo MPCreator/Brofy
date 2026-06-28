@@ -49,25 +49,73 @@ export async function POST(request: Request) {
 
         const paymentData = JSON.parse(krAnswer)
         const orderStatus = paymentData.orderStatus // 'PAID'
-        const orderId = paymentData.orderDetails.orderId // ID de la cita en Brofy
+        const orderId = paymentData.orderDetails?.orderId || ''
         const transactionId = paymentData.transactions?.[0]?.uuid || `tx_${Date.now()}`
 
         if (orderStatus === 'PAID') {
-            // Generar el código de validación OTP y su expiración de 30 minutos
-            const otp = Math.floor(100000 + Math.random() * 900000).toString()
-            const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
+            if (orderId && orderId.startsWith('DEBT_')) {
+                // Liquidar comisiones acumuladas del proveedor
+                const parts = orderId.split('_')
+                const vetId = parts[1]
+                
+                // Buscar citas con deuda de este proveedor
+                const appointmentsWithDebt = await prisma.appointment.findMany({
+                    where: {
+                        providerId: vetId,
+                        paymentId: 'DEBT'
+                    }
+                })
 
-            await prisma.appointment.update({
-                where: { id: orderId },
-                data: {
-                    status: 'paid',
-                    paymentId: transactionId,
-                    otpValidationCode: otp,
-                    otpExpiresAt: expiresAt
+                if (appointmentsWithDebt.length > 0) {
+                    const totalDebt = appointmentsWithDebt.reduce((sum, apt) => sum + apt.commissionAmount, 0)
+                    
+                    // Liquidar citas
+                    await prisma.appointment.updateMany({
+                        where: {
+                            providerId: vetId,
+                            paymentId: 'DEBT'
+                        },
+                        data: {
+                            paymentId: `PAID-${transactionId}`
+                        }
+                    })
+
+                    // Despenalizar al proveedor inmediatamente al pagar
+                    await prisma.profile.update({
+                        where: { id: vetId },
+                        data: { isPenalized: false }
+                    })
+
+                    // Crear la transacción de egreso
+                    await prisma.transaction.create({
+                        data: {
+                            profileId: vetId,
+                            type: 'expense',
+                            amount: totalDebt,
+                            category: 'commission',
+                            description: 'Liquidación automática de comisiones Brofy via Izipay',
+                            date: new Date().toISOString().split('T')[0]
+                        }
+                    })
+                    console.log(`[Izipay Webhook] Liquidación exitosa para vetId: ${vetId}. Total: S/ ${totalDebt}. Transacción creada.`)
                 }
-            })
-            
-            console.log(`[Izipay Webhook] Cita ${orderId} actualizada a PAID con OTP: ${otp}`)
+            } else {
+                // Generar el código de validación OTP y su expiración de 30 minutos
+                const otp = Math.floor(100000 + Math.random() * 900000).toString()
+                const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
+
+                await prisma.appointment.update({
+                    where: { id: orderId },
+                    data: {
+                        status: 'paid',
+                        paymentId: transactionId,
+                        otpValidationCode: otp,
+                        otpExpiresAt: expiresAt
+                    }
+                })
+                
+                console.log(`[Izipay Webhook] Cita ${orderId} actualizada a PAID con OTP: ${otp}`)
+            }
         }
 
         return new Response('OK', { status: 200 })

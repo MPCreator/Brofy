@@ -11,6 +11,13 @@ export function AdminDisputesList({ initialAppointments }: { initialAppointments
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [sanctionsMap, setSanctionsMap] = useState<Record<string, boolean>>({})
 
+    const getClientDisputesCount = (clientId: string) => {
+        return appointments.filter(apt => apt.clientId === clientId).length
+    }
+    const getEstablishmentDisputesCount = (estId: string) => {
+        return appointments.filter(apt => apt.establishmentId === estId).length
+    }
+
     async function handleResolve(appointmentId: string, status: 'resolved_refunded' | 'resolved_rejected') {
         const applySanction = !!sanctionsMap[appointmentId]
         setProcessingId(appointmentId)
@@ -60,7 +67,7 @@ export function AdminDisputesList({ initialAppointments }: { initialAppointments
                 {activeDisputes.length === 0 ? (
                     <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
                         <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
-                        <p className="text-slate-500 text-sm">¡Excelente! No hay denuncias ni disputas pendientes de revisión administrativa.</p>
+                        <p className="text-slate-500 text-sm">¡Excelente! No hay reclamos ni disputas pendientes de revisión administrativa.</p>
                     </div>
                 ) : (
                     <div className="grid gap-5">
@@ -84,12 +91,17 @@ export function AdminDisputesList({ initialAppointments }: { initialAppointments
                                         {/* Dispute Core Info */}
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             {/* Client details */}
-                                            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Cliente Reportante</span>
-                                                <h4 className="text-sm font-bold text-slate-900">{apt.client?.fullName}</h4>
-                                                <p className="text-xs text-slate-500">{apt.client?.email}</p>
-                                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                                                    <Phone className="w-3 h-3 text-slate-400" /> {apt.client?.phone || 'Sin número'}
+                                            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex flex-col justify-between">
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Cliente Reportante</span>
+                                                    <h4 className="text-sm font-bold text-slate-900">{apt.client?.fullName}</h4>
+                                                    <p className="text-xs text-slate-500">{apt.client?.email}</p>
+                                                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                                        <Phone className="w-3 h-3 text-slate-400" /> {apt.client?.phone || 'Sin número'}
+                                                    </p>
+                                                </div>
+                                                <p className="text-[10px] text-slate-450 font-semibold mt-2.5 pt-1.5 border-t border-slate-200/60">
+                                                    ⚠️ {getClientDisputesCount(apt.clientId)} reporte(s) en total
                                                 </p>
                                             </div>
 
@@ -106,17 +118,21 @@ export function AdminDisputesList({ initialAppointments }: { initialAppointments
                                             </div>
 
                                             {/* Establishment & Provider details */}
-                                            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Establecimiento / Proveedor</span>
-                                                <h4 className="text-sm font-bold text-slate-900">{apt.establishment?.name}</h4>
-                                                <p className="text-xs text-slate-500">Encargado: {apt.establishment?.owner?.fullName}</p>
-                                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                                                    <Phone className="w-3 h-3 text-slate-400" /> {apt.establishment?.owner?.phone || 'Sin número'}
-                                                </p>
-                                                <div className="mt-1.5 flex items-center gap-2">
-                                                    <span className="text-[9px] text-slate-450 font-bold uppercase">Cód. Local:</span>
-                                                    <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded font-mono">
-                                                        {apt.establishment?.dni || 'Sin Código'}
+                                            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex flex-col justify-between">
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Establecimiento / Proveedor</span>
+                                                    <h4 className="text-sm font-bold text-slate-900">{apt.establishment?.name}</h4>
+                                                    <p className="text-xs text-slate-500">Encargado: {apt.establishment?.owner?.fullName}</p>
+                                                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                                        <Phone className="w-3 h-3 text-slate-400" /> {apt.establishment?.owner?.phone || 'Sin número'}
+                                                    </p>
+                                                </div>
+                                                <div className="mt-2 pt-1 border-t border-slate-200/60 flex items-center justify-between flex-wrap gap-1">
+                                                    <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                                        Cód: <span className="font-mono bg-slate-200 text-slate-700 px-1 rounded">{apt.establishment?.dni || 'N/A'}</span>
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-450 font-semibold">
+                                                        ⚠️ {getEstablishmentDisputesCount(apt.establishmentId)} reporte(s)
                                                     </span>
                                                 </div>
                                             </div>
@@ -144,17 +160,51 @@ export function AdminDisputesList({ initialAppointments }: { initialAppointments
                                             </div>
                                         </div>
 
-                                        {/* Claim Reason */}
-                                        <div className="bg-red-50/50 border border-red-100 rounded-xl p-4">
-                                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider block mb-1">Motivo de Denuncia (Cliente)</span>
-                                            <p className="text-sm font-medium text-slate-800">&quot;{apt.denunciaReason || 'Sin motivo especificado'}&quot;</p>
+                                        {/* Claim Reason & Additional Context */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="bg-red-50/50 border border-red-100 rounded-xl p-4">
+                                                <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider block mb-1">Motivo de Reclamo (Cliente)</span>
+                                                <p className="text-sm font-medium text-slate-800">&quot;{apt.denunciaReason || 'Sin motivo especificado'}&quot;</p>
+                                            </div>
+
+                                            {(apt.notes || apt.rescheduledAt) ? (
+                                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs">
+                                                    <span className="text-[10px] font-bold text-slate-550 uppercase tracking-wider block mb-1">Contexto Adicional de Reserva</span>
+                                                    {apt.notes && (
+                                                        <p className="text-slate-700 font-medium">
+                                                            <strong>Notas de la cita:</strong> &quot;{apt.notes}&quot;
+                                                        </p>
+                                                    )}
+                                                    {apt.rescheduledAt && (
+                                                        <p className="text-indigo-700 font-bold bg-indigo-50/50 px-2.5 py-1.5 rounded-lg border border-indigo-100/50 leading-normal">
+                                                            🔄 Propuesta de Reprogramación: <br/>
+                                                            <span className="text-[11px] text-slate-800 font-black">
+                                                                {new Date(apt.rescheduledAt).toLocaleString('es-PE', {
+                                                                    day: 'numeric',
+                                                                    month: 'long',
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </span>
+                                                            <br/>
+                                                            <span className="text-[10px] text-indigo-600 font-bold">
+                                                                (propuesta por: {apt.rescheduleProposedBy === 'client' ? 'Cliente' : 'Proveedor'})
+                                                            </span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="bg-slate-50/30 border border-slate-200/80 border-dashed rounded-xl p-4 flex items-center justify-center text-center text-slate-400 text-xs">
+                                                    Sin notas ni reprogramaciones previas
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* OTP Verification Code & Status */}
                                         <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2">
                                             <div className="flex items-center gap-1.5 text-slate-500">
                                                 <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider">Código de Verificación OTP</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider">Código de verificación</span>
                                             </div>
                                             <div className="flex items-center justify-between flex-wrap gap-2">
                                                 <div className="flex items-center gap-2">

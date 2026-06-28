@@ -24,6 +24,7 @@ model Profile {
   cmvpId    String?  @map("cmvp_id")           // Solo para vets, validación manual
   cmvpValidated Boolean   @default(false) @map("cmvp_validated")
   isActive      Boolean   @default(true)  @map("is_active")      // Para suspensión de cuenta
+  isPenalized   Boolean   @default(false) @map("is_penalized")    // Restricciones por deuda
   revisionMsg   String?   @map("revision_msg")                   // Mensaje de admin al usuario
   phone         String?
   avatarUrl     String?   @map("avatar_url")
@@ -338,4 +339,13 @@ model AuditLog {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("audit_logs")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
 }
