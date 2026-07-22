@@ -34,7 +34,8 @@ export default function ClientPendingPage() {
     const [counterDate, setCounterDate] = useState("");
     const [counterNotes, setCounterNotes] = useState("");
     const [submittingCounter, setSubmittingCounter] = useState(false);
-    const [showHistory, setShowHistory] = useState(false);
+    const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
+    const [expandedAptId, setExpandedAptId] = useState<string | null>(null);
 
     const handleCounterReschedule = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,6 +79,10 @@ export default function ClientPendingPage() {
                     setSuccessApt(latestPaid);
                     setShowSuccess(true);
                 }
+            }
+            const claimId = urlParams.get('claim');
+            if (claimId) {
+                setDenouncingId(claimId);
             }
         } catch (e) {
             toast.error("Error al cargar citas pendientes");
@@ -242,298 +247,466 @@ export default function ClientPendingPage() {
                     </div>
                 </div>
             )}
+                   {/* Tabs */}
+            <div className="flex border-b border-slate-200 mt-2">
+                <button
+                    onClick={() => setActiveTab('active')}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
+                        activeTab === 'active'
+                            ? 'border-primary-600 text-primary-600 font-extrabold'
+                            : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                >
+                    Agenda Activa y Reclamos ({activeAppointments.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('history')}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
+                        activeTab === 'history'
+                            ? 'border-primary-600 text-primary-600 font-extrabold'
+                            : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                >
+                    Historial de Citas ({historyAppointments.length})
+                </button>
+            </div>
 
-            {/* List */}
-            {activeAppointments.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
-                    <Calendar className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                    <h2 className="text-lg font-semibold text-slate-900 mb-1">Sin turnos pendientes</h2>
-                    <p className="text-sm text-slate-500 mb-4">No tienes ninguna cita activa o reprogramación pendiente en este momento.</p>
-                    <Link
-                        href="/dashboard/discover"
-                        className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl transition-all shadow-md"
-                    >
-                        Buscar veterinarias cercanas
-                    </Link>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {activeAppointments.map((apt: any) => {
-                        const isPaid = apt.status === "paid";
-                        const isProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null;
-                        const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: "text-slate-600 bg-slate-100" };
-                        
-                        // Permitir reclamo si la cita fue confirmada/pagada y ya pasó su horario con una tolerancia de 30 minutos, hasta un máximo de 48 horas
-                        const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0;
-                        const TOLERANCE_MS = 30 * 60 * 1000; // 30 minutos de tolerancia
-                        const LIMIT_MS = 48 * 60 * 60 * 1000; // 48 horas de límite
-                        const isExpired = appointmentTime > 0 && (Date.now() - appointmentTime) >= TOLERANCE_MS && (Date.now() - appointmentTime) <= LIMIT_MS;
-                        const canClaim = (apt.status === "paid" || apt.status === "confirmed") && isExpired;
+            {/* Tab Contents */}
+            {activeTab === 'active' ? (
+                activeAppointments.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
+                        <Calendar className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Sin turnos pendientes</h2>
+                        <p className="text-sm text-slate-500 mb-4">No tienes ninguna cita activa o reprogramación pendiente en este momento.</p>
+                        <Link
+                            href="/dashboard/discover"
+                            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl transition-all shadow-md"
+                        >
+                            Buscar veterinarias cercanas
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {activeAppointments.map((apt: any) => {
+                            const isPaid = apt.status === "paid";
+                            const isProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null;
+                            const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: "text-slate-600 bg-slate-100" };
+                            
+                            // Permitir reclamo si la cita fue confirmada/pagada y ya pasó su horario con una tolerancia de 30 minutos, hasta un máximo de 48 horas
+                            const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0;
+                            const TOLERANCE_MS = 30 * 60 * 1000; // 30 minutos de tolerancia
+                            const LIMIT_MS = 48 * 60 * 60 * 1000; // 48 horas de límite
+                            const isExpired = appointmentTime > 0 && (Date.now() - appointmentTime) >= TOLERANCE_MS && (Date.now() - appointmentTime) <= LIMIT_MS;
+                            const canClaim = (apt.status === "paid" || apt.status === "confirmed") && isExpired;
 
-                        let bookedSvcs: any[] = [];
-                        try {
-                            bookedSvcs = JSON.parse(apt.bookedServices || "[]");
-                        } catch {}
+                            let bookedSvcs: any[] = [];
+                            try {
+                                bookedSvcs = JSON.parse(apt.bookedServices || "[]");
+                            } catch {}
 
-                        let hasPriceChange = false;
-                        let originalTotal = 0;
-                        let newTotal = 0;
+                            let hasPriceChange = false;
+                            let originalTotal = 0;
+                            let newTotal = 0;
 
-                        bookedSvcs.forEach((s: any) => {
-                            originalTotal += s.price;
-                            const master = apt.establishment?.services?.find((m: any) => m.id === s.id);
-                            if (master) {
-                                newTotal += master.price;
-                                if (master.price !== s.price) {
-                                    hasPriceChange = true;
+                            bookedSvcs.forEach((s: any) => {
+                                originalTotal += s.price;
+                                const master = apt.establishment?.services?.find((m: any) => m.id === s.id);
+                                if (master) {
+                                    newTotal += master.price;
+                                    if (master.price !== s.price) {
+                                        hasPriceChange = true;
+                                    }
+                                } else {
+                                    newTotal += s.price;
                                 }
-                            } else {
-                                newTotal += s.price;
-                            }
-                        });
+                            });
 
-                        return (
-                            <div 
-                                key={apt.id} 
-                                className={`bg-white rounded-3xl border border-slate-100 p-5 shadow-sm space-y-4 hover:border-primary-100 transition-all ${
-                                    isProposed ? "border-amber-200 ring-2 ring-amber-100" : ""
-                                }`}
-                            >
-                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-extrabold text-slate-900 text-base">{apt.establishment?.name}</h3>
-                                        <p className="text-xs text-slate-500 font-semibold capitalize mt-0.5 truncate max-w-[240px] sm:max-w-[380px]" title={`🐶 ${apt.pet?.name} · ${apt.serviceType}`}>
-                                            🐶 {apt.pet?.name} · {apt.serviceType}
-                                        </p>
-                                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-1 font-medium">
-                                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                            {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin hora"}
-                                        </p>
-                                        {apt.establishment?.address && (
-                                            <a 
-                                                href={`https://www.google.com/maps/search/?api=1&query=${apt.establishment.latitude && apt.establishment.longitude ? `${apt.establishment.latitude},${apt.establishment.longitude}` : encodeURIComponent(`${apt.establishment.name}, ${apt.establishment.address}, ${apt.establishment.city || 'Lima'}`)}`}
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="text-xs text-primary-600 hover:text-primary-750 flex items-center gap-1 mt-1.5 font-semibold hover:underline"
-                                            >
-                                                <MapPin className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-                                                <span className="truncate max-w-full sm:max-w-[280px]">
-                                                    {apt.establishment.address} {apt.establishment.district ? `(${apt.establishment.district})` : ''}
-                                                </span>
-                                            </a>
-                                        )}
-                                    </div>
-                                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full w-fit ${
-                                        isProposed ? "bg-amber-100 text-amber-800" : statusInfo.color
-                                    }`}>
-                                        {isProposed ? "Reprogramación propuesta" : statusInfo.label}
-                                    </span>
-                                </div>
+                            const attendingSpecialistName = apt.medicalRecord?.attendingName || apt.provider?.fullName;
+                            const attendingSpecialistCmvp = apt.medicalRecord?.attendingCmvp || apt.provider?.cmvpId;
 
-                                {hasPriceChange && (
-                                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl space-y-3 animate-in">
-                                        <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                                            <AlertCircle className="w-4 h-4 text-amber-600" /> Cambio de tarifa anunciado:
-                                        </p>
-                                        <div className="text-xs text-slate-700 leading-normal space-y-1">
-                                            <p>El establecimiento actualizó los precios de los servicios contratados. El precio original reservado era de <strong>{formatPEN(originalTotal)}</strong>, pero la tarifa vigente es de <strong>{formatPEN(newTotal)}</strong>.</p>
-                                            <p className="text-amber-800 font-medium">Puedes aceptar el nuevo precio para continuar con la reserva, o cancelarla con devolución inmediata del 100% de la comisión de acceso a tu Billetera de Huellitas.</p>
-                                        </div>
-                                        <div className="flex gap-2 pt-1.5">
-                                            <button
-                                                onClick={() => handleAcceptPriceChange(apt.id)}
-                                                className="flex-1 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
-                                            >
-                                                Aceptar Nueva Tarifa
-                                            </button>
-                                            <button
-                                                onClick={() => handleCancelWithRefund(apt.id)}
-                                                className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors"
-                                            >
-                                                Cancelar con Reembolso
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Active OTP Attention Code Widget */}
-                                {(apt.status === "paid" || apt.status === "confirmed") && apt.otpValidationCode && (
-                                    <div className={`rounded-2xl p-4 flex flex-col gap-3 shadow-md border transition-all duration-300 ${
+                            return (
+                                <div 
+                                    key={apt.id} 
+                                    className={`bg-white rounded-3xl border p-5 shadow-sm space-y-4 transition-all ${
                                         canClaim && !isProposed
-                                            ? 'bg-amber-500 text-amber-950 border-amber-400' 
-                                            : 'bg-primary-600 text-white border-primary-500'
-                                    }`}>
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className={`text-xs font-semibold ${
-                                                    canClaim && !isProposed ? 'text-amber-950' : 'text-primary-200'
-                                                }`}>Tu Código de verificación</p>
-                                                <p className={`text-[10px] ${
-                                                    canClaim && !isProposed ? 'text-amber-900' : 'text-primary-300'
-                                                }`}>Muéstraselo al especialista al llegar</p>
-                                            </div>
-                                            <span className={`font-mono text-2xl font-black tracking-[0.3em] px-4 py-2 rounded-xl border ${
-                                                canClaim && !isProposed 
-                                                    ? 'bg-black/10 border-black/10 text-amber-950' 
-                                                    : 'bg-white/10 border-white/20 text-white'
-                                            }`}>
-                                                {apt.otpValidationCode}
-                                            </span>
-                                        </div>
-                                        {canClaim && !isProposed && (
-                                            <div className="border-t border-amber-600/30 pt-3 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                                                <span className="text-[11px] text-amber-950 leading-normal font-semibold">
-                                                    ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario expiró. Puedes reclamar inasistencia para recuperar tu comisión (el código de verificación sigue siendo válido por si te atiendes tarde).
-                                                </span>
-                                                <button
-                                                    onClick={() => setDenouncingId(apt.id)}
-                                                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-xl text-[10px] uppercase shrink-0 transition-colors shadow-md border border-red-500/20 active:scale-95"
+                                            ? "border-amber-350 bg-amber-50/5 shadow-sm"
+                                            : isProposed 
+                                                ? "border-amber-200 ring-2 ring-amber-100" 
+                                                : "border-slate-100 hover:border-primary-100"
+                                    }`}
+                                >
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-extrabold text-slate-900 text-base">{apt.establishment?.name}</h3>
+                                            <p className="text-xs text-slate-500 font-semibold capitalize mt-0.5 truncate max-w-[240px] sm:max-w-[380px]" title={`🐶 ${apt.pet?.name} · ${apt.serviceType}`}>
+                                                🐶 {apt.pet?.name} · {apt.serviceType}
+                                            </p>
+                                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1 font-medium">
+                                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin hora"}
+                                            </p>
+                                            {apt.establishment?.address && (
+                                                <a 
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${apt.establishment.latitude && apt.establishment.longitude ? `${apt.establishment.latitude},${apt.establishment.longitude}` : encodeURIComponent(`${apt.establishment.name}, ${apt.establishment.address}, ${apt.establishment.city || 'Lima'}`)}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-primary-600 hover:text-primary-750 flex items-center gap-1 mt-1.5 font-semibold hover:underline"
                                                 >
-                                                    Reclamar
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Vet Proposed Rescheduling Section */}
-                                {isProposed && (
-                                    <div className="bg-amber-50 border border-amber-250 p-4 rounded-2xl space-y-3 animate-in slide-in-from-top-2">
-                                        <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                                            <Sparkles className="w-4 h-4 text-amber-600" /> El establecimiento propone reprogramar:
-                                        </p>
-                                        <div className="text-xs text-amber-900 space-y-1">
-                                            <p>📅 **Nuevo Horario:** {new Date(apt.rescheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
-                                            {apt.notes && <p className="italic opacity-80 mt-1">&quot; {apt.notes.split("[Propuesta Reprog:")[1]?.replace("]", "") || apt.notes} &quot;</p>}
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-2 pt-1.5">
-                                            <button
-                                                onClick={() => handleAcceptReschedule(apt.id)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
-                                            >
-                                                <Check className="w-3.5 h-3.5 stroke-[3]" /> Aceptar sin costo
-                                            </button>
-                                            <button
-                                                onClick={() => setReschedulingId(apt.id)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
-                                            >
-                                                <Calendar className="w-3.5 h-3.5" /> Proponer otro horario
-                                            </button>
-                                            {(apt.status === "paid" || apt.status === "confirmed") && (
-                                                <button
-                                                    onClick={() => setDenouncingId(apt.id)}
-                                                    className="px-4 py-2.5 bg-white border border-slate-200 text-red-650 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors"
-                                                >
-                                                    Iniciar Reclamo
-                                                </button>
+                                                    <MapPin className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                                                    <span className="truncate max-w-full sm:max-w-[280px]">
+                                                        {apt.establishment.address} {apt.establishment.district ? `(${apt.establishment.district})` : ''}
+                                                    </span>
+                                                </a>
                                             )}
                                         </div>
+                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full w-fit ${
+                                            isProposed ? "bg-amber-100 text-amber-800" : statusInfo.color
+                                        }`}>
+                                            {isProposed ? "Reprogramación propuesta" : statusInfo.label}
+                                        </span>
                                     </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
 
-            {/* Historial de Citas Pasadas (Collapsible) */}
-            {historyAppointments.length > 0 && (
-                <div className="border border-slate-200 bg-white rounded-3xl overflow-hidden shadow-sm">
-                    <button
-                        onClick={() => setShowHistory(!showHistory)}
-                        type="button"
-                        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors select-none text-left"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-slate-500" />
-                            <span className="text-sm font-bold text-slate-800">
-                                Ver Historial de Citas Pasadas ({historyAppointments.length})
-                            </span>
-                        </div>
-                        <span className="text-xs text-primary-600 font-bold">
-                            {showHistory ? "Ocultar ▲" : "Mostrar ▼"}
-                        </span>
-                    </button>
-                    
-                    {showHistory && (
-                        <div className="border-t border-slate-100 p-5 space-y-4 bg-slate-50/50 max-h-[500px] overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
-                            {historyAppointments.map((apt: any) => {
-                                const isNoAtendido = (apt.status === 'paid' || apt.status === 'confirmed') && apt.scheduledAt && (Date.now() - new Date(apt.scheduledAt).getTime() > 48 * 60 * 60 * 1000);
-                                const statusInfo = isNoAtendido
-                                    ? { label: 'No atendido', color: 'text-slate-550 bg-slate-100' }
-                                    : (APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: 'text-slate-650 bg-slate-100' });
-                                return (
-                                    <div
-                                        key={apt.id}
-                                        className="bg-white rounded-2xl border border-slate-150 p-4 shadow-sm space-y-3"
+                                    {/* Collapsible Details Button */}
+                                    <button
+                                        onClick={() => setExpandedAptId(expandedAptId === apt.id ? null : apt.id)}
+                                        className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 bg-slate-50 hover:bg-slate-100 text-[11px] font-bold text-slate-500 rounded-xl transition-all border border-slate-100 active:scale-[0.98]"
+                                        type="button"
                                     >
-                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <h4 className="font-extrabold text-slate-900 text-sm truncate">
-                                                    {apt.establishment?.name || 'Establecimiento'}
-                                                </h4>
-                                                <p className="text-xs text-slate-500 mt-0.5 capitalize truncate">
-                                                    🐶 {apt.pet?.name} · {apt.serviceType}
-                                                </p>
-                                                <p className="text-[11px] text-slate-455 mt-1 font-medium">
-                                                    {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sin hora'}
-                                                </p>
-                                            </div>
-                                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusInfo?.color || 'text-slate-650 bg-slate-100'} shrink-0`}>
-                                                {statusInfo?.label || apt.status}
-                                            </span>
-                                        </div>
+                                        <span>{expandedAptId === apt.id ? "Ocultar Detalles ▲" : "Ver Detalles de Cita ▼"}</span>
+                                    </button>
 
-                                        {/* Expandable Recipe for completed */}
-                                        {apt.status === 'completed' && apt.medicalRecord && (
-                                            <details className="border-t border-slate-100 pt-3 group/rec">
-                                                <summary className="text-[11px] font-bold text-primary-600 hover:text-primary-750 cursor-pointer list-none flex items-center justify-between select-none">
-                                                    <span className="flex items-center gap-1">📋 Ver receta e indicaciones médicas</span>
-                                                    <span className="text-[9px] transition-transform group-open/rec:rotate-180">▼</span>
-                                                </summary>
-                                                <div className="mt-2 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-2.5 text-slate-700">
-                                                    {apt.medicalRecord.diagnosis && (
-                                                        <div>
-                                                            <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Diagnóstico</span>
-                                                            <p className="font-medium text-slate-900 mt-0.5">{apt.medicalRecord.diagnosis}</p>
+                                    {/* Collapsible Details Content */}
+                                    {expandedAptId === apt.id && (
+                                        <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 mt-2 space-y-3.5 text-xs text-slate-700 animate-in slide-in-from-top-1 duration-200">
+                                            <div className="space-y-1.5">
+                                                <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Servicios Reservados</p>
+                                                <div className="space-y-1">
+                                                    {bookedSvcs.map((s: any, idx: number) => (
+                                                        <div key={idx} className="flex justify-between items-center text-xs">
+                                                            <span className="font-medium text-slate-600">{s.name}</span>
+                                                            <span className="font-bold text-slate-800">S/ {s.price.toFixed(2)}</span>
                                                         </div>
-                                                    )}
-                                                    {apt.medicalRecord.prescription && (
-                                                        <div>
-                                                            <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Receta / Prescripción</span>
-                                                            <p className="font-medium text-slate-900 bg-white border border-slate-200/65 rounded-lg p-2.5 mt-1 whitespace-pre-line leading-relaxed shadow-sm">
-                                                                {apt.medicalRecord.prescription}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                    {apt.medicalRecord.treatment && (
-                                                        <div>
-                                                            <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Notas de Tratamiento</span>
-                                                            <p className="font-medium text-slate-850 mt-0.5">{apt.medicalRecord.treatment}</p>
-                                                        </div>
-                                                    )}
+                                                    ))}
                                                 </div>
-                                            </details>
-                                        )}
-
-                                        {/* Review Form for completed */}
-                                        {apt.status === 'completed' && (
-                                            <div className="border-t border-slate-100 pt-3">
-                                                <ReviewForm
-                                                    appointmentId={apt.id}
-                                                    establishmentId={apt.establishment?.id}
-                                                    establishmentName={apt.establishment?.name || 'Establecimiento'}
-                                                    alreadyReviewed={!!apt.review}
-                                                    existingRating={apt.review?.rating}
-                                                />
                                             </div>
-                                        )}
+
+                                            <div className="border-t border-slate-200 pt-2.5 space-y-1.5">
+                                                <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Desglose de Tarifas</p>
+                                                <div className="space-y-1 text-slate-600">
+                                                    <div className="flex justify-between">
+                                                        <span>Reserva pagada en app:</span>
+                                                        <span className="font-bold text-slate-800">S/ {apt.commissionAmount.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Saldo a pagar en local:</span>
+                                                        <span className="font-bold text-primary-600">S/ {(apt.totalServicePrice - apt.commissionAmount).toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 font-bold text-slate-900">
+                                                        <span>Precio Total:</span>
+                                                        <span>S/ {apt.totalServicePrice.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {(attendingSpecialistName || attendingSpecialistCmvp) && (
+                                                <div className="border-t border-slate-200 pt-2.5 space-y-1">
+                                                    <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Especialista Asignado</p>
+                                                    <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                        🩺 {attendingSpecialistName}
+                                                        {attendingSpecialistCmvp && (
+                                                            <span className="font-mono text-[10px] text-slate-500 font-normal">
+                                                                (CMVP: {attendingSpecialistCmvp})
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {apt.notes && (
+                                                <div className="border-t border-slate-200 pt-2.5 space-y-1">
+                                                    <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Notas / Indicaciones</p>
+                                                    <p className="text-slate-600 italic bg-white p-2.5 rounded-xl border border-slate-100 leading-normal">
+                                                        &ldquo;{apt.notes.split("[Propuesta Reprog:")[0]?.trim() || apt.notes}&rdquo;
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Active Price Change Counter Proposal Section */}
+                                    {hasPriceChange && (
+                                        <div className="bg-amber-50 border border-amber-250 p-4 rounded-2xl space-y-3">
+                                            <p className="text-xs font-bold text-amber-955 flex items-center gap-1.5">
+                                                <AlertTriangle className="w-4 h-4 text-amber-600 animate-pulse" /> Actualización de precio sugerido por local:
+                                            </p>
+                                            <div className="text-xs text-amber-900 space-y-1 bg-white/50 p-2.5 rounded-xl border border-amber-100">
+                                                <div className="flex justify-between">
+                                                    <span>Tarifa Original:</span>
+                                                    <span className="line-through">S/ {originalTotal.toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between font-bold text-amber-955">
+                                                    <span>Nueva Tarifa:</span>
+                                                    <span>S/ {newTotal.toFixed(2)}</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 mt-1.5 leading-normal">La variación se debe a ajustes específicos en las características del paciente o insumos requeridos.</p>
+                                            </div>
+                                            <div className="flex gap-2 pt-1">
+                                                <button
+                                                    onClick={() => handleAcceptPriceChange(apt.id)}
+                                                    className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                                                >
+                                                    Aceptar Tarifa
+                                                </button>
+                                                <button
+                                                    onClick={() => handleCancelWithRefund(apt.id)}
+                                                    className="flex-1 px-3 py-2 bg-white border border-slate-200 text-red-650 rounded-xl text-xs font-bold hover:bg-red-50 transition-all active:scale-95"
+                                                >
+                                                    Cancelar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Active OTP Attention Code Widget */}
+                                    {(apt.status === "paid" || apt.status === "confirmed") && apt.otpValidationCode && (
+                                        <div className={`rounded-2xl p-4 flex flex-col gap-3 shadow-sm border transition-all duration-300 ${
+                                            canClaim && !isProposed
+                                                ? 'bg-white text-slate-800 border-amber-100' 
+                                                : 'bg-primary-600 text-white border-primary-500'
+                                        }`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className={`text-xs font-semibold ${
+                                                        canClaim && !isProposed ? 'text-slate-700' : 'text-primary-200'
+                                                    }`}>Tu Código de verificación</p>
+                                                    <p className={`text-[10px] ${
+                                                        canClaim && !isProposed ? 'text-slate-400' : 'text-primary-100/80'
+                                                    }`}>Muéstraselo al especialista al llegar</p>
+                                                </div>
+                                                <span className={`font-mono text-xl font-black tracking-[0.2em] px-3.5 py-1.5 rounded-xl border ${
+                                                    canClaim && !isProposed 
+                                                        ? 'bg-amber-50/50 border-amber-200 text-amber-900 shadow-sm' 
+                                                        : 'bg-white/10 border-white/20 text-white'
+                                                }`}>
+                                                    {apt.otpValidationCode}
+                                                </span>
+                                            </div>
+                                            {canClaim && !isProposed && (
+                                                <div className="border-t border-amber-100 pt-3 mt-1.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs bg-amber-50/50 -mx-4 -mb-4 p-4 rounded-b-2xl border-b-0 border-l-0 border-r-0 border">
+                                                    <span className="text-[11px] text-amber-900 font-medium leading-normal flex-1">
+                                                        ⚠️ <strong>Inasistencia del Proveedor:</strong> El horario expiró. Puedes reclamar inasistencia para recuperar tu comisión.
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setDenouncingId(apt.id)}
+                                                        className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-[10px] uppercase shrink-0 transition-colors shadow-sm border border-amber-500/20 active:scale-95"
+                                                    >
+                                                        Reclamar
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Vet Proposed Rescheduling Section */}
+                                    {isProposed && (
+                                        <div className="bg-amber-50 border border-amber-250 p-4 rounded-2xl space-y-3 animate-in slide-in-from-top-2">
+                                            <p className="text-xs font-bold text-amber-955 flex items-center gap-1.5">
+                                                <Sparkles className="w-4 h-4 text-amber-600" /> El establecimiento propone reprogramar:
+                                            </p>
+                                            <div className="text-xs text-amber-900 space-y-1">
+                                                <p>📅 **Nuevo Horario:** {new Date(apt.rescheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                                                {apt.notes && <p className="italic opacity-80 mt-1">&quot; {apt.notes.split("[Propuesta Reprog:")[1]?.replace("]", "") || apt.notes} &quot;</p>}
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row gap-2 pt-1.5">
+                                                <button
+                                                    onClick={() => handleAcceptReschedule(apt.id)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm active:scale-95"
+                                                >
+                                                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Aceptar sin costo
+                                                </button>
+                                                <button
+                                                    onClick={() => setReschedulingId(apt.id)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm active:scale-95"
+                                                >
+                                                    <Calendar className="w-3.5 h-3.5" /> Proponer otro horario
+                                                </button>
+                                                {(apt.status === "paid" || apt.status === "confirmed") && (
+                                                    <button
+                                                        onClick={() => setDenouncingId(apt.id)}
+                                                        className="px-4 py-2.5 bg-white border border-slate-200 text-red-650 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors active:scale-95"
+                                                    >
+                                                        Iniciar Reclamo
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )
+            ) : (
+                historyAppointments.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
+                        <Clock className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Sin historial de citas</h2>
+                        <p className="text-sm text-slate-500">Aún no tienes atenciones finalizadas o canceladas en tu registro.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {historyAppointments.map((apt: any) => {
+                            const isNoAtendido = (apt.status === 'paid' || apt.status === 'confirmed') && apt.scheduledAt && (Date.now() - new Date(apt.scheduledAt).getTime() > 48 * 60 * 60 * 1000);
+                            const statusInfo = isNoAtendido
+                                ? { label: 'No atendido', color: 'text-slate-550 bg-slate-100' }
+                                : (APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS] || { label: apt.status, color: 'text-slate-650 bg-slate-100' });
+                            
+                            let bookedSvcs: any[] = [];
+                            try {
+                                bookedSvcs = JSON.parse(apt.bookedServices || "[]");
+                            } catch {}
+
+                            const attendingSpecialistName = apt.medicalRecord?.attendingName || apt.provider?.fullName;
+                            const attendingSpecialistCmvp = apt.medicalRecord?.attendingCmvp || apt.provider?.cmvpId;
+
+                            return (
+                                <div
+                                    key={apt.id}
+                                    className="bg-white rounded-3xl border border-slate-150 p-5 shadow-sm space-y-4 hover:border-slate-300 transition-all"
+                                >
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <h4 className="font-extrabold text-slate-900 text-sm truncate">
+                                                {apt.establishment?.name || 'Establecimiento'}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 mt-0.5 capitalize truncate">
+                                                🐶 {apt.pet?.name} · {apt.serviceType}
+                                            </p>
+                                            <p className="text-[11px] text-slate-455 mt-1 font-medium">
+                                                {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sin hora'}
+                                            </p>
+                                        </div>
+                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusInfo?.color || 'text-slate-650 bg-slate-100'} shrink-0`}>
+                                            {statusInfo?.label || apt.status}
+                                        </span>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
+
+                                    {/* Collapsible Details Button */}
+                                    <button
+                                        onClick={() => setExpandedAptId(expandedAptId === apt.id ? null : apt.id)}
+                                        className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 bg-slate-50 hover:bg-slate-100 text-[11px] font-bold text-slate-500 rounded-xl transition-all border border-slate-100 active:scale-[0.98]"
+                                        type="button"
+                                    >
+                                        <span>{expandedAptId === apt.id ? "Ocultar Detalles ▲" : "Ver Detalles de Cita ▼"}</span>
+                                    </button>
+
+                                    {/* Collapsible Details Content */}
+                                    {expandedAptId === apt.id && (
+                                        <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 mt-2 space-y-3.5 text-xs text-slate-700 animate-in slide-in-from-top-1 duration-200">
+                                            <div className="space-y-1.5">
+                                                <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Servicios Reservados</p>
+                                                <div className="space-y-1">
+                                                    {bookedSvcs.map((s: any, idx: number) => (
+                                                        <div key={idx} className="flex justify-between items-center text-xs">
+                                                            <span className="font-medium text-slate-600">{s.name}</span>
+                                                            <span className="font-bold text-slate-800">S/ {s.price.toFixed(2)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t border-slate-200 pt-2.5 space-y-1.5">
+                                                <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Desglose de Tarifas</p>
+                                                <div className="space-y-1 text-slate-600">
+                                                    <div className="flex justify-between">
+                                                        <span>Reserva pagada en app:</span>
+                                                        <span className="font-bold text-slate-800">S/ {apt.commissionAmount.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Saldo a pagar en local:</span>
+                                                        <span className="font-bold text-primary-600">S/ {(apt.totalServicePrice - apt.commissionAmount).toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 font-bold text-slate-900">
+                                                        <span>Precio Total:</span>
+                                                        <span>S/ {apt.totalServicePrice.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {(attendingSpecialistName || attendingSpecialistCmvp) && (
+                                                <div className="border-t border-slate-200 pt-2.5 space-y-1">
+                                                    <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Especialista Atendiendo</p>
+                                                    <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                        🩺 {attendingSpecialistName}
+                                                        {attendingSpecialistCmvp && (
+                                                            <span className="font-mono text-[10px] text-slate-500 font-normal">
+                                                                (CMVP: {attendingSpecialistCmvp})
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {apt.notes && (
+                                                <div className="border-t border-slate-200 pt-2.5 space-y-1">
+                                                    <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Notas / Indicaciones</p>
+                                                    <p className="text-slate-600 italic bg-white p-2.5 rounded-xl border border-slate-100 leading-normal">
+                                                        &ldquo;{apt.notes.split("[Propuesta Reprog:")[0]?.trim() || apt.notes}&rdquo;
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Expandable Recipe for completed */}
+                                    {apt.status === 'completed' && apt.medicalRecord && (
+                                        <details className="border-t border-slate-100 pt-3 group/rec">
+                                            <summary className="text-[11px] font-bold text-primary-600 hover:text-primary-750 cursor-pointer list-none flex items-center justify-between select-none">
+                                                <span className="flex items-center gap-1">📋 Ver receta e indicaciones médicas</span>
+                                                <span className="text-[9px] transition-transform group-open/rec:rotate-180">▼</span>
+                                            </summary>
+                                            <div className="mt-2 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-2.5 text-slate-700">
+                                                {apt.medicalRecord.diagnosis && (
+                                                    <div>
+                                                        <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Diagnóstico</span>
+                                                        <p className="font-medium text-slate-900 mt-0.5">{apt.medicalRecord.diagnosis}</p>
+                                                    </div>
+                                                )}
+                                                {apt.medicalRecord.prescription && (
+                                                    <div>
+                                                        <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Receta / Prescripción</span>
+                                                        <p className="font-medium text-slate-900 bg-white border border-slate-200/65 rounded-lg p-2.5 mt-1 whitespace-pre-line leading-relaxed shadow-sm">
+                                                            {apt.medicalRecord.prescription}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {apt.medicalRecord.treatment && (
+                                                    <div>
+                                                        <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider">Notas de Tratamiento</span>
+                                                        <p className="font-medium text-slate-850 mt-0.5">{apt.medicalRecord.treatment}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </details>
+                                    )}
+
+                                    {/* Review Form for completed */}
+                                    {apt.status === 'completed' && (
+                                        <div className="border-t border-slate-100 pt-3">
+                                            <ReviewForm
+                                                appointmentId={apt.id}
+                                                establishmentId={apt.establishment?.id}
+                                                establishmentName={apt.establishment?.name || 'Establecimiento'}
+                                                alreadyReviewed={!!apt.review}
+                                                existingRating={apt.review?.rating}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )
             )}
             
             {/* Denuncia Modal Dialog Form */}

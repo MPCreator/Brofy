@@ -5,7 +5,7 @@ import prisma from './prisma'
 import { getSession, requireSession, requireRole, logout } from './auth'
 import { revalidatePath } from 'next/cache'
 import { cache } from 'react'
-import { calculateDistanceKm, generateOtp, checkIfNonClinical } from './utils'
+import { calculateDistanceKm, generateOtp, checkIfNonClinical, parsePeruDate, getPeruStartOfDay, getPeruEndOfDay, getPeruLocalDateString, getTimezoneByCountry, parseLocalTimeZoneDate } from './utils'
 import { uploadImage } from './cloudinary'
 import type {
     MedicalHistoryEntry,
@@ -599,9 +599,25 @@ export async function createAppointment(data: {
     const mb = await getMarchaBlancaSetting()
     const commissionAmount = mb.isActive ? 0.00 : (5.00 * numServices)
 
-    // Req 4: Prevención robusta de solapamientos basada en duraciones reales
+    // Req 4: Prevención de solapamientos y validación de horario basada en la zona horaria del local
+    let tz = 'America/Lima'
     if (data.scheduledAt) {
-        const requestedTime = new Date(data.scheduledAt)
+        const est = await prisma.establishment.findUnique({
+            where: { id: data.establishmentId },
+            select: { country: true, concurrentSlots: true }
+        })
+        if (!est) {
+            return { success: false, error: 'El establecimiento no existe.' }
+        }
+
+        tz = getTimezoneByCountry(est.country)
+        const requestedTime = parseLocalTimeZoneDate(data.scheduledAt, tz)
+        const nowMs = Date.now()
+        // Permitir un margen de 5 minutos por desajustes de reloj
+        if (requestedTime.getTime() < nowMs - 5 * 60 * 1000) {
+            return { success: false, error: 'No es posible agendar una cita en un horario pasado.' }
+        }
+
         const newStart = requestedTime.getTime()
         const newEnd = newStart + totalDuration * 60000
 
@@ -645,12 +661,7 @@ export async function createAppointment(data: {
             }
         }
 
-        const est = await prisma.establishment.findUnique({
-            where: { id: data.establishmentId },
-            select: { concurrentSlots: true }
-        })
-
-        if (est && overlapCount >= est.concurrentSlots) {
+        if (overlapCount >= est.concurrentSlots) {
             return { success: false, error: `El horario seleccionado (${totalDuration} min) tiene cruces de horarios con la capacidad del local. Por favor elige otro horario.` }
         }
     }
@@ -666,7 +677,7 @@ export async function createAppointment(data: {
             commissionAmount,
             bookedServices: JSON.stringify(selectedServicesList),
             totalServicePrice,
-            scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+            scheduledAt: data.scheduledAt ? parseLocalTimeZoneDate(data.scheduledAt, tz) : null,
             notes: data.notes || null,
             status: 'pending',
         }
@@ -816,8 +827,7 @@ export async function getOccupiedSlots(establishmentId: string, dateStr: string)
 
 export async function getPendingAppointments() {
     const session = await requireRole(['vet', 'provider'])
-    const endOfToday = new Date()
-    endOfToday.setHours(23, 59, 59, 999)
+    const endOfToday = getPeruEndOfDay()
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const list = await prisma.appointment.findMany({
@@ -1487,9 +1497,15 @@ export async function createManualTurn(data: {
         }
     }
 
+    const tz = getTimezoneByCountry(est.country || 'PE')
     let scheduledDate: Date | null = null
     if (data.scheduledAt) {
-        scheduledDate = new Date(data.scheduledAt)
+        scheduledDate = parseLocalTimeZoneDate(data.scheduledAt, tz)
+        const nowMs = Date.now()
+        // Permitir un margen de 5 minutos por desajustes de reloj
+        if (scheduledDate.getTime() < nowMs - 5 * 60 * 1000) {
+            return { success: false, message: 'No es posible agendar una cita en un horario pasado.' }
+        }
         const requestedTime = scheduledDate.getTime()
         const newEnd = requestedTime + duration * 60000
 
@@ -1560,15 +1576,17 @@ export async function getVetDebt() {
     const session = await getSession()
     if (!session) return 0
 
-    const debtAppointments = await prisma.appointment.findMany({
+    const aggregate = await prisma.appointment.aggregate({
         where: {
             providerId: session.sub,
             paymentId: 'DEBT'
+        },
+        _sum: {
+            commissionAmount: true
         }
     })
 
-    const totalDebt = debtAppointments.reduce((sum, apt) => sum + apt.commissionAmount, 0)
-    return totalDebt
+    return aggregate._sum.commissionAmount || 0
 }
 
 export async function payVetDebt() {
@@ -1969,86 +1987,128 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
     return { success: true }
 }
 
+export async function getVetAgendaStats() {
+    const session = await getSession()
+    if (!session) return { todayCount: 0, pendingOtp: 0 }
+
+    const today = getPeruStartOfDay()
+    const tomorrow = new Date(today.getTime() + 86400000)
+    const endOfToday = getPeruEndOfDay()
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+
+    const [todayCount, pendingOtp] = await Promise.all([
+        prisma.appointment.count({
+            where: {
+                providerId: session.sub,
+                scheduledAt: { gte: today, lt: tomorrow },
+                status: { not: 'pending' },
+            }
+        }),
+        prisma.appointment.count({
+            where: {
+                establishment: { ownerId: session.sub },
+                status: 'paid',
+                OR: [
+                    { scheduledAt: null, createdAt: { gte: last24h } },
+                    { scheduledAt: { lte: endOfToday } }
+                ]
+            }
+        })
+    ])
+
+    return { todayCount, pendingOtp }
+}
+
 export const getVetStats = cache(async () => {
     const session = await getSession()
     if (!session) return { todayCount: 0, monthRevenue: 0, pendingOtp: 0, completedTotal: 0, estStats: [], specStats: [] }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = getPeruStartOfDay()
     const tomorrow = new Date(today.getTime() + 86400000)
+    const endOfToday = getPeruEndOfDay()
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
-    const endOfToday = new Date()
-    endOfToday.setHours(23, 59, 59, 999)
-    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    // Execute aggregate and counts concurrently
+    const [todayCount, revenueAgg, pendingOtp, completedTotal, establishments, profile] = await Promise.all([
+        prisma.appointment.count({
+            where: {
+                providerId: session.sub,
+                scheduledAt: { gte: today, lt: tomorrow },
+                status: { not: 'pending' },
+            }
+        }),
+        prisma.appointment.aggregate({
+            where: {
+                providerId: session.sub,
+                createdAt: { gte: firstOfMonth },
+                status: { in: ['validated', 'completed'] },
+            },
+            _sum: {
+                commissionAmount: true
+            }
+        }),
+        prisma.appointment.count({
+            where: {
+                establishment: { ownerId: session.sub },
+                status: 'paid',
+                OR: [
+                    { scheduledAt: null, createdAt: { gte: last24h } },
+                    { scheduledAt: { lte: endOfToday } }
+                ]
+            }
+        }),
+        prisma.appointment.count({
+            where: {
+                providerId: session.sub,
+                status: 'completed',
+            }
+        }),
+        prisma.establishment.findMany({
+            where: { ownerId: session.sub },
+            select: {
+                id: true,
+                name: true,
+                specialists: true
+            }
+        }),
+        prisma.profile.findUnique({
+            where: { id: session.sub },
+            select: {
+                fullName: true,
+                cmvpId: true
+            }
+        })
+    ])
 
-    const todayCount = await prisma.appointment.count({
+    const monthRevenue = revenueAgg._sum.commissionAmount || 0
+
+    // Optimize establishment stats using GROUP BY in a single query
+    const groupedStats = await prisma.appointment.groupBy({
+        by: ['establishmentId', 'status'],
         where: {
-            providerId: session.sub,
-            scheduledAt: { gte: today, lt: tomorrow },
-            status: { not: 'pending' },
-        }
-    })
-    const monthAppointments = await prisma.appointment.findMany({
-        where: {
-            providerId: session.sub,
-            createdAt: { gte: firstOfMonth },
-            status: { in: ['validated', 'completed'] },
-        }
-    })
-    const pendingOtp = await prisma.appointment.count({
-        where: {
-            establishment: { ownerId: session.sub },
-            status: 'paid',
-            OR: [
-                { scheduledAt: null, createdAt: { gte: last24h } },
-                { scheduledAt: { lte: endOfToday } }
-            ]
-        }
-    })
-    const completedTotal = await prisma.appointment.count({
-        where: {
-            providerId: session.sub,
-            status: 'completed',
-        }
-    })
-    const establishments = await prisma.establishment.findMany({
-        where: { ownerId: session.sub },
-        select: {
-            id: true,
-            name: true,
-            specialists: true
-        }
-    })
-    const medicalRecords = await prisma.medicalRecord.findMany({
-        where: { vetId: session.sub },
-        select: {
-            attendingName: true,
-            attendingCmvp: true,
-        }
-    })
-    const profile = await prisma.profile.findUnique({
-        where: { id: session.sub },
-        select: {
-            fullName: true,
-            cmvpId: true
+            establishmentId: { in: establishments.map(e => e.id) }
+        },
+        _count: {
+            _all: true
         }
     })
 
-    const monthRevenue = monthAppointments.reduce((acc, a) => acc + a.commissionAmount, 0)
+    const estStats = establishments.map(est => {
+        const counts = groupedStats.filter(g => g.establishmentId === est.id)
+        
+        const total = counts
+            .filter(g => g.status !== 'pending')
+            .reduce((sum, g) => sum + g._count._all, 0)
+            
+        const pending = counts
+            .filter(g => g.status === 'paid')
+            .reduce((sum, g) => sum + g._count._all, 0)
+            
+        const completed = counts
+            .filter(g => g.status === 'completed' || g.status === 'validated')
+            .reduce((sum, g) => sum + g._count._all, 0)
 
-    const estStats = await Promise.all(establishments.map(async est => {
-        const [total, pending, completed] = await Promise.all([
-            prisma.appointment.count({
-                where: { establishmentId: est.id, status: { not: 'pending' } }
-            }),
-            prisma.appointment.count({
-                where: { establishmentId: est.id, status: 'paid' }
-            }),
-            prisma.appointment.count({
-                where: { establishmentId: est.id, status: { in: ['completed', 'validated'] } }
-            })
-        ])
         return {
             id: est.id,
             name: est.name,
@@ -2056,12 +2116,11 @@ export const getVetStats = cache(async () => {
             completed,
             total
         }
-    }))
+    })
 
-    // Compute specialist stats
+    // Optimize specialist stats using GROUP BY on medical records
     const specStatsMap = new Map<string, { name: string; cmvpId: string; count: number }>()
     
-    // Pre-fill registered specialists
     establishments.forEach(est => {
         try {
             const specs = JSON.parse(est.specialists || '[]')
@@ -2079,14 +2138,22 @@ export const getVetStats = cache(async () => {
         } catch {}
     })
 
-    // Count medical records
+    const groupedRecords = await prisma.medicalRecord.groupBy({
+        by: ['attendingCmvp'],
+        where: { vetId: session.sub },
+        _count: {
+            _all: true
+        }
+    })
+
     let defaultCount = 0
-    medicalRecords.forEach(rec => {
-        if (rec.attendingCmvp && specStatsMap.has(rec.attendingCmvp)) {
-            const spec = specStatsMap.get(rec.attendingCmvp)!
-            spec.count += 1
+    groupedRecords.forEach(group => {
+        const cmvp = group.attendingCmvp
+        const count = group._count._all
+        if (cmvp && specStatsMap.has(cmvp)) {
+            specStatsMap.get(cmvp)!.count = count
         } else {
-            defaultCount += 1
+            defaultCount += count
         }
     })
 
@@ -2094,7 +2161,6 @@ export const getVetStats = cache(async () => {
     const ownerCmvp = profile?.cmvpId && profile.cmvpId !== 'No aplica' ? profile.cmvpId : 'Principal'
 
     const specStats = Array.from(specStatsMap.values())
-    // Add default veterinarian (owner)
     specStats.unshift({
         name: ownerName,
         cmvpId: ownerCmvp,
@@ -3761,15 +3827,21 @@ export async function getMarchaBlancaSetting() {
         const startsAt = settings.find((s: any) => s.key === 'marcha_blanca_starts_at')?.value ?? '2026-06-23'
         const endsAt = settings.find((s: any) => s.key === 'marcha_blanca_ends_at')?.value ?? '2026-07-23'
         
+        const todayStr = getPeruLocalDateString()
+        const isTimeRangeActive = todayStr >= startsAt && todayStr <= endsAt;
+        const isActive = active === 'true' && isTimeRangeActive;
+
         return {
-            isActive: active === 'true',
+            isActive,
             startDate: startsAt,
             endDate: endsAt
         }
     } catch (e) {
         console.error("Error fetching Marcha Blanca settings:", e)
+        const todayStr = getPeruLocalDateString()
+        const isTimeRangeActive = todayStr >= '2026-06-23' && todayStr <= '2026-07-23';
         return {
-            isActive: true,
+            isActive: isTimeRangeActive,
             startDate: '2026-06-23',
             endDate: '2026-07-23'
         }
@@ -3834,4 +3906,30 @@ export async function sendSystemNotification(userId: string, title: string, mess
     revalidatePath('/dashboard/vet')
     revalidatePath('/dashboard/client')
     return { success: true }
+}
+
+export async function getTodayAppointments(establishmentId: string) {
+    const session = await requireRole(['vet', 'provider'])
+    
+    const startRange = getPeruStartOfDay()
+    const endRange = getPeruEndOfDay()
+
+    return prisma.appointment.findMany({
+        where: {
+            establishmentId,
+            status: { in: ['paid', 'confirmed', 'validated'] },
+            scheduledAt: {
+                gte: startRange,
+                lte: endRange
+            }
+        },
+        select: {
+            id: true,
+            scheduledAt: true,
+            status: true,
+            pet: { select: { name: true } },
+            client: { select: { fullName: true } }
+        },
+        orderBy: { scheduledAt: 'asc' }
+    })
 }

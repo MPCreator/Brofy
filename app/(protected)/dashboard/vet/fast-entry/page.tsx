@@ -74,6 +74,7 @@ function FastEntryPageContent() {
     const [role, setRole] = useState('vet')
     const [profile, setProfile] = useState<any>(null)
     const [debt, setDebt] = useState(0)
+    const [isMarchaBlanca, setIsMarchaBlanca] = useState(false)
 
     // Unified states for loaded data
     const [appointmentData, setAppointmentData] = useState<any>(null)
@@ -103,11 +104,13 @@ function FastEntryPageContent() {
     useEffect(() => {
         async function loadInitialData() {
             try {
-                const { getMyEstablishments, getMyRole, getProfile, getVetDebt } = await import('@/lib/actions')
+                const { getMyEstablishments, getMyRole, getProfile, getVetDebt, getMarchaBlancaSetting } = await import('@/lib/actions')
                 const list = await getMyEstablishments()
                 const userRole = await getMyRole()
                 const userProfile = await getProfile()
                 const userDebt = await getVetDebt()
+                const mbSetting = await getMarchaBlancaSetting()
+                setIsMarchaBlanca(mbSetting.isActive)
                 setEstablishments(list)
                 if (list.length > 0) {
                     setSelectedEstId(list[0].id)
@@ -519,33 +522,17 @@ function FastEntryPageContent() {
                     <ClipboardList className="w-6 h-6 text-primary-600" />
                     {role === 'provider' ? 'Ficha de Servicio' : 'Ficha Rápida'}
                 </h1>
-                <p className="text-sm text-slate-500 mt-1">
-                    {role === 'provider' ? 'Registra la atención en menos de 5 segundos' : 'Ficha médica rápida — llena en menos de 5 segundos'}
-                </p>
             </div>
 
-            {/* Ficha vs Historial Coherence Explanation Box */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-650 leading-relaxed space-y-1.5 shadow-sm">
-                <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    💡 Relación entre Ficha Médica e Historial Clínico (Carnet Digital):
-                </span>
-                <p>
-                    Lo que escribas en esta <strong>Ficha Médica</strong> se guardará como la atención detallada de la cita actual, y automáticamente alimentará el <strong>Historial Clínico (Carnet Digital)</strong> de la mascota, organizándose de la siguiente forma según lo que tipees:
-                </p>
-                <ul className="list-disc pl-4 space-y-1 mt-1 font-medium text-slate-700">
-                    <li><strong className="text-slate-800">Vacunas:</strong> Si en <em>Diagnóstico</em> o <em>Tratamiento/Notas</em> escribes términos como &quot;vacuna&quot; o &quot;desparasit&quot;.</li>
-                    <li><strong className="text-slate-800">Diagnósticos:</strong> El texto ingresado en el campo <em>Diagnóstico</em>.</li>
-                    <li><strong className="text-slate-800">Tratamientos:</strong> Las indicaciones de los campos <em>Prescripción</em>, <em>Tratamiento/Notas</em> y <em>Próxima cita</em>.</li>
-                </ul>
-            </div>
-
-            <div className="bg-amber-100/50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 flex gap-2 items-start">
-                <span>⚠️</span>
-                <div>
-                    <span className="font-semibold block">Aviso de Comisión:</span>
-                    <span className="opacity-90">Por favor, recuerda adicionar <strong>S/ 6.00</strong> al total cobrado al cliente. Brofy registrará esta comisión en tus deudas.</span>
+            {!loadingInitial && !isMarchaBlanca && (
+                <div className="bg-amber-100/50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 flex gap-2 items-start">
+                    <span>⚠️</span>
+                    <div>
+                        <span className="font-semibold block">Aviso de Comisión:</span>
+                        <span className="opacity-90">Por favor, recuerda adicionar <strong>S/ 6.00</strong> al total cobrado al cliente. Brofy registrará esta comisión en tus deudas.</span>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {isEditable && recordCreatedAt && (
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl p-4 text-xs font-bold flex items-center gap-2.5 shadow-sm">

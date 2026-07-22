@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { getNearbyEstablishments } from '@/lib/actions'
-import { getGoogleMapsDirectionsUrl } from '@/lib/utils'
+import { getGoogleMapsDirectionsUrl, getPeruLocalDateString } from '@/lib/utils'
 import {
     MapPin,
     Navigation,
@@ -254,9 +254,22 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
     const districtFiltered = districtQuery.trim()
         ? categoryFiltered.filter(est => {
             const normQuery = normalizeString(districtQuery);
+            const countryNames: Record<string, string> = {
+                PE: 'peru',
+                EC: 'ecuador',
+                CL: 'chile',
+                MX: 'mexico',
+                CO: 'colombia',
+                AR: 'argentina'
+            };
+            const estCountryName = countryNames[est.country?.toUpperCase() || 'PE'] || '';
+            const matchesCountry = estCountryName.includes(normQuery) || normalizeString(est.country || '').includes(normQuery);
+
             const matchesDirect = normalizeString(est.district || '').includes(normQuery) || 
                                   normalizeString(est.address || '').includes(normQuery) ||
-                                  normalizeString(est.name || '').includes(normQuery);
+                                  normalizeString(est.name || '').includes(normQuery) ||
+                                  normalizeString(est.city || '').includes(normQuery) ||
+                                  matchesCountry;
             if (matchesDirect) return true;
             
             // If typo-correction found a close district match, match establishments in that district
@@ -463,7 +476,7 @@ export default function DiscoverCatalog({ isDashboard = false }: { isDashboard?:
                         type="date"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={getPeruLocalDateString()}
                         className="w-full pl-3 pr-10 py-2.5 bg-slate-50 hover:bg-slate-100/75 focus:bg-white border border-transparent focus:border-primary-400 rounded-xl text-xs focus:outline-none transition-all font-bold text-slate-700 cursor-pointer"
                     />
                 </div>

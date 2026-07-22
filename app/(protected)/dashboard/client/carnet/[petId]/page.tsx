@@ -24,10 +24,11 @@ export default async function CarnetPage({
     for (const record of medicalRecords) {
         timeline.push({
             date: new Date(record.createdAt).toISOString().split('T')[0],
-            type: 'consultation',
+            type: (record.appointment?.serviceType as any) || 'consultation',
             description: record.diagnosis || 'Consulta',
             provider: (record.vet as { fullName: string })?.fullName,
             notes: record.prescription || undefined,
+            treatment: record.treatment || undefined,
             fromRecord: true,
             recordData: record,
         })

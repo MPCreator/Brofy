@@ -87,7 +87,22 @@ export function AdminUserList({ users }: { users: any[] }) {
                         <tr key={u.id} className={`hover:bg-slate-50/50 ${!u.isActive ? 'opacity-50' : ''}`}>
                             <td className="px-6 py-4">
                                 <div className="font-medium text-slate-900">{u.fullName}</div>
-                                <div className="text-slate-400">{u.email}</div>
+                                <div className="text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                    <span>{u.email}</span>
+                                    {u.phone && (
+                                        <>
+                                            <span className="text-slate-300">·</span>
+                                            <a 
+                                                href={`https://wa.me/${u.phone.replace(/[^0-9]/g, '')}`} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer" 
+                                                className="text-primary-650 hover:text-primary-800 hover:underline font-bold"
+                                            >
+                                                📞 {u.phone}
+                                            </a>
+                                        </>
+                                    )}
+                                </div>
                                 {u.revisionMsg && (
                                     <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                                         <MessageSquare className="w-3 h-3" /> Revisión enviada

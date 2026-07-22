@@ -31,8 +31,10 @@ export interface MedicalHistoryEntry {
   provider?: string;             // Nombre del vet
   providerCmvp?: string;        // CMVP del vet
   notes?: string;
+  treatment?: string;
   attachments?: string[];        // URLs de archivos
 }
+
 
 // ---------------------------------------------------------------------------
 // Domain Models
@@ -88,6 +90,9 @@ export interface Establishment {
   operatingHours: Record<string, { open: string; close: string }>;
   blockedDates: string;
   specialists: string;
+  country?: string;
+  currency?: string;
+  currencySymbol?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

@@ -10,3 +10,4 @@ node_modules
 .vercel
 
 /lib/generated/prisma
+.next/

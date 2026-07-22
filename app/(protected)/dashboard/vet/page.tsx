@@ -1,5 +1,5 @@
 import { requireRole } from '@/lib/auth'
-import { getVetAppointments, getVetStats, getOpenFichas, getVetReminders, getMyEstablishments, getVetDebt } from '@/lib/actions'
+import { getVetAppointments, getVetStats, getOpenFichas, getVetReminders, getMyEstablishments, getVetDebt, getVetAgendaStats } from '@/lib/actions'
 import { ProviderOnboarding } from '@/components/dashboard/ProviderOnboarding'
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
@@ -21,7 +21,7 @@ import {
     Edit,
     ShieldAlert,
 } from 'lucide-react'
-import { formatPEN } from '@/lib/utils'
+import { formatPEN, getPeruStartOfDay, getPeruEndOfDay } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS } from '@/lib/types'
 import { VetRemindersList } from '@/components/dashboard/vet-reminders'
 import { VetAppointmentCard } from '@/components/dashboard/vet-appointment-card'
@@ -35,18 +35,36 @@ export default async function VetDashboard({
 }) {
     const activeTab = searchParams?.tab || 'agenda'
     const session = await requireRole(['vet', 'provider'])
-    const [stats, appointments, openFichas, reminders, establishments, profile, debt] = await Promise.all([
-        getVetStats(),
-        getVetAppointments(),
-        getOpenFichas(),
-        getVetReminders(),
-        getMyEstablishments(),
+
+    // Base profile and establishments data
+    const [profile, debt, establishments] = await Promise.all([
         prisma.profile.findUnique({
             where: { id: session.sub },
             select: { isPenalized: true, cmvpValidated: true, role: true }
         }),
-        getVetDebt()
+        getVetDebt(),
+        getMyEstablishments()
     ])
+
+    let stats: any = { todayCount: 0, monthRevenue: 0, pendingOtp: 0, completedTotal: 0, estStats: [], specStats: [] }
+    let appointments: any[] = []
+    let openFichas: any[] = []
+    let reminders: any[] = []
+
+    if (activeTab === 'agenda') {
+        const [agendaStats, appointmentsData, openFichasData, remindersData] = await Promise.all([
+            getVetAgendaStats(),
+            getVetAppointments(),
+            getOpenFichas(),
+            getVetReminders()
+        ])
+        stats = { ...stats, ...agendaStats }
+        appointments = appointmentsData
+        openFichas = openFichasData
+        reminders = remindersData
+    } else if (activeTab === 'stats') {
+        stats = await getVetStats()
+    }
 
     const isPenalized = profile?.isPenalized || false
     const isBlocked = isPenalized || debt >= 120
@@ -54,8 +72,7 @@ export default async function VetDashboard({
 
     const needsOnboarding = establishments.length === 0 || establishments.every((est: any) => !est.services || est.services.length === 0)
 
-    const endOfToday = new Date()
-    endOfToday.setHours(23, 59, 59, 999)
+    const endOfToday = getPeruEndOfDay()
 
     const pendingValidation = appointments
         .filter((a:any) => {
@@ -101,7 +118,7 @@ export default async function VetDashboard({
             a.status === 'validated'
         ) return false
 
-        return new Date(a.scheduledAt) >= new Date(new Date().setHours(0,0,0,0))
+        return new Date(a.scheduledAt) >= getPeruStartOfDay()
     })
     .sort((a: any, b: any) =>
         new Date(a.scheduledAt!).getTime() -

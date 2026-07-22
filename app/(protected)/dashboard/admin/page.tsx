@@ -85,6 +85,19 @@ export default async function AdminDashboard({
                                             <div>
                                                 <span className="font-bold text-slate-800">{vet.fullName}</span>
                                                 <span className="text-slate-500 font-mono ml-2">CMVP: {vet.cmvpId}</span>
+                                                {vet.phone && (
+                                                    <span className="text-slate-505 font-medium ml-2">
+                                                        · 📞{' '}
+                                                        <a 
+                                                            href={`https://wa.me/${vet.phone.replace(/[^0-9]/g, '')}`} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="text-primary-600 hover:text-primary-800 hover:underline font-bold"
+                                                        >
+                                                            {vet.phone} (WhatsApp)
+                                                        </a>
+                                                    </span>
+                                                )}
                                             </div>
                                             <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full uppercase">
                                                 Esperando Auditoría

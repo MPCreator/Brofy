@@ -57,7 +57,7 @@ export function ClientPetsList({ pets, speciesLabels }: ClientPetsListProps) {
                 )
             })}
             <Link
-                href="/dashboard/client/pets"
+                href="/dashboard/client/pets?add=true"
                 className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 p-4 flex flex-col items-center justify-center text-slate-400 hover:text-primary-600 hover:border-primary-300 transition-colors"
             >
                 <Plus className="w-8 h-8 mb-1" />

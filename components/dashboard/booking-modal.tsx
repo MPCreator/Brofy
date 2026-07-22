@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { getUserPets, createAppointment, getProfile, bookWithCredits, updateProfile, simulateAppointmentPayment, updatePetInline, processPayment, getOccupiedSlots } from "@/lib/actions";
+import { getUserPets, createAppointment, getProfile, bookWithCredits, updateProfile, simulateAppointmentPayment, updatePetInline, processPayment, getOccupiedSlots, getMarchaBlancaSetting } from "@/lib/actions";
 import { Clock, CheckCircle, PawPrint, DollarSign, ShieldCheck, AlertCircle, Phone, Check, Loader2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import type { Establishment } from "@/lib/types";
 import { SPECIES_LABELS } from "@/lib/types";
-import { formatPEN } from "@/lib/utils";
+import { formatPEN, getPeruLocalDateString, getTimezoneByCountry, getTimezoneOffsetString, getLocalLocalDateString } from "@/lib/utils";
 import { IzipayMock } from "@/components/ui/izipay-mock";
 
 interface BookingModalProps {
@@ -21,6 +21,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
     const [pets, setPets] = useState<any[]>([]);
     const [clientProfile, setClientProfile] = useState<any>(null);
     const [loadingData, setLoadingData] = useState(false);
+    const [isMarchaBlanca, setIsMarchaBlanca] = useState(false);
 
     // Selection state
     const [selectedPet, setSelectedPet] = useState<string | null>(null);
@@ -103,8 +104,10 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
         }
     };
 
-    // Compute final date
-    const date = selectedDay && selectedTime ? new Date(`${selectedDay}T${selectedTime}`).toISOString() : "";
+    // Compute final date dynamically based on establishment country/timezone
+    const tz = getTimezoneByCountry(establishment?.country || 'PE');
+    const offset = getTimezoneOffsetString(tz);
+    const date = selectedDay && selectedTime ? new Date(`${selectedDay}T${selectedTime}${offset}`).toISOString() : "";
 
     useEffect(() => {
         if (isOpen && establishment) {
@@ -145,8 +148,10 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
         try {
             const p = await getUserPets();
             const profile = await getProfile();
+            const mb = await getMarchaBlancaSetting();
             setPets(p);
             setClientProfile(profile);
+            setIsMarchaBlanca(mb.isActive);
             if (profile?.phone) {
                 // Prefill digits by stripping +countrycode
                 setPhoneInput(profile.phone.replace(/^\+\d+/, ""));
@@ -223,7 +228,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                 const useCredits = paymentMethod === 'credits' || (!paymentMethod && hasCredits);
                 const petName = pets.find(p => p.id === selectedPet)?.name || 'tu mascota';
                 const serviceNames = selectedServices.map(s => s.name).join(' + ');
-                const formattedDate = new Date(`${selectedDay}T${selectedTime}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
+                const formattedDate = new Date(`${selectedDay}T${selectedTime}${offset}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
 
                 if (useCredits) {
                     // Procesar canje con créditos/Huellitas
@@ -276,7 +281,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
         };
         
         // Correct date timezone shifts by appending time part
-        const dateObj = new Date(`${selectedDay}T00:00:00`);
+        const dateObj = new Date(`${selectedDay}T00:00:00${offset}`);
         const dayOfWeek = dayNames[dateObj.getDay()];
 
         // Check if date is blocked/holiday for establishment
@@ -404,12 +409,14 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
     const services = establishment?.services?.filter(s => s.isActive !== false) || [];
     const totalServicePrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
     const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const totalPlatformFee = 5.00 * selectedServices.length;
+    const totalPlatformFee = isMarchaBlanca ? 0.00 : (5.00 * selectedServices.length);
 
     const isSlotBlocked = useCallback((slotStr: string) => {
         if (!selectedDay || selectedServices.length === 0) return false;
 
-        const slotStart = new Date(`${selectedDay}T${slotStr}`).getTime();
+        const slotStart = new Date(`${selectedDay}T${slotStr}${offset}`).getTime();
+        if (slotStart < Date.now()) return true;
+
         const slotEnd = slotStart + totalDuration * 60000;
 
         const concurrentSlots = establishment?.concurrentSlots || 1;
@@ -425,7 +432,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
         }
 
         return overlapCount >= concurrentSlots;
-    }, [selectedDay, selectedServices, totalDuration, establishment, occupiedSlots]);
+    }, [selectedDay, selectedServices, totalDuration, establishment, occupiedSlots, offset]);
 
     useEffect(() => {
         if (selectedTime && isSlotBlocked(selectedTime)) {
@@ -891,7 +898,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                     type="date"
                                     className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
                                     onChange={(e) => { setSelectedDay(e.target.value); setSelectedTime(""); }}
-                                    min={new Date().toISOString().split('T')[0]}
+                                    min={getLocalLocalDateString(undefined, tz)}
                                     value={selectedDay}
                                 />
                             </div>
@@ -970,7 +977,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                             if (payResult.success) {
                                                 const petName = pets.find(p => p.id === selectedPet)?.name || 'tu mascota';
                                                 const serviceNames = selectedServices.map(s => s.name).join(' + ');
-                                                const formattedDate = new Date(`${selectedDay}T${selectedTime}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
+                                                const formattedDate = new Date(`${selectedDay}T${selectedTime}${offset}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
                                                 toast.success(
                                                     `🐾 ¡Turno confirmado en Brofy! ${petName} tiene cita para ${serviceNames} el ${formattedDate}. Tu código de verificación ya está disponible en "Mis Citas".`,
                                                     { duration: 6000 }
@@ -1005,7 +1012,7 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                     <div className="flex justify-between text-slate-650 text-xs">
                                         <span>Horario</span>
                                         <span className="font-semibold text-slate-800">
-                                            {selectedDay && new Date(`${selectedDay}T${selectedTime}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })} · {selectedTime} ({totalDuration} min)
+                                            {selectedDay && new Date(`${selectedDay}T${selectedTime}${offset}`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })} · {selectedTime} ({totalDuration} min)
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-slate-650 text-xs pt-2 border-t border-slate-250/80">
@@ -1077,7 +1084,27 @@ export function BookingModal({ establishment, isOpen, onClose }: BookingModalPro
                                 )}
 
                                 {/* Payment execution buttons */}
-                                {hasEnoughCredits ? (
+                                {isMarchaBlanca ? (
+                                    <div className="space-y-3 pt-2 animate-in zoom-in-95">
+                                        <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-start gap-2">
+                                            <ShieldCheck className="w-4 h-4 text-emerald-650 shrink-0 mt-0.5" />
+                                            <div className="text-xs text-emerald-850 leading-relaxed font-medium">
+                                                <strong>¡Marcha Blanca Activa!</strong> Disfruta de Brofy 100% gratis. No se te realizará ningún cobro ni se solicitarán tarjetas para confirmar esta reserva.
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleBook('izipay')}
+                                            disabled={isLoading}
+                                            className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-750 hover:to-teal-700 text-white rounded-2xl font-bold text-base transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : (
+                                                <>🐾 Confirmar Reserva Gratis</>
+                                            )}
+                                        </button>
+                                    </div>
+                                ) : hasEnoughCredits ? (
                                     <div className="space-y-3 pt-2 animate-in zoom-in-95">
                                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-650 space-y-1.5">
                                             <p>Tienes saldo suficiente de <strong>Huellitas</strong> para canjear esta reserva gratis, pero también puedes pagar con Izipay si lo deseas:</p>

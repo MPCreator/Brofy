@@ -124,3 +124,124 @@ export function checkIfNonClinical(serviceType?: string): boolean {
     );
 }
 
+/**
+ * Retorna la zona horaria (IANA) basada en el código de país.
+ * Por defecto es 'America/Lima' (Perú).
+ */
+export function getTimezoneByCountry(countryCode?: string): string {
+    const code = (countryCode || 'PE').toUpperCase();
+    switch (code) {
+        case 'CL':
+            return 'America/Santiago';
+        case 'MX':
+            return 'America/Mexico_City';
+        case 'CO':
+            return 'America/Bogota';
+        case 'AR':
+            return 'America/Argentina/Buenos_Aires';
+        case 'UY':
+            return 'America/Montevideo';
+        case 'EC':
+            return 'America/Guayaquil';
+        case 'PE':
+        default:
+            return 'America/Lima';
+    }
+}
+
+/**
+ * Obtiene el offset de zona horaria (ej: "-05:00", "+01:00", "Z") para una zona horaria IANA
+ * en un momento específico (por defecto, ahora).
+ */
+export function getTimezoneOffsetString(timeZone: string, date: Date = new Date()): string {
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            timeZoneName: 'longOffset',
+        });
+        const parts = formatter.formatToParts(date);
+        const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value || '';
+        
+        if (offsetPart === 'GMT') return 'Z';
+        
+        const match = offsetPart.match(/GMT([-+])(\d{1,2}):?(\d{2})?/);
+        if (match) {
+            const sign = match[1];
+            const hours = match[2].padStart(2, '0');
+            const minutes = match[3] || '00';
+            return `${sign}${hours}:${minutes}`;
+        }
+        return '-05:00';
+    } catch {
+        return '-05:00';
+    }
+}
+
+/**
+ * Retorna la fecha local en formato "YYYY-MM-DD" según la zona horaria indicada (o la de Perú).
+ */
+export function getLocalLocalDateString(date?: Date | string, timeZone: string = 'America/Lima'): string {
+    const d = date ? (typeof date === 'string' ? new Date(date) : date) : new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+    });
+    const parts = formatter.formatToParts(d);
+    const year = parts.find(p => p.type === 'year')?.value || '0';
+    const month = parts.find(p => p.type === 'month')?.value || '0';
+    const day = parts.find(p => p.type === 'day')?.value || '0';
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+/**
+ * Retorna el inicio del día (00:00:00) de la fecha dada en la zona horaria indicada,
+ * expresado como un objeto Date en UTC (listo para consultas en base de datos).
+ */
+export function getLocalStartOfDay(date?: Date | string, timeZone: string = 'America/Lima'): Date {
+    const localDateStr = getLocalLocalDateString(date, timeZone);
+    const offset = getTimezoneOffsetString(timeZone);
+    return new Date(`${localDateStr}T00:00:00${offset}`);
+}
+
+/**
+ * Retorna el final del día (23:59:59.999) en la zona horaria indicada,
+ * expresado como un objeto Date en UTC.
+ */
+export function getLocalEndOfDay(date?: Date | string, timeZone: string = 'America/Lima'): Date {
+    const localDateStr = getLocalLocalDateString(date, timeZone);
+    const offset = getTimezoneOffsetString(timeZone);
+    return new Date(`${localDateStr}T23:59:59.999${offset}`);
+}
+
+/**
+ * Parsea una fecha local (ISO sin zona, ej. "2026-07-07T08:00")
+ * y le añade el offset de la zona horaria indicada para resolverla en UTC.
+ */
+export function parseLocalTimeZoneDate(dateStr: string, timeZone: string = 'America/Lima'): Date {
+    if (!dateStr) return new Date();
+    if (dateStr.endsWith('Z') || /[-+]\d{2}:\d{2}$/.test(dateStr)) {
+        return new Date(dateStr);
+    }
+    const offset = getTimezoneOffsetString(timeZone);
+    return new Date(`${dateStr}${offset}`);
+}
+
+// Wrappers compatibles para mantener compatibilidad con las vistas existentes que apuntan directamente a Perú
+export function getPeruLocalDateString(date?: Date | string): string {
+    return getLocalLocalDateString(date, 'America/Lima');
+}
+
+export function getPeruStartOfDay(date?: Date | string): Date {
+    return getLocalStartOfDay(date, 'America/Lima');
+}
+
+export function getPeruEndOfDay(date?: Date | string): Date {
+    return getLocalEndOfDay(date, 'America/Lima');
+}
+
+export function parsePeruDate(dateStr: string): Date {
+    return parseLocalTimeZoneDate(dateStr, 'America/Lima');
+}
+

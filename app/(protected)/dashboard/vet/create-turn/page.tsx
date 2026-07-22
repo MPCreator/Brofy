@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createManualTurn, getMyEstablishments } from '@/lib/actions'
+import { createManualTurn, getMyEstablishments, getMarchaBlancaSetting, getOccupiedSlots, getTodayAppointments } from '@/lib/actions'
 import { toast } from 'sonner'
 import { Calendar, User, Phone, ArrowLeft, Loader2, AlertTriangle, HelpCircle } from 'lucide-react'
 import { LoadingState } from '@/components/ui/loading-state'
+import { getPeruLocalDateString, getTimezoneByCountry, getTimezoneOffsetString, getLocalLocalDateString } from '@/lib/utils'
 
 export default function CreateTurnPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [loadingInitial, setLoadingInitial] = useState(true)
     const [error, setError] = useState('')
+    const [isMarchaBlanca, setIsMarchaBlanca] = useState(false)
 
     // Establishments & Services data
     const [establishments, setEstablishments] = useState<any[]>([])
@@ -30,17 +32,142 @@ export default function CreateTurnPage() {
     
     // Scheduling inputs
     const [scheduleType, setScheduleType] = useState<'immediate' | 'future'>('immediate')
-    const [scheduledDate, setScheduledDate] = useState('')
+    const [scheduledDate, setScheduledDate] = useState(getPeruLocalDateString())
     const [scheduledTime, setScheduledTime] = useState('')
+
+    // Slots availability
+    const [occupiedSlots, setOccupiedSlots] = useState<any[]>([])
+    const [loadingSlots, setLoadingSlots] = useState(false)
+
+    // Today's appointments for upcoming clients alerts
+    const [todayApts, setTodayApts] = useState<any[]>([])
+    const [loadingTodayApts, setLoadingTodayApts] = useState(false)
+
+    useEffect(() => {
+        if (!selectedEstId || !scheduledDate) {
+            setOccupiedSlots([])
+            return
+        }
+        async function fetchSlots() {
+            setLoadingSlots(true)
+            try {
+                const occupied = await getOccupiedSlots(selectedEstId, scheduledDate)
+                setOccupiedSlots(occupied || [])
+            } catch (e) {
+                console.error("Error loading occupied slots:", e)
+            } finally {
+                setLoadingSlots(false)
+            }
+        }
+        fetchSlots()
+    }, [selectedEstId, scheduledDate])
+
+    useEffect(() => {
+        if (!selectedEstId) {
+            setTodayApts([])
+            return
+        }
+        async function fetchTodayApts() {
+            setLoadingTodayApts(true)
+            try {
+                const list = await getTodayAppointments(selectedEstId)
+                setTodayApts(list || [])
+            } catch (e) {
+                console.error("Error loading today appointments:", e)
+            } finally {
+                setLoadingTodayApts(false)
+            }
+        }
+        fetchTodayApts()
+    }, [selectedEstId])
+
+
+    const generateSlots = () => {
+        const slots: string[] = [];
+        for (let mins = 8 * 60; mins <= 20 * 60; mins += 30) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+        }
+        return slots;
+    };
+
+    const isSlotPast = (slotStr: string) => {
+        if (!scheduledDate || !selectedEstId) return false;
+        
+        const selectedEst = establishments.find(e => e.id === selectedEstId)
+        const tz = getTimezoneByCountry(selectedEst?.country || 'PE')
+        const offset = getTimezoneOffsetString(tz)
+        const slotStart = new Date(`${scheduledDate}T${slotStr}${offset}`).getTime();
+        
+        return slotStart < Date.now();
+    };
+
+    const isSlotOccupied = (slotStr: string) => {
+        if (!scheduledDate || !selectedEstId) return false;
+        
+        const selectedEst = establishments.find(e => e.id === selectedEstId)
+        const tz = getTimezoneByCountry(selectedEst?.country || 'PE')
+        const offset = getTimezoneOffsetString(tz)
+        const slotStart = new Date(`${scheduledDate}T${slotStr}${offset}`).getTime();
+        
+        const duration = selectedServiceId
+            ? (services.find(s => s.id === selectedServiceId)?.duration || 30)
+            : customDuration;
+        const slotEnd = slotStart + duration * 60000;
+
+        const concurrentSlots = selectedEst?.concurrentSlots || 1;
+        let overlapCount = 0;
+
+        for (const apt of occupiedSlots) {
+            const aptStart = new Date(apt.scheduledAt).getTime();
+            const aptEnd = aptStart + apt.duration * 60000;
+
+            if (slotStart < aptEnd && slotEnd > aptStart) {
+                overlapCount++;
+            }
+        }
+
+        return overlapCount >= concurrentSlots;
+    };
+
+
+    const getUpcomingClientAlerts = () => {
+        const nowTime = Date.now();
+        const alerts: any[] = [];
+        
+        todayApts.forEach(apt => {
+            if (!apt.scheduledAt) return;
+            const aptTime = new Date(apt.scheduledAt).getTime();
+            const minutesDiff = (aptTime - nowTime) / 60000;
+            // If the appointment starts within the next 60 minutes or is up to 15 minutes overdue (but still today)
+            if (minutesDiff >= -15 && minutesDiff <= 60) {
+                alerts.push({
+                    ...apt,
+                    minutesDiff: Math.round(minutesDiff)
+                });
+            }
+        });
+        return alerts;
+    };
+
 
     useEffect(() => {
         async function fetchInitial() {
             try {
-                const list = await getMyEstablishments()
+                const [list, mbSetting] = await Promise.all([
+                    getMyEstablishments(),
+                    getMarchaBlancaSetting()
+                ])
                 setEstablishments(list)
+                setIsMarchaBlanca(mbSetting.isActive)
                 if (list.length > 0) {
                     setSelectedEstId(list[0].id)
-                    setServices(list[0].services || [])
+                    const estServices = list[0].services || []
+                    setServices(estServices)
+                    if (estServices.length > 0) {
+                        setSelectedServiceId(estServices[0].id)
+                    }
                 }
             } catch (e) {
                 console.error("Error loading establishments for manual turn:", e)
@@ -55,10 +182,16 @@ export default function CreateTurnPage() {
         setSelectedEstId(estId)
         const est = establishments.find(e => e.id === estId)
         if (est) {
-            setServices(est.services || [])
-            setSelectedServiceId('')
+            const estServices = est.services || []
+            setServices(estServices)
+            if (estServices.length > 0) {
+                setSelectedServiceId(estServices[0].id)
+            } else {
+                setSelectedServiceId('')
+            }
         }
     }
+
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -76,6 +209,11 @@ export default function CreateTurnPage() {
             setError('El número de teléfono / WhatsApp es obligatorio para poder registrar el turno.')
             return
         }
+        if (services.length === 0) {
+            setError('No puedes registrar un turno si la sede no tiene servicios configurados en su lista de precios.')
+            return
+        }
+
 
         setLoading(true)
 
@@ -87,6 +225,15 @@ export default function CreateTurnPage() {
                 return
             }
             scheduledAt = `${scheduledDate}T${scheduledTime}`
+            const selectedEst = establishments.find(e => e.id === selectedEstId)
+            const tz = getTimezoneByCountry(selectedEst?.country || 'PE')
+            const offset = getTimezoneOffsetString(tz)
+            const requestedTime = new Date(`${scheduledAt}${offset}`).getTime()
+            if (requestedTime < Date.now() - 5 * 60 * 1000) {
+                setError('No es posible agendar una cita en un horario pasado')
+                setLoading(false)
+                return
+            }
         }
 
         try {
@@ -155,15 +302,17 @@ export default function CreateTurnPage() {
             <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
                 
                 {/* Infrastructure Cost Warning */}
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
-                    <div className="text-xs space-y-1">
-                        <p className="font-bold text-amber-955">⚠️ Recordatorio de Tarifa por Registro</p>
-                        <p className="leading-relaxed text-amber-800">
-                            Cada turno manual o presencial registrado directamente en la plataforma conlleva un cargo adicional de <strong>S/. 6.00</strong> por concepto de costos de infraestructura.
-                        </p>
+                {!isMarchaBlanca && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                        <div className="text-xs space-y-1">
+                            <p className="font-bold text-amber-955">⚠️ Recordatorio de Tarifa por Registro</p>
+                            <p className="leading-relaxed text-amber-800">
+                                Cada turno manual o presencial registrado directamente en la plataforma conlleva un cargo adicional de <strong>S/. 6.00</strong> por concepto de costos de infraestructura.
+                            </p>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Sede/Establecimiento Select (Only visible if professional has establishments) */}
                 {establishments.length > 1 && (
@@ -281,73 +430,49 @@ export default function CreateTurnPage() {
                         🩺 Servicio y Tipo de Atención
                     </h3>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Servicio del Local</label>
-                            <select
-                                value={selectedServiceId}
-                                onChange={e => setSelectedServiceId(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold text-slate-700 cursor-pointer"
-                            >
-                                <option value="">🛠️ Servicio Genérico / Otro</option>
-                                {services.map(s => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} — S/ {s.price.toFixed(2)} ({s.duration} min)
-                                    </option>
-                                ))}
-                            </select>
+                    {services.length === 0 ? (
+                        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-xs text-red-955 font-semibold leading-relaxed space-y-1">
+                            <p className="flex items-center gap-1.5 text-red-800 font-extrabold uppercase tracking-wider text-[10px]">
+                                ⚠️ No hay servicios configurados
+                            </p>
+                            <p className="font-normal text-red-700">
+                                Esta sede no cuenta con servicios configurados en su lista de precios. Debes configurar al menos un servicio en el panel de la sede para poder registrar turnos.
+                            </p>
                         </div>
-
-                        {!selectedServiceId ? (
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Tipo de Categoría</label>
+                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Servicio del Local *</label>
                                 <select
-                                    value={serviceType}
-                                    onChange={e => setServiceType(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold text-slate-700"
+                                    value={selectedServiceId}
+                                    onChange={e => setSelectedServiceId(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold text-slate-700 cursor-pointer"
                                 >
-                                    <option value="consultation">Consulta Médica</option>
-                                    <option value="vaccination">Vacunación</option>
-                                    <option value="grooming">Estética / Peluquería</option>
-                                    <option value="surgery">Cirugía / Operación</option>
-                                    <option value="deworming">Desparasitación</option>
-                                    <option value="test">Exámenes Clínicos</option>
+                                    {services.map(s => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name} — S/ {s.price.toFixed(2)} ({s.duration} min)
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
-                        ) : (
+
                             <div className="space-y-1">
                                 <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Detalle de Costo</label>
                                 <div className="px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 leading-none flex items-center justify-between">
                                     <span>Tarifa de servicio:</span>
-                                    <span className="text-primary-700">S/ {services.find(s => s.id === selectedServiceId)?.price.toFixed(2)}</span>
+                                    <span className="text-primary-700 font-black">S/ {services.find(s => s.id === selectedServiceId)?.price.toFixed(2)}</span>
                                 </div>
                             </div>
-                        )}
-                    </div>
-
-                    {!selectedServiceId && (
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Duración del Turno *</label>
-                            <select
-                                value={customDuration}
-                                onChange={e => setCustomDuration(Number(e.target.value))}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold text-slate-700 cursor-pointer"
-                            >
-                                <option value={15}>15 minutos</option>
-                                <option value={30}>30 minutos (Por defecto)</option>
-                                <option value={45}>45 minutos</option>
-                                <option value={60}>1 hora (60 min)</option>
-                                <option value={90}>1.5 horas (90 min)</option>
-                                <option value={120}>2 horas (120 min)</option>
-                            </select>
                         </div>
                     )}
 
-                    {/* Blocked Calendar Duration Callout */}
-                    <div className="p-3 bg-primary-50 border border-primary-150 rounded-xl flex items-center justify-between text-xs text-primary-950 font-bold">
-                        <span className="flex items-center gap-1.5">⏱️ Tiempo a bloquear en calendario:</span>
-                        <span className="bg-primary-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black">{durationMins} minutos</span>
-                    </div>
+                    {services.length > 0 && (
+                        /* Blocked Calendar Duration Callout */
+                        <div className="p-3 bg-primary-50 border border-primary-150 rounded-xl flex items-center justify-between text-xs text-primary-950 font-bold">
+                            <span className="flex items-center gap-1.5">⏱️ Tiempo a bloquear en calendario:</span>
+                            <span className="bg-primary-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black">{durationMins} minutos</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* 4. Programación */}
@@ -356,66 +481,160 @@ export default function CreateTurnPage() {
                         ⏰ Horario y Programación
                     </h3>
 
-                    {/* Schedule Selector */}
-                    <div className="grid grid-cols-2 gap-3 p-1 bg-slate-100 rounded-xl">
-                        <button
-                            type="button"
-                            onClick={() => setScheduleType('immediate')}
-                            className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-                                scheduleType === 'immediate'
-                                    ? 'bg-white text-primary-700 shadow-sm font-black'
-                                    : 'text-slate-650 hover:text-slate-900 font-bold'
-                            }`}
-                        >
-                            Atención Inmediata (Ahora)
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setScheduleType('future')}
-                            className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-                                scheduleType === 'future'
-                                    ? 'bg-white text-primary-700 shadow-sm font-black'
-                                    : 'text-slate-650 hover:text-slate-900 font-bold'
-                            }`}
-                        >
-                            Programar Cita (Futura)
-                        </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1 col-span-1 sm:col-span-2">
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Fecha de Atención</label>
+                            <input
+                                type="date"
+                                required
+                                min={(() => {
+                                    const selectedEstObj = establishments.find(e => e.id === selectedEstId)
+                                    const currentTz = getTimezoneByCountry(selectedEstObj?.country || 'PE')
+                                    return getLocalLocalDateString(undefined, currentTz)
+                                })()}
+                                value={scheduledDate}
+                                onChange={e => {
+                                    setScheduledDate(e.target.value);
+                                    // Si la fecha cambia y ya no es hoy, forzar a seleccionar un slot (future)
+                                    if (e.target.value !== getPeruLocalDateString() && scheduleType === 'immediate') {
+                                        setScheduleType('future');
+                                        setScheduledTime('08:00');
+                                    }
+                                }}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium cursor-pointer"
+                            />
+                        </div>
                     </div>
 
-                    {scheduleType === 'future' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Fecha</label>
-                                <input
-                                    type="date"
-                                    required
-                                    min={new Date().toISOString().split('T')[0]}
-                                    value={scheduledDate}
-                                    onChange={e => setScheduledDate(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
-                                />
+                    {/* Unified Slots Preview & Grid Selector */}
+                    <div className="space-y-4 bg-slate-50/50 p-5 border border-slate-100 rounded-2xl">
+                        {/* ⚡ Immediate Queue Button (Only for today) */}
+                        {scheduledDate === getPeruLocalDateString() && (
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                                    Atención Inmediata para Hoy
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setScheduleType('immediate');
+                                        setScheduledTime('');
+                                    }}
+                                    className={`w-full py-3.5 px-4 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-2 active:scale-[0.98] ${
+                                        scheduleType === 'immediate'
+                                            ? 'bg-primary-600 border-primary-650 text-white shadow-md'
+                                            : 'bg-white border-slate-200 text-primary-700 hover:bg-primary-50/20'
+                                    }`}
+                                >
+                                    ⚡ Registrar Atención Inmediata (Ingresar a la Sala de Espera)
+                                </button>
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Hora</label>
-                                <input
-                                    type="time"
-                                    required
-                                    value={scheduledTime}
-                                    onChange={e => setScheduledTime(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
-                                />
-                            </div>
-                        </div>
-                    )}
+                        )}
 
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                                O selecciona un horario programado
+                            </label>
+                            {loadingSlots ? (
+                                <div className="flex items-center gap-2 py-2 text-xs text-slate-550">
+                                    <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                                    <span>Consultando disponibilidad de la sede...</span>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                    {/* Slots List */}
+                                    {generateSlots().map(slot => {
+                                        const past = isSlotPast(slot);
+                                        const occupied = isSlotOccupied(slot);
+                                        const isSelected = scheduleType === 'future' && scheduledTime === slot;
+
+                                        return (
+                                            <button
+                                                key={slot}
+                                                type="button"
+                                                disabled={past}
+                                                onClick={() => {
+                                                    setScheduleType('future');
+                                                    setScheduledTime(slot);
+                                                }}
+                                                className={`h-11 rounded-xl text-xs font-bold border text-center transition-all active:scale-95 flex items-center justify-center gap-1 ${
+                                                    isSelected
+                                                        ? occupied
+                                                            ? 'bg-amber-600 border-amber-600 text-white font-extrabold shadow-sm'
+                                                            : 'bg-primary-600 border-primary-600 text-white font-extrabold shadow-sm'
+                                                        : past
+                                                            ? 'bg-slate-100 border-slate-150 text-slate-350 cursor-not-allowed line-through'
+                                                            : occupied
+                                                                ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 hover:border-amber-400'
+                                                                : 'bg-white border-slate-200 text-slate-700 hover:border-primary-400 hover:bg-primary-50/20'
+                                                }`}
+                                            >
+                                                <span>{slot}</span>
+                                                {occupied && !past && (
+                                                    <span className={`text-[10px] ml-1 font-bold ${
+                                                        isSelected ? 'text-white' : 'text-amber-700'
+                                                    }`}>
+                                                        ●
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <p className="text-[9px] text-slate-400 leading-normal">
+                            💡 Haz clic en <strong>⚡ Inmediato</strong> para ingresar hoy en la cola de la sala de espera. O haz clic en cualquier <strong>horario disponible</strong> para programar una cita para más tarde. Los horarios de cruce permiten sobre-reserva.
+                        </p>
+                    </div>
+
+                    {/* Contextual Warning Boxes */}
                     {scheduleType === 'immediate' ? (
-                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                            💡 **Atención Inmediata:** El turno se creará para hoy. Aparecerá inmediatamente en tu **Sala de Espera** y podrás atenderlo cuando desees sin digitar código OTP de cliente.
-                        </p>
+                        <div className="space-y-3">
+                            {getUpcomingClientAlerts().length > 0 && (
+                                <div className="bg-amber-50 border border-amber-250 rounded-2xl p-4 space-y-2.5 text-xs text-amber-900 leading-normal animate-in fade-in duration-300">
+                                    <span className="font-extrabold text-amber-955 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                                        ⚠️ Clientes agendados próximamente
+                                    </span>
+                                    <p className="opacity-90">
+                                        Tienes reservas programadas para hoy que podrían cruzarse. Puedes agregar a este cliente presencial a la cola, pero ten en cuenta los siguientes turnos:
+                                    </p>
+                                    <div className="space-y-1.5 mt-1 font-semibold">
+                                        {getUpcomingClientAlerts().map(apt => {
+                                            const timeStr = new Date(apt.scheduledAt).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+                                            return (
+                                                <div key={apt.id} className="flex justify-between items-center bg-white/70 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                                                    <span>🐕 {apt.pet?.name} (cliente: {apt.client?.fullName})</span>
+                                                    <span className="text-amber-800 text-[10px] bg-amber-100 px-2 py-0.5 rounded font-black">
+                                                        {apt.minutesDiff < 0 ? `Hace ${Math.abs(apt.minutesDiff)} min` : `En ${apt.minutesDiff} min`} ({timeStr})
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            <p className="text-[10px] text-slate-400 font-medium leading-relaxed bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                                💡 **Atención Inmediata:** El turno se creará para hoy. Aparecerá inmediatamente en tu **Sala de Espera** y podrás atenderlo cuando desees sin digitar código OTP de cliente.
+                            </p>
+                        </div>
                     ) : (
-                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                            💡 **Cita Programada:** El turno se registrará para la fecha elegida. **Bloqueará tu calendario** por un rango de {durationMins} minutos para evitar cruces de horarios y aparecerá en tu agenda del día.
-                        </p>
+                        <div className="space-y-3">
+                            {scheduledTime && isSlotOccupied(scheduledTime) && (
+                                <div className="bg-amber-50 border border-amber-250 rounded-2xl p-4 space-y-2 text-xs text-amber-900 leading-normal animate-in fade-in duration-300">
+                                    <span className="font-extrabold text-amber-955 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                                        ⚠️ Aviso de Sobre-Reserva
+                                    </span>
+                                    <p className="opacity-90">
+                                        El horario seleccionado (<strong>{scheduledTime}</strong>) ya tiene citas activas en el local. Puedes registrar el turno de todas formas si deseas forzar una sobre-reserva en este horario.
+                                    </p>
+                                </div>
+                            )}
+                            <p className="text-[10px] text-slate-400 font-medium leading-relaxed bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                                💡 **Cita Programada:** El turno se registrará para la fecha elegida (<strong>{scheduledDate} a las {scheduledTime}</strong>). Bloqueará tu calendario por un rango de {durationMins} minutos.
+                            </p>
+                        </div>
                     )}
                 </div>
 

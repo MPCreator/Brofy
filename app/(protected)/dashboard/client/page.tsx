@@ -121,7 +121,7 @@ export default async function ClientDashboard() {
                                     key={apt.id}
                                     className={`rounded-2xl border overflow-hidden transition-all bg-white hover:shadow-card hover:border-slate-200 ${
                                         isStale 
-                                            ? 'border-amber-200 bg-amber-50/10 shadow-sm' 
+                                            ? 'border-amber-350 bg-amber-50/5 shadow-sm' 
                                             : isRescheduleProposed
                                                 ? 'border-indigo-200 bg-indigo-50/10'
                                                 : isPaid 
@@ -206,24 +206,32 @@ export default async function ClientDashboard() {
 
                                     {/* OTP Banner */}
                                     {(apt.status === 'paid' || apt.status === 'confirmed') && !isRescheduleProposed && apt.otpValidationCode && (
-                                        <div className={`px-4 py-3 flex flex-col gap-2.5 text-white ${isStale ? 'bg-amber-500' : 'bg-primary-600'}`}>
+                                        <div className={`px-4 py-3 flex flex-col gap-2.5 border-t transition-all ${
+                                            isStale 
+                                                ? 'bg-white text-slate-800 border-amber-100' 
+                                                : 'bg-primary-600 text-white border-primary-500'
+                                        }`}>
                                             <div className="flex items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-xs text-white/95 font-medium">Código de verificación</p>
-                                                    <p className="text-[10px] text-white/80">Muéstraselo al especialista al llegar</p>
+                                                    <p className={`text-xs font-semibold ${isStale ? 'text-slate-700' : 'text-white/95'}`}>Código de verificación</p>
+                                                    <p className={`text-[10px] ${isStale ? 'text-slate-400' : 'text-white/80'}`}>Muéstraselo al especialista al llegar</p>
                                                 </div>
-                                                <span className="font-mono text-xl font-black tracking-[0.2em] bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
+                                                <span className={`font-mono text-xl font-black tracking-[0.2em] px-3 py-1.5 rounded-lg border ${
+                                                    isStale 
+                                                        ? 'bg-amber-50/50 border-amber-200 text-amber-900 shadow-sm' 
+                                                        : 'bg-white/10 border-white/20 text-white'
+                                                }`}>
                                                     {apt.otpValidationCode}
                                                 </span>
                                             </div>
                                             {isStale && (
-                                                <div className="border-t border-white/25 pt-2.5 mt-0.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                                                    <span className="text-[11px] text-white font-semibold leading-normal">
+                                                <div className="border-t border-amber-100 pt-2.5 mt-0.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs bg-amber-50/50 -mx-4 -mb-3 p-3 mt-1.5 border-b-0 border-l-0 border-r-0 border">
+                                                    <span className="text-[11px] text-amber-900 font-medium leading-normal flex-1">
                                                         ⚠️ El horario de tu cita ya pasó sin atención. Puedes iniciar un Reclamo por inasistencia.
                                                     </span>
                                                     <Link 
-                                                        href="/dashboard/client/pending" 
-                                                        className="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm text-center shrink-0 w-fit active:scale-95 border border-amber-600/30"
+                                                        href={`/dashboard/client/pending?claim=${apt.id}`} 
+                                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-extrabold uppercase tracking-wider shadow-sm text-center shrink-0 w-fit active:scale-95 border border-amber-550/20 transition-all"
                                                     >
                                                         Iniciar Reclamo
                                                     </Link>

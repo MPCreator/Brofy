@@ -43,7 +43,7 @@ interface CarnetClientProps {
     timeline: TimelineEntry[]
 }
 
-type TabType = 'historial' | 'vacunas' | 'diagnosticos' | 'tratamientos'
+type TabType = 'historial' | 'prescripcion' | 'diagnosticos' | 'tratamientos'
 
 export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
     const [activeTab, setActiveTab] = useState<TabType>('historial')
@@ -51,14 +51,10 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
     // 1. Historial (All entries)
     const historyEntries = timeline
 
-    // 2. Vacunas (Deworming or vaccination events)
-    const vaccineEntries = timeline.filter(entry => 
-        entry.type === 'vaccination' || 
-        entry.type === 'deworming' ||
-        entry.description.toLowerCase().includes('vacuna') ||
-        entry.description.toLowerCase().includes('desparasit') ||
-        entry.notes?.toLowerCase().includes('vacuna') ||
-        entry.notes?.toLowerCase().includes('desparasit')
+    // 2. Prescripción (Prescriptions: medicines, vaccines, doses)
+    const prescriptionEntries = timeline.filter(entry => 
+        entry.notes || 
+        entry.recordData?.prescription
     )
 
     // 3. Diagnósticos (Entries with actual clinical diagnosis details)
@@ -69,19 +65,18 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
         (entry.description && entry.description !== 'Consulta' && entry.description !== 'Servicio')
     )
 
-    // 4. Tratamientos (Entries indicating active prescriptions, next controls or treatment details)
+    // 4. Tratamientos (Entries indicating active treatment details or next controls)
     const treatmentEntries = timeline.filter(entry => 
-        entry.notes || 
-        entry.recordData?.prescription || 
+        entry.treatment || 
         entry.recordData?.treatment || 
         entry.recordData?.nextVisit
     )
 
     const tabsList: Array<{ id: TabType; label: string; count: number; icon: any }> = [
         { id: 'historial', label: 'Historial', count: historyEntries.length, icon: Activity },
-        { id: 'vacunas', label: 'Vacunas', count: vaccineEntries.length, icon: Syringe },
+        { id: 'prescripcion', label: 'Prescripción', count: prescriptionEntries.length, icon: Pill },
         { id: 'diagnosticos', label: 'Diagnósticos', count: diagnosisEntries.length, icon: Stethoscope },
-        { id: 'tratamientos', label: 'Tratamientos', count: treatmentEntries.length, icon: Pill },
+        { id: 'tratamientos', label: 'Tratamiento', count: treatmentEntries.length, icon: FileText },
     ]
 
     return (
@@ -261,38 +256,36 @@ export default function CarnetClient({ pet, timeline }: CarnetClientProps) {
                     </div>
                 )}
 
-                {activeTab === 'vacunas' && (
+                {activeTab === 'prescripcion' && (
                     <div className="space-y-4">
                         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-xs text-slate-750 leading-relaxed shadow-sm">
-                            💡 <strong>¿Cómo se llena esta categoría?</strong> Aquí se muestran automáticamente las vacunas y desparasitaciones indicadas por tu especialista. Se clasifican aquí si el tipo de atención es vacunación/desparasitación, o si el diagnóstico u observaciones de la ficha contienen las palabras &quot;vacuna&quot; o &quot;desparasitar&quot;.
+                            💡 <strong>¿Cómo se llena esta categoría?</strong> Aquí se muestran las indicaciones, recetas y medicamentos (incluyendo dosis y vacunas) registrados en el campo de Prescripción de la ficha de atención.
                         </div>
-                        {vaccineEntries.length === 0 ? (
+                        {prescriptionEntries.length === 0 ? (
                             <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center">
-                                <Syringe className="w-12 h-12 text-slate-200 mx-auto mb-3 animate-bounce" />
-                                <p className="text-sm font-semibold text-slate-500">No hay vacunas registradas aún</p>
+                                <Pill className="w-12 h-12 text-slate-200 mx-auto mb-3 animate-bounce" />
+                                <p className="text-sm font-semibold text-slate-500">No hay prescripciones registradas aún</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {vaccineEntries.map((entry, idx) => (
+                                {prescriptionEntries.map((entry, idx) => (
                                     <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-4 flex gap-4 items-start shadow-sm">
                                         <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                            {entry.type === 'deworming' ? (
-                                                <Bug className="w-5 h-5 text-blue-600" />
-                                            ) : (
-                                                <Syringe className="w-5 h-5 text-blue-600" />
-                                            )}
+                                            <Pill className="w-5 h-5 text-blue-600" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start gap-2">
-                                                <h4 className="font-bold text-slate-900 text-sm">{entry.description}</h4>
+                                                <h4 className="font-bold text-slate-900 text-sm">
+                                                    {entry.notes || entry.description}
+                                                </h4>
                                                 <span className="text-xs text-slate-400 font-bold shrink-0">{formatDate(entry.date)}</span>
                                             </div>
                                             {entry.provider && (
                                                 <p className="text-xs text-slate-500 font-medium mt-0.5">Dr. {entry.provider}</p>
                                             )}
-                                            {entry.notes && (
+                                            {entry.notes && entry.notes !== entry.description && (
                                                 <p className="text-xs text-slate-655 mt-2 bg-slate-50 p-2 rounded-lg italic">
-                                                    {entry.notes}
+                                                    Atención: {entry.description}
                                                 </p>
                                             )}
                                         </div>

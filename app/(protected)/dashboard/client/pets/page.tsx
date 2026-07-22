@@ -38,7 +38,13 @@ export default function PetsPage() {
     const [photoPreview, setPhotoPreview] = useState<string | null>(null)
     const [photoBase64, setPhotoBase64] = useState<string | null>(null)
 
-    useEffect(() => { loadPets() }, [])
+    useEffect(() => {
+        loadPets()
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('add') === 'true') {
+            startAdd()
+        }
+    }, [])
 
     async function loadPets() {
         setLoading(true)
