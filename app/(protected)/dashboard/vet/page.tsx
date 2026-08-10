@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/utils'
 import { requireRole } from '@/lib/auth'
 import { getVetAppointments, getVetStats, getOpenFichas, getVetReminders, getMyEstablishments, getVetDebt, getVetAgendaStats } from '@/lib/actions'
 import { ProviderOnboarding } from '@/components/dashboard/ProviderOnboarding'
@@ -285,7 +286,7 @@ export default async function VetDashboard({
                                     const waitText = diffMins < 60 ? `${diffMins} min` : `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
                                     
                                     const scheduledText = apt.scheduledAt 
-                                        ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+                                        ? formatDateTime(apt.scheduledAt)
                                         : "—";
 
                                     return (

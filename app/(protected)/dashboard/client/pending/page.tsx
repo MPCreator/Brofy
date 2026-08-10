@@ -7,7 +7,7 @@ import {
     MessageSquare, Check, X, RefreshCw, AlertCircle, Sparkles, Phone, Award, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatPEN } from "@/lib/utils";
+import { formatPEN, formatDateTime } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ReviewForm } from "@/components/ui/review-form";
@@ -343,7 +343,7 @@ export default function ClientPendingPage() {
                                             </p>
                                             <p className="text-xs text-slate-500 flex items-center gap-1 mt-1 font-medium">
                                                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                                {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin hora"}
+                                                {apt.scheduledAt ? formatDateTime(apt.scheduledAt) : "Sin hora"}
                                             </p>
                                             {apt.establishment?.address && (
                                                 <a 
@@ -514,7 +514,7 @@ export default function ClientPendingPage() {
                                                 <Sparkles className="w-4 h-4 text-amber-600" /> El establecimiento propone reprogramar:
                                             </p>
                                             <div className="text-xs text-amber-900 space-y-1">
-                                                <p>📅 **Nuevo Horario:** {new Date(apt.rescheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                                                <p>📅 **Nuevo Horario:** {formatDateTime(apt.rescheduledAt)}</p>
                                                 {apt.notes && <p className="italic opacity-80 mt-1">&quot; {apt.notes.split("[Propuesta Reprog:")[1]?.replace("]", "") || apt.notes} &quot;</p>}
                                             </div>
                                             <div className="flex flex-col sm:flex-row gap-2 pt-1.5">
@@ -583,7 +583,7 @@ export default function ClientPendingPage() {
                                                 🐶 {apt.pet?.name} · {apt.serviceType}
                                             </p>
                                             <p className="text-[11px] text-slate-455 mt-1 font-medium">
-                                                {apt.scheduledAt ? new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sin hora'}
+                                                {apt.scheduledAt ? formatDateTime(apt.scheduledAt) : 'Sin hora'}
                                             </p>
                                         </div>
                                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusInfo?.color || 'text-slate-650 bg-slate-100'} shrink-0`}>
@@ -842,7 +842,7 @@ export default function ClientPendingPage() {
                         <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-left text-xs space-y-2 text-slate-700">
                             <p>🩺 **Establecimiento:** {successApt.establishment?.name}</p>
                             <p>🐕 **Mascota:** {successApt.pet?.name}</p>
-                            <p>📅 **Fecha y Hora:** {successApt.scheduledAt ? new Date(successApt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : "Sin hora"}</p>
+                            <p>📅 **Fecha y Hora:** {successApt.scheduledAt ? formatDateTime(successApt.scheduledAt) : "Sin hora"}</p>
                             <p>🏷️ **Servicio:** {successApt.serviceType}</p>
                         </div>
 

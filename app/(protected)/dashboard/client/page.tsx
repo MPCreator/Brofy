@@ -13,7 +13,7 @@ import {
     CalendarPlus,
     ShieldCheck,
 } from 'lucide-react'
-import { formatDate, formatPEN } from '@/lib/utils'
+import { formatDate, formatDateTime, formatPEN } from '@/lib/utils'
 import { APPOINTMENT_STATUS_LABELS, SPECIES_LABELS } from '@/lib/types'
 import { QuickRescheduleButton } from '@/components/dashboard/quick-reschedule'
 import { ClientRemindersList } from '@/components/dashboard/client-reminders'
@@ -51,92 +51,97 @@ export default async function ClientDashboard() {
                     Hola, {session.fullName.split(' ')[0]} 👋
                 </h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Gestiona la salud de tus mascotas
+                    Gestiona el cuidado y citas de tus mascotas
                 </p>
             </div>
 
-            {/* Quick Actions */}
-            <Link
-                href="/dashboard/discover"
-                className="flex items-center gap-4 p-5 bg-gradient-to-br from-primary-500 to-primary-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow"
-            >
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <CalendarPlus className="w-7 h-7" />
-                </div>
-                <div>
-                    <p className="font-bold text-base">Descubrir</p>
-                    <p className="text-sm opacity-80">Encuentra veterinarias y servicios cercanos</p>
-                </div>
-            </Link>
-            {/* Quick rebook — if user has a previous establishment */}
-            <QuickRescheduleButton />
-
-            {/* My Pets Preview */}
-            {pets.length > 0 && (
-                <section>
-                    <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-lg font-semibold text-slate-900">Mis Mascotas</h2>
-                        <Link href="/dashboard/client/pets" className="text-xs text-primary-600 font-medium flex items-center gap-1">
-                            Ver todas <ChevronRight className="w-3 h-3" />
-                        </Link>
-                    </div>
-                    <ClientPetsList pets={pets} speciesLabels={SPECIES_LABELS} />
-                </section>
-            )}
-
-            {/* Recordatorios y Controles */}
+            {/* Reminders section */}
             <ClientRemindersList initialReminders={reminders} />
 
-            {/* Citas Activas y Próximas */}
-            <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-primary-600" />
-                    Tus Próximas Citas
-                </h2>
+            {/* Quick Actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Link
+                    href="/dashboard/discover"
+                    className="p-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-2xl flex items-center justify-between shadow-lg shadow-primary-500/20 group transition-all"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                            <CalendarPlus className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm">Reservar Cita</p>
+                            <p className="text-xs text-primary-100 mt-0.5">Encuentra veterinarios y servicios</p>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-white/60 group-hover:translate-x-1 transition-transform" />
+                </Link>
+
+                <Link
+                    href="/dashboard/client/pets"
+                    className="p-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between group transition-all"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                            <PawPrint className="w-5 h-5 text-slate-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm text-slate-900">Mis Mascotas ({pets.length})</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Ver perfiles y carnets</p>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                </Link>
+            </div>
+
+            {/* Active / Upcoming Appointments */}
+            <div>
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary-600" /> Próximas Citas ({activeAppointments.length})
+                    </h2>
+                    <Link
+                        href="/dashboard/client/pending"
+                        className="text-xs font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                    >
+                        Ver todas <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
 
                 {activeAppointments.length === 0 ? (
-                    <div className="bg-white rounded-3xl border border-slate-100 p-8 text-center shadow-sm">
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200/60">
                         <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                        <p className="text-sm font-semibold text-slate-800">No tienes citas programadas</p>
-                        <p className="text-xs text-slate-400 mt-1">Busca y reserva servicios veterinarios para tus mascotas.</p>
-                        <Link
-                            href="/dashboard/discover"
-                            className="mt-3 inline-flex items-center gap-1 px-4 py-2 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-bold rounded-xl transition-all"
-                        >
-                            Buscar locales cercanos →
-                        </Link>
+                        <p className="text-sm font-medium text-slate-600">No tienes citas programadas</p>
+                        <p className="text-xs text-slate-400 mt-1">Busca un veterinario o servicio para agendar</p>
                     </div>
                 ) : (
                     <div className="space-y-3">
                         {activeAppointments.map((apt: any) => {
                             const statusInfo = APPOINTMENT_STATUS_LABELS[apt.status as keyof typeof APPOINTMENT_STATUS_LABELS]
-                            const isPaid = apt.status === 'paid'
+                            const isPaid = apt.status === 'paid' || apt.status === 'confirmed'
+                            const isStale = isPaid && apt.scheduledAt && (now - new Date(apt.scheduledAt).getTime() > 48 * 60 * 60 * 1000)
                             const appointmentTime = apt.scheduledAt ? new Date(apt.scheduledAt).getTime() : 0
-                            const LIMIT_MS = 48 * 60 * 60 * 1000 // 48 horas de límite
-                            const isStale = (apt.status === 'paid' || apt.status === 'confirmed') && (now - appointmentTime >= TOLERANCE_MS) && (now - appointmentTime <= LIMIT_MS)
+                            const isPastTolerance = appointmentTime > 0 && (now > appointmentTime + TOLERANCE_MS)
+                            const canClientClaim = isPaid && isPastTolerance
                             const isRescheduleProposed = apt.rescheduledAt !== null && apt.rescheduleProposedBy !== null
 
                             return (
                                 <div
                                     key={apt.id}
-                                    className={`rounded-2xl border overflow-hidden transition-all bg-white hover:shadow-card hover:border-slate-200 ${
-                                        isStale 
-                                            ? 'border-amber-350 bg-amber-50/5 shadow-sm' 
+                                    className={`p-4 rounded-2xl border transition-all ${
+                                        isStale
+                                            ? 'bg-amber-50/50 border-amber-200'
                                             : isRescheduleProposed
-                                                ? 'border-indigo-200 bg-indigo-50/10'
-                                                : isPaid 
-                                                    ? 'border-primary-100 shadow-sm shadow-primary-50/50' 
-                                                    : 'border-slate-100'
+                                                ? 'bg-amber-50 border-amber-300'
+                                                : 'bg-white border-slate-200'
                                     }`}
                                 >
-                                    {/* Card header */}
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                                                isStale
-                                                    ? 'bg-amber-100 text-amber-700'
-                                                    : isRescheduleProposed
-                                                        ? 'bg-indigo-100 text-indigo-700'
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="flex items-start sm:items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                                isStale 
+                                                    ? 'bg-amber-100 text-amber-700' 
+                                                    : isRescheduleProposed 
+                                                        ? 'bg-amber-100 text-amber-700' 
                                                         : isPaid 
                                                             ? 'bg-primary-50 text-primary-600' 
                                                             : 'bg-slate-50 text-slate-500'
@@ -157,7 +162,7 @@ export default async function ClientDashboard() {
                                                 </p>
                                                 <p className="text-xs text-slate-500 mt-0.5">
                                                     {(apt.pet as { name: string })?.name} · {apt.serviceType}
-                                                    {apt.scheduledAt && ` · ${new Date(apt.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                                                    {apt.scheduledAt && ` · ${formatDateTime(apt.scheduledAt)}`}
                                                 </p>
                                                 {apt.establishment?.address && (
                                                     <a 
@@ -244,7 +249,7 @@ export default async function ClientDashboard() {
                         })}
                     </div>
                 )}
-            </section>
+            </div>
         </div>
     )
 }

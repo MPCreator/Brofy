@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { createMedicalRecord } from '@/lib/actions'
-import { COMMON_SYMPTOMS, COMMON_DIAGNOSES, SPECIES_LABELS } from '@/lib/types'
+import { COMMON_SYMPTOMS, COMMON_DIAGNOSES, SPECIES_LABELS, SPECIES_OPTIONS } from '@/lib/types'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
     ClipboardList,

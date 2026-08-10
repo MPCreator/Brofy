@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Calendar, User, Phone, ArrowLeft, Loader2, AlertTriangle, HelpCircle } from 'lucide-react'
 import { LoadingState } from '@/components/ui/loading-state'
 import { getPeruLocalDateString, getTimezoneByCountry, getTimezoneOffsetString, getLocalLocalDateString } from '@/lib/utils'
+import { SPECIES_OPTIONS } from '@/lib/types'
 
 export default function CreateTurnPage() {
     const router = useRouter()
@@ -414,11 +415,11 @@ export default function CreateTurnPage() {
                             <select
                                 value={guestPetSpecies}
                                 onChange={e => setGuestPetSpecies(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold text-slate-700"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold text-slate-700 cursor-pointer"
                             >
-                                <option value="dog">🐕 Perro</option>
-                                <option value="cat">🐈 Gato</option>
-                                <option value="other">🐾 Otro</option>
+                                {SPECIES_OPTIONS.map(s => (
+                                    <option key={s.value} value={s.value}>{s.label}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

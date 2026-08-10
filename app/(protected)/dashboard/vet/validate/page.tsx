@@ -182,7 +182,7 @@ function ValidarCodigoPageContent() {
             const petName = aptToReport?.pet?.name || 'la mascota'
             const scheduledAt = aptToReport?.scheduledAt
             const formattedSched = scheduledAt
-                ? new Date(scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+                ? formatDateTime(scheduledAt)
                 : 'la hora acordada'
 
             const res = await reportClientNoShow(reportId)
@@ -397,7 +397,7 @@ function ValidarCodigoPageContent() {
                                                     </span>
                                                     <span className={`font-bold ${isOverdue ? 'text-red-700' : 'text-slate-700'}`}>
                                                         {apt.scheduledAt 
-                                                            ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+                                                            ? formatDateTime(apt.scheduledAt)
                                                             : "Atención Presencial"
                                                         }
                                                     </span>
@@ -515,7 +515,7 @@ function ValidarCodigoPageContent() {
                                                     </span>
                                                     <span className="font-bold text-slate-600">
                                                         {apt.scheduledAt 
-                                                            ? new Date(apt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+                                                            ? formatDateTime(apt.scheduledAt)
                                                             : "Atención Presencial"
                                                         }
                                                     </span>
@@ -794,7 +794,7 @@ function ValidarCodigoPageContent() {
                 const reportApt = appointments.find(a => a.id === reportId);
                 const reportPetName = reportApt?.pet?.name || 'la mascota';
                 const reportSched = reportApt?.scheduledAt
-                    ? new Date(reportApt.scheduledAt).toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+                    ? formatDateTime(reportApt.scheduledAt)
                     : 'la hora acordada';
 
                 return showConfirmModal && (

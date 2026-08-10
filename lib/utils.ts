@@ -56,20 +56,22 @@ export function formatDate(date: Date | string): string {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
+        timeZone: 'America/Lima',
     });
 }
 
 /**
- * Formatea fecha y hora
+ * Formatea fecha y hora en zona horaria de Perú
  */
 export function formatDateTime(date: Date | string): string {
     const d = typeof date === 'string' ? new Date(date) : date;
     return d.toLocaleDateString('es-PE', {
         day: 'numeric',
         month: 'short',
-        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
+        timeZone: 'America/Lima',
     });
 }
 
