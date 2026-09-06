@@ -394,16 +394,18 @@ export default function ClientPendingPage() {
                                                 <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Desglose de Tarifas</p>
                                                 <div className="space-y-1 text-slate-600">
                                                     <div className="flex justify-between">
-                                                        <span>Reserva pagada en app:</span>
-                                                        <span className="font-bold text-slate-800">S/ {apt.commissionAmount.toFixed(2)}</span>
+                                                        <span>Servicio a abonar en local:</span>
+                                                        <span className="font-bold text-primary-600">S/ {apt.totalServicePrice.toFixed(2)}</span>
                                                     </div>
                                                     <div className="flex justify-between">
-                                                        <span>Saldo a pagar en local:</span>
-                                                        <span className="font-bold text-primary-600">S/ {(apt.totalServicePrice - apt.commissionAmount).toFixed(2)}</span>
+                                                        <span>Agendamiento en app (pagado):</span>
+                                                        <span className="font-bold text-slate-800">
+                                                            {apt.commissionAmount > 0 ? `S/ ${apt.commissionAmount.toFixed(2)}` : 'S/ 0.00 (Gratis)'}
+                                                        </span>
                                                     </div>
                                                     <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 font-bold text-slate-900">
-                                                        <span>Precio Total:</span>
-                                                        <span>S/ {apt.totalServicePrice.toFixed(2)}</span>
+                                                        <span>Total Cita:</span>
+                                                        <span>S/ {(apt.totalServicePrice + apt.commissionAmount).toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -619,16 +621,18 @@ export default function ClientPendingPage() {
                                                 <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider">Desglose de Tarifas</p>
                                                 <div className="space-y-1 text-slate-600">
                                                     <div className="flex justify-between">
-                                                        <span>Reserva pagada en app:</span>
-                                                        <span className="font-bold text-slate-800">S/ {apt.commissionAmount.toFixed(2)}</span>
+                                                        <span>Servicio a abonar en local:</span>
+                                                        <span className="font-bold text-primary-600">S/ {apt.totalServicePrice.toFixed(2)}</span>
                                                     </div>
                                                     <div className="flex justify-between">
-                                                        <span>Saldo a pagar en local:</span>
-                                                        <span className="font-bold text-primary-600">S/ {(apt.totalServicePrice - apt.commissionAmount).toFixed(2)}</span>
+                                                        <span>Agendamiento en app (pagado):</span>
+                                                        <span className="font-bold text-slate-800">
+                                                            {apt.commissionAmount > 0 ? `S/ ${apt.commissionAmount.toFixed(2)}` : 'S/ 0.00 (Gratis)'}
+                                                        </span>
                                                     </div>
                                                     <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 font-bold text-slate-900">
-                                                        <span>Precio Total:</span>
-                                                        <span>S/ {apt.totalServicePrice.toFixed(2)}</span>
+                                                        <span>Total Cita:</span>
+                                                        <span>S/ {(apt.totalServicePrice + apt.commissionAmount).toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                             </div>

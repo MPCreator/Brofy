@@ -129,11 +129,13 @@ function FastEntryPageContent() {
         async function loadExistingRecord() {
             setLoadingRecord(true)
             try {
-                const { getMyRole, getAppointmentForVet, getProfile, getVetDebt } = await import('@/lib/actions')
+                const { getMyRole, getAppointmentForVet, getProfile, getVetDebt, getMarchaBlancaSetting } = await import('@/lib/actions')
                 const userRole = await getMyRole()
                 const res = await getAppointmentForVet(appointmentId)
                 const userProfile = await getProfile()
                 const userDebt = await getVetDebt()
+                const mbSetting = await getMarchaBlancaSetting()
+                setIsMarchaBlanca(mbSetting.isActive)
                 setRole(userRole)
                 setProfile(userProfile)
                 setDebt(userDebt)
@@ -524,15 +526,25 @@ function FastEntryPageContent() {
                 </h1>
             </div>
 
-            {!loadingInitial && !isMarchaBlanca && (
-                <div className="bg-amber-100/50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 flex gap-2 items-start">
-                    <span>⚠️</span>
-                    <div>
-                        <span className="font-semibold block">Aviso de Comisión:</span>
-                        <span className="opacity-90">Por favor, recuerda adicionar <strong>S/ 6.00</strong> al total cobrado al cliente. Brofy registrará esta comisión en tus deudas.</span>
-                    </div>
-                </div>
-            )}
+            {(() => {
+                const showManualCommissionWarning = !loadingInitial && !loadingRecord && !isMarchaBlanca && (
+                    !appointmentId || (appointmentData && appointmentData.commissionType === 'walkin' && appointmentData.paymentId === 'DEBT')
+                )
+
+                if (showManualCommissionWarning) {
+                    return (
+                        <div className="bg-amber-100/50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 flex gap-2 items-start">
+                            <span>⚠️</span>
+                            <div>
+                                <span className="font-semibold block">Aviso de Comisión (Ingreso Manual):</span>
+                                <span className="opacity-90">Por favor, recuerda adicionar <strong>S/ 6.00</strong> al total cobrado al cliente. Brofy registrará esta comisión en tus deudas.</span>
+                            </div>
+                        </div>
+                    )
+                }
+
+                return null
+            })()}
 
             {isEditable && recordCreatedAt && (
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl p-4 text-xs font-bold flex items-center gap-2.5 shadow-sm">
